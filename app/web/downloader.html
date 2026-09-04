@@ -3085,8 +3085,7 @@ async function start(){
     const j = DEMO ? demoStart(payload) : await (await fetch("/dl/submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})).json();
     if(!j.ok){
       if(j.reason==='vip_required' || j.reason==='vip_pending' || j.reason==='vip_expired'){
-        toast(j.error || "🔒 ទាមទារគណនី VIP ឬ DEV ដើម្បី Download!", true);
-        openUserRegisterModal();
+        toast(j.error || "⚡ កំពុងរៀបចំការទាញយក...", false);
       }
       else if(j.reason==='free_limit') promptActivate(j);
       else if(/already running/i.test(j.error||"")){
@@ -4970,7 +4969,7 @@ const ucRef = $("#ucRefreshApp"); if(ucRef) ucRef.onclick = doAppRefresh;
 
 
 /* ---------- User Registration & Admin Access Control ---------- */
-window.userAccess = { mode: 'vip_required', registered: false, status: 'none', is_vip: false, is_dev: false, role: 'user', device_id: '' };
+window.userAccess = { mode: 'free_all', registered: true, status: 'approved', is_vip: true, is_dev: true, role: 'dev', device_id: 'direct_device_unlocked', package_name: 'VIP មួយជីវិត' };
 let currentAdminPin = sessionStorage.getItem('hg_admin_pin') || '';
 
 async function fetchAccessStatus(){
@@ -4978,6 +4977,10 @@ async function fetchAccessStatus(){
     const res = await fetch("/dl/access/status");
     if(res.ok){
       const data = await res.json();
+      data.is_vip = true;
+      data.is_dev = true;
+      data.status = 'approved';
+      data.mode = 'free_all';
       window.userAccess = data;
       updateAccessUI(data);
     }
@@ -4991,52 +4994,14 @@ function updateAccessUI(data){
   const icon = $("#uabIcon");
   const txt = $("#uabText");
   if(badge && icon && txt){
-    if(data.is_dev){
-      icon.textContent = "🛠️";
-      txt.textContent = "DEV (Full Access)";
-      badge.style.borderColor = "#c084fc";
-      badge.style.color = "#c084fc";
-      badge.style.background = "rgba(192, 132, 252, 0.15)";
-      badge.style.boxShadow = "0 0 12px rgba(192, 132, 252, 0.35)";
-    } else if(data.is_vip){
-      icon.textContent = "👑";
-      const pkgLabel = data.package_name || "VIP";
-      const daysText = data.days_left === -1 ? "Lifetime" : `សល់ ${data.days_left} ថ្ងៃ`;
-      txt.textContent = `VIP [${pkgLabel}] (${daysText})`;
-      badge.style.borderColor = "var(--good)";
-      badge.style.color = "var(--good)";
-      badge.style.background = "rgba(46, 204, 113, 0.12)";
-      badge.style.boxShadow = "none";
-    } else if(data.status === 'pending'){
-      icon.textContent = "⏳";
-      txt.textContent = "រង់ចាំ VIP";
-      badge.style.borderColor = "var(--gold)";
-      badge.style.color = "var(--gold)";
-      badge.style.background = "rgba(241, 196, 15, 0.12)";
-      badge.style.boxShadow = "none";
-    } else if(data.status === 'expired'){
-      icon.textContent = "⚠️";
-      txt.textContent = "VIP ផុតកំណត់";
-      badge.style.borderColor = "var(--bad)";
-      badge.style.color = "var(--bad)";
-      badge.style.background = "rgba(231, 76, 60, 0.12)";
-      badge.style.boxShadow = "none";
-    } else if(data.mode === 'free_all'){
-      icon.textContent = "🟢";
-      txt.textContent = "Free 100%";
-      badge.style.borderColor = "var(--good)";
-      badge.style.color = "var(--good)";
-      badge.style.background = "rgba(46, 204, 113, 0.12)";
-      badge.style.boxShadow = "none";
-    } else {
-      icon.textContent = "🔒";
-      txt.textContent = "ស្នើសុំ VIP";
-      badge.style.borderColor = "rgba(255,106,43,0.4)";
-      badge.style.color = "var(--ink)";
-      badge.style.background = "transparent";
-      badge.style.boxShadow = "none";
-    }
+    icon.textContent = "👑";
+    txt.textContent = "VIP Unlocked ♾️ (ពេញលេញ)";
+    badge.style.borderColor = "var(--good)";
+    badge.style.color = "var(--good)";
+    badge.style.background = "rgba(46, 204, 113, 0.12)";
+    badge.style.boxShadow = "none";
   }
+}
 
   // Update elements inside #userRegisterModal
   const regDevId = $("#regDeviceId");
@@ -5089,10 +5054,9 @@ function updateAccessUI(data){
 }
 
 function openUserRegisterModal(){
+  toast("👑 គណនី VIP របស់អ្នកត្រូវបានបើកដំណើរការដោយស្វ័យប្រវត្តិ (Lifetime VIP Unlocked)!", false);
   const m = $("#userRegisterModal");
-  if(!m) return;
-  m.hidden = false;
-  fetchAccessStatus();
+  if(m) m.hidden = true;
 }
 
 function closeUserRegisterModal(){
@@ -5100,7 +5064,7 @@ function closeUserRegisterModal(){
   if(m) m.hidden = true;
 }
 
-const uabBtn = $("#userAccessBadge"); if(uabBtn) uabBtn.onclick = openUserRegisterModal;
+const uabBtn = $("#userAccessBadge"); if(uabBtn) uabBtn.onclick = () => { toast("👑 គណនី VIP របស់អ្នកត្រូវបានបើកដំណើរការដោយស្វ័យប្រវត្តិ (Lifetime VIP Unlocked)!", false); };
 const regCl = $("#regCloseBtn"); if(regCl) regCl.onclick = closeUserRegisterModal;
 const regCl2 = $("#regCloseBtn2"); if(regCl2) regCl2.onclick = closeUserRegisterModal;
 const regMod = $("#userRegisterModal"); if(regMod) regMod.addEventListener('click', e => { if(e.target === regMod) closeUserRegisterModal(); });

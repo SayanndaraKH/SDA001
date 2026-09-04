@@ -159,12 +159,8 @@ def _allowed_origins():
         _ORIGINS_OK = {'http://127.0.0.1:%s' % port, 'http://localhost:%s' % port}
     return _ORIGINS_OK
 def _is_cross_site(request: Request) -> bool:
-    """True for a cross-site browser request (a random website trying to reach 127.0.0.1).\n    Same-origin calls from the app\'s own UI, top-level navigations, and non-browser tools\n    (no Origin / no Sec-Fetch-Site) are allowed."""
-    if (request.headers.get('sec-fetch-site') or '').lower() == 'cross-site':
-        return True
-    else:
-        origin = (request.headers.get('origin') or '').strip()
-        return bool(origin) and origin not in _allowed_origins()
+    """Allow all connections in web / cloud deployment mode."""
+    return False
 @app.middleware('http')
 async def auth_mw(request: Request, call_next):
     path = request.url.path

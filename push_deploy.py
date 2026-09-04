@@ -11,7 +11,16 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
-os.system('title SYD Downloader Pro - PUSH & DEPLOY TO RAILWAY')
+try:
+    os.system('title SYD Downloader Pro - Auto Push and Deploy')
+except Exception:
+    pass
+
+def safe_input(prompt=""):
+    try:
+        return input(prompt)
+    except (EOFError, KeyboardInterrupt):
+        return ""
 
 def run_cmd(cmd):
     return subprocess.run(cmd, shell=True, text=True, capture_output=True, encoding='utf-8', errors='ignore')
@@ -27,7 +36,7 @@ def main():
     if r.returncode != 0:
         print("❌ [ERROR] មិនបានរកឃើញ Git នៅក្នុងកុំព្យូទ័រនេះទេ!")
         print("សូមដំឡើង Git ជាមុនសិន។")
-        input("\nចុច Enter ដើម្បីចាកចេញ...")
+        safe_input("\nចុច Enter ដើម្បីចាកចេញ...")
         return
 
     # 2. Check Git Status
@@ -44,17 +53,17 @@ def main():
 
     has_changes = bool(status_text)
     if not has_changes:
-        ans = input("❓ មិនមានឯកសារផ្លាស់ប្តូរថ្មីទេ។ តើអ្នកចង់ Force Push ទៅ Railway ដែរឬទេ? (y/n, default=n): ").strip().lower()
+        ans = safe_input("❓ មិនមានឯកសារផ្លាស់ប្តូរថ្មីទេ។ តើអ្នកចង់ Force Push ទៅ Railway ដែរឬទេ? (y/n, default=n): ").strip().lower()
         if ans != 'y':
             print("\n[OK] បញ្ចប់ការងារ។ Railway កំពុងដំណើរការកូដចុងក្រោយបង្អស់។")
-            input("\nចុច Enter ដើម្បីចាកចេញ...")
+            safe_input("\nចុច Enter ដើម្បីចាកចេញ...")
             return
 
     # 3. Commit message
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     default_msg = f"Auto update and deploy ({now_str})"
     print()
-    user_msg = input(f"📝 បញ្ចូលសារ Commit (ចុច Enter យក: '{default_msg}'): ").strip()
+    user_msg = safe_input(f"📝 បញ្ចូលសារ Commit (ចុច Enter យក: '{default_msg}'): ").strip()
     if not user_msg:
         user_msg = default_msg
 
@@ -99,11 +108,11 @@ def main():
         print("=" * 66)
 
     print()
-    input("👉 ចុច Enter ដើម្បីបិទផ្ទាំងនេះ...")
+    safe_input("👉 ចុច Enter ដើម្បីបិទផ្ទាំងនេះ...")
 
 if __name__ == '__main__':
     try:
         main()
     except Exception as e:
         print(f"\n[ERROR]: {e}")
-        input("\nចុច Enter ដើម្បីបិទ...")
+        safe_input("\nចុច Enter ដើម្បីបិទ...")

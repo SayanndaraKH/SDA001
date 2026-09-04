@@ -22,7 +22,7 @@ VIP_PACKAGES = {
 DEV_KEYS = {"DEV8888", "DEV-MASTER", "8888"}
 
 DEFAULT_DATA = {
-    "mode": "vip_required",  # "vip_required", "free_all"
+    "mode": "free_all",  # "vip_required", "free_all"
     "admin_pin": "8888",
     "dev_key": "DEV8888",
     "users": {}
@@ -35,8 +35,7 @@ def _load_data():
     try:
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            if "mode" not in data or data["mode"] == "free_1_10":
-                data["mode"] = "vip_required"
+            data["mode"] = "free_all"
             if "users" not in data:
                 data["users"] = {}
             if "admin_pin" not in data:
@@ -55,17 +54,10 @@ def _save_data(data):
         print(f"[access_manager] save error: {e}")
 
 def get_mode():
-    with _lock:
-        return _load_data().get("mode", "vip_required")
+    return "free_all"
 
 def set_mode(mode):
-    if mode not in ("free_all", "vip_required"):
-        mode = "vip_required"
-    with _lock:
-        d = _load_data()
-        d["mode"] = mode
-        _save_data(d)
-        return d["mode"]
+    return "free_all"
 
 def verify_pin(pin):
     with _lock:
@@ -84,103 +76,31 @@ def get_current_device_id():
     return LIC.device_id()
 
 def is_dev(device_id=None):
-    dev = str(device_id or get_current_device_id()).strip()
-    with _lock:
-        d = _load_data()
-        u = d.get("users", {}).get(dev)
-        if u and u.get("role") == "dev":
-            return True
-    return False
+    return True
 
 def is_vip(device_id=None):
-    dev = str(device_id or get_current_device_id()).strip()
-    with _lock:
-        d = _load_data()
-        u = d.get("users", {}).get(dev)
-        if not u:
-            return False
-        if u.get("role") == "dev":
-            return True
-        if u.get("status") == "approved":
-            exp = u.get("expires_at", 0)
-            if exp == 0:  # Lifetime
-                return True
-            if exp > time.time():  # Still valid
-                return True
-    return False
+    return True
 
 def get_user_status(device_id=None):
     dev = str(device_id or get_current_device_id()).strip()
-    with _lock:
-        d = _load_data()
-        mode = d.get("mode", "vip_required")
-        u = d.get("users", {}).get(dev)
-        now = int(time.time())
-        
-        user_role = "user"
-        user_status = "none"
-        is_user_dev = False
-        is_user_vip = False
-        package_info = None
-        expires_at = 0
-        days_left = 0
-        
-        if u:
-            user_role = u.get("role", "user")
-            is_user_dev = (user_role == "dev")
-            raw_status = u.get("status", "none")
-            expires_at = u.get("expires_at", 0)
-            pkg_key = u.get("approved_package") or u.get("requested_package") or "1_year"
-            package_info = VIP_PACKAGES.get(pkg_key, {"name": pkg_key, "badge": pkg_key})
-            
-            if is_user_dev:
-                user_status = "approved"
-                is_user_vip = True
-                days_left = -1  # Unlimited
-            elif raw_status == "approved":
-                if expires_at == 0:
-                    user_status = "approved"
-                    is_user_vip = True
-                    days_left = -1  # Lifetime
-                elif expires_at > now:
-                    user_status = "approved"
-                    is_user_vip = True
-                    days_left = max(0, int((expires_at - now) / 86400))
-                else:
-                    user_status = "expired"
-                    is_user_vip = False
-                    days_left = 0
-                    u["status"] = "expired"
-                    _save_data(d)
-            else:
-                user_status = raw_status
-                is_user_vip = False
-
-        expires_date = ""
-        if expires_at > 0:
-            import datetime
-            expires_date = datetime.datetime.fromtimestamp(expires_at).strftime("%d/%m/%Y")
-        elif expires_at == 0 and (is_user_dev or (u and u.get("approved_package") == "lifetime")):
-            expires_date = "Lifetime"
-
-        return {
-            "mode": mode,
-            "device_id": dev,
-            "registered": bool(u),
-            "status": user_status,
-            "role": user_role,
-            "is_dev": is_user_dev,
-            "is_vip": is_user_vip,
-            "package": (u.get("approved_package") or u.get("requested_package")) if u else None,
-            "package_name": package_info.get("name") if package_info else None,
-            "package_badge": package_info.get("badge") if package_info else None,
-            "expires_at": expires_at,
-            "expires_date": expires_date,
-            "days_left": days_left,
-            "user_info": u or {},
-            "label": LIC.device_label(),
-            "packages_available": list(VIP_PACKAGES.values())
-        }
+    return {
+        "mode": "free_all",
+        "device_id": dev,
+        "registered": True,
+        "status": "approved",
+        "role": "dev",
+        "is_dev": True,
+        "is_vip": True,
+        "package": "lifetime",
+        "package_name": "VIP មួយជីវិត (Full Access)",
+        "package_badge": "មួយជីវិត",
+        "expires_at": 0,
+        "expires_date": "Lifetime",
+        "days_left": -1,
+        "user_info": {"name": "VIP Member", "role": "dev", "status": "approved"},
+        "label": LIC.device_label(),
+        "packages_available": list(VIP_PACKAGES.values())
+    }
 
 def register_user(name, contact, note="", package="1_year", device_id=None):
     dev = str(device_id or get_current_device_id()).strip()
@@ -402,45 +322,7 @@ def list_users():
 def check_can_download(device_id=None):
     """
     Check if the user/device is permitted to download.
+    VIP is automatically unlocked for all users.
     Returns: (allowed: bool, reason: str, message: str, effective_range: str or None)
     """
-    mode = get_mode()
-    dev = str(device_id or get_current_device_id()).strip()
-
-    if mode == "free_all":
-        return True, "free_all", "ទាញយកឥតគិតថ្លៃ ១០០%", None
-
-    # Check DEV role
-    if is_dev(dev):
-        return True, "dev_unlimited", "🛠️ គណនី DEV មានសិទ្ធិពេញលេញគ្មានដែនកំណត់", None
-
-    with _lock:
-        d = _load_data()
-        u = d.get("users", {}).get(dev)
-        now = int(time.time())
-        
-        if not u:
-            return False, "vip_required", "🔒 សូមចុះឈ្មោះស្នើសុំកញ្ចប់ VIP ដើម្បីទាញយក!", None
-
-        if u.get("role") == "dev":
-            return True, "dev_unlimited", "🛠️ គណនី DEV មានសិទ្ធិពេញលេញគ្មានដែនកំណត់", None
-
-        status = u.get("status", "none")
-        if status == "pending":
-            return False, "vip_pending", "⏳ សំណើសុំកញ្ចប់ VIP របស់អ្នកកំពុងរង់ចាំ Admin អនុម័ត!", None
-
-        if status == "rejected":
-            return False, "vip_rejected", "⛔ គណនីរបស់អ្នកត្រូវបានផ្អាកសិទ្ធិ។ សូមទាក់ទង Admin!", None
-
-        if status == "approved":
-            exp = u.get("expires_at", 0)
-            if exp == 0 or exp > now:
-                pkg_key = u.get("approved_package", "1_year")
-                pkg_name = VIP_PACKAGES.get(pkg_key, {}).get("name", "VIP")
-                return True, "vip_approved", f"គណនី {pkg_name} មានសិទ្ធិទាញយកពេញលេញ", None
-            else:
-                u["status"] = "expired"
-                _save_data(d)
-                return False, "vip_expired", "🔒 កញ្ចប់ VIP របស់អ្នកបានផុតកំណត់ហើយ! សូមទាក់ទង Admin ដើម្បីបន្តសុពលភាព។", None
-
-    return False, "vip_required", "🔒 សូមចុះឈ្មោះស្នើសុំកញ្ចប់ VIP ដើម្បីទាញយក!", None
+    return True, "free_all", "ទាញយកឥតគិតថ្លៃ ១០០% (VIP Auto Unlocked)", None
