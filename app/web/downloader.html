@@ -1937,9 +1937,8 @@ const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<
 let cart = {};                 // { id: {title, total, cover} }
 let lastStatus = { running:false, series:[], log:[] };
 let DEMO = false;
-// Demo/preview data is ONLY for the offline artifact preview (file:// or claude.ai).
-// On the real app (served from localhost) never fall back to fake data — retry the backend.
-const ALLOW_DEMO = !/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+// Always use real backend and real data whether running on localhost, Docker, or Railway
+const ALLOW_DEMO = false;
 
 try { cart = JSON.parse(localStorage.getItem("hg-cart")||"{}") || {}; } catch(e){ cart = {}; }
 const saveCart = () => { const c={}; for(const k in cart){ if(!(cart[k]&&cart[k].unavailable)) c[k]=cart[k]; } localStorage.setItem("hg-cart", JSON.stringify(c)); };  // #4: don't persist "unavailable" placeholders
@@ -2582,6 +2581,17 @@ async function loadExplorer(page){
     renderCircularPagination($("#explorerPager"), j.page, j.pages, (pg) => loadExplorer(pg));
   }catch(e){
     if(seq!==exSeq || currentTab !== "explorer") return;
+    try{
+      const fb = await (await fetch("/dl/rank?board=recommend&size=100", {cache:"no-store"})).json();
+      if(fb && fb.results && fb.results.length > 0 && currentTab === "explorer"){
+        const res = fb.results;
+        currentExplorerItems = res;
+        box.innerHTML = resultCards(applyDateSort(res), false); syncResultButtons();
+        autoTranslateCatalog(res);
+        $("#resCount").textContent = "· " + res.length;
+        return;
+      }
+    }catch(err2){}
     $("#explorerPager").hidden=true;
     box.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="big" style="font-family:\'Khmer OS Battambang\',sans-serif">មិនអាចភ្ជាប់ទៅកាន់កាតាឡុកបានទេ</div><div class="sm" style="font-family:\'Khmer OS Battambang\',sans-serif">សូមពិនិត្យមើលការភ្ជាប់អ៊ីនធឺណិតរបស់អ្នក។</div></div>';
   }
