@@ -181,8 +181,10 @@ def remux_playable(in_path, out_path):
     """剥离 CENC 信令(encv→hvc1 / enca→mp4a, 中和 senc/sinf/saiz/saio), 使严格播放器可播且有声音。\n    优先 ffmpeg(-c copy 不重编码); 无 ffmpeg 则纯 Python strip_cenc(等长改名, 同样有效)。"""
     ff = shutil.which('ffmpeg')
     if ff:
-        _flags = 134217728 if sys.platform.startswith('win') else 0
-        r = subprocess.run([ff, '-y', '-loglevel', 'error', '-i', in_path, '-c', 'copy', '-tag:v', 'hvc1', out_path], capture_output=True, text=True, creationflags=_flags)
+        kws = {'capture_output': True, 'text': True}
+        if sys.platform.startswith('win'):
+            kws['creationflags'] = 134217728
+        r = subprocess.run([ff, '-y', '-loglevel', 'error', '-i', in_path, '-c', 'copy', '-tag:v', 'hvc1', out_path], **kws)
         if r.returncode == 0 and os.path.exists(out_path):
             return out_path
         else:

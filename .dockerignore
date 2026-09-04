@@ -1,0 +1,14 @@
+python/
+jre/
+dist/
+build/
+*.exe
+unins000.*
+app/downloads/
+.stream_cache/
+*.mp4
+*.ts
+*.prev*
+*.bak
+.git/
+.agents/

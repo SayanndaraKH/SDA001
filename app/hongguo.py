@@ -137,6 +137,9 @@ def _ensure_signer(port=9099):
     ]
     java = next((c for c in cands if c and os.path.isfile(c)), None)
     if java and os.path.isfile(jar):
+        popen_kwargs = {'cwd': os.path.dirname(jar)}
+        if sys.platform == 'win32':
+            popen_kwargs['creationflags'] = 0x08000000
         subprocess.Popen([
             java,
             '-Xmx512m',
@@ -144,7 +147,7 @@ def _ensure_signer(port=9099):
             '--add-opens', 'java.base/java.lang=ALL-UNNAMED',
             '-cp', 'unidbg-sign.jar',
             'com.hongguo.sign.FqTrace', 'serve', str(port)
-        ], cwd=os.path.dirname(jar), creationflags=0x08000000)
+        ], **popen_kwargs)
         t0 = time.time()
         while time.time() - t0 < 15:
             time.sleep(0.5)
