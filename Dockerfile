@@ -10,14 +10,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HG_LICENSE_DISABLED=1
 
 # Install system dependencies:
-# - openjdk-17-jre-headless: required for unidbg-sign.jar (Android ARM/x86 native library simulation)
+# - default-jre-headless: required for unidbg-sign.jar (Android ARM/x86 native library simulation)
 # - ffmpeg: required for video remuxing and PyAV
-# - curl & netcat: for healthcheck and connection tests
+# - curl: for healthchecks
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openjdk-17-jre-headless \
+    default-jre-headless \
     ffmpeg \
     curl \
-    netcat-traditional \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

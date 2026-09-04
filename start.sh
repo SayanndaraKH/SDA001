@@ -20,7 +20,7 @@ cd /app
 echo "[*] Verifying signer readiness..."
 READY=0
 for i in $(seq 1 30); do
-    if nc -z 127.0.0.1 9099 2>/dev/null; then
+    if python -c "import socket; s = socket.socket(); s.settimeout(0.5); exit(0 if s.connect_ex(('127.0.0.1', 9099)) == 0 else 1)" 2>/dev/null; then
         echo "[+] Signer is ready and listening on 127.0.0.1:9099!"
         READY=1
         break
