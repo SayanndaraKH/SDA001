@@ -526,6 +526,10 @@
   .dd-epchip-item.active-playing{ background:#ff2e63 !important; color:#ffffff !important; border-color:#ff2e63 !important; box-shadow:0 4px 14px rgba(255,46,99,0.52) !important; transform:scale(1.04); font-weight:800; }
   /* Selected for batch download */
   .dd-epchip-item.selected-for-dl{ background:linear-gradient(120deg,var(--accent),var(--accent-2)) !important; color:#fff !important; border-color:transparent !important; box-shadow:0 3px 10px -2px var(--glow); }
+  /* Locked VIP Episode (episodes 11+ for regular/guest users) */
+  .dd-epchip-item.locked-vip{ opacity:0.75; background:rgba(255,46,99,0.07) !important; border-color:rgba(255,46,99,0.32) !important; color:var(--muted) !important; cursor:pointer; position:relative; }
+  .dd-epchip-item.locked-vip::after{ content:" 🔒"; font-size:10px; margin-left:2px; }
+  .dd-epchip-item.locked-vip:hover{ opacity:1; border-color:var(--accent) !important; color:var(--accent) !important; background:rgba(255,106,43,0.15) !important; transform:translateY(-1px); }
   .dd-big-play-btn{ transition:transform .18s ease; }
   .dd-big-play-btn:hover{ transform:scale(1.1); }
 
@@ -893,11 +897,15 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn ghost sm" id="acctBtn" hidden title="Your license">Account</button>
-      <button class="btn ghost sm" id="userAccessBadge" style="border-radius:20px;font-weight:800;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-color:rgba(255,106,43,0.4);color:var(--ink)" title="ស្ថានភាពគណនី / ចុះឈ្មោះស្នើសុំ VIP">
-        <span id="uabIcon">👑</span> <span id="uabText">VIP Access</span>
+      <button class="btn ghost sm" id="userAccessBadge" style="border-radius:20px;font-weight:800;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-color:rgba(255,106,43,0.4);color:var(--ink)" title="ស្ថានភាពគណនី / ចូលគណនី">
+        <span id="uabIcon">👤</span> <span id="uabText">ចូលគណនី / ចុះឈ្មោះ</span>
+      </button>
+      <button class="btn primary sm" id="topReqVipBtn" style="border-radius:20px;font-weight:800;font-size:12px;display:none;align-items:center;gap:5px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 10px rgba(255,106,43,0.3)" title="ស្នើសុំកញ្ចប់ VIP ដើម្បីទស្សនាគ្រប់ភាគ">
+        <span>👑 ស្នើសុំ VIP</span>
       </button>
       <button class="btn ghost sm" id="topRefreshBtn" title="Refresh library and queue">🔄 Refresh</button>
-      <button class="btn ghost sm" id="topUserCtrlBtn" title="User Management & Control Panel">👤 User Control</button>
+      <button class="btn ghost sm" id="topUserCtrlBtn" title="User Management & Control Panel (Admin)" style="display:none;font-weight:700;border-color:rgba(192,132,252,0.5);color:#c084fc">🛡️ User Control</button>
+      <button class="btn ghost sm" id="topLogoutBtn" title="ចាកចេញពីគណនី" style="display:none;border-radius:20px;font-size:11.5px;color:var(--muted)">🚪 ចាកចេញ</button>
       <button class="iconbtn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">☾</button>
     </div>
   </div>
@@ -1582,105 +1590,206 @@
   </div>
 </div>
 
-<!-- User Registration / VIP & DEV Portal Modal -->
+<!-- User Registration / Login & VIP Portal Modal -->
 <div class="modal" id="userRegisterModal" hidden style="z-index:115;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px)">
   <div class="modal-card" style="max-width:540px;width:95vw;padding:22px;background:var(--surface,#18110b);border:1px solid var(--line,#3a2c20);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.85);max-height:92vh;display:flex;flex-direction:column">
-    <div class="modal-head" style="padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line,#3a2c20)">
+    <div class="modal-head" style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--line,#3a2c20)">
       <div>
         <div class="modal-title" style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px">
-          <span>👑</span> <span>VIP Portal (សិទ្ធិប្រើប្រាស់ VIP)</span>
+          <span>👑</span> <span id="authModalHeaderTitle">SYD Auth &amp; VIP Portal</span>
         </div>
         <div class="modal-sub" id="regModalSub" style="color:var(--accent);font-weight:600;margin-top:2px">
-          ស្នើសុំកញ្ចប់ VIP តាមកាលកំណត់
+          ចូលគណនី, ចុះឈ្មោះ ឬស្នើសុំកញ្ចប់ VIP ពី Admin
         </div>
       </div>
       <button class="x" id="regCloseBtn" title="Close">✕</button>
     </div>
+
+    <!-- Alert / Notice Banner (shown e.g. when clicking a locked episode) -->
+    <div id="authAlertBanner" style="display:none;background:rgba(255,46,99,0.12);border:1px solid rgba(255,46,99,0.35);padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:12.5px;color:var(--ink);line-height:1.5">
+      <span id="authAlertText">🔒 ភាគនេះត្រូវបានចាក់សោរ (Locked)! គណនីធម្មតាអាចមើលបានត្រឹមភាគ 1-10 ប៉ុណ្ណោះ។</span>
+    </div>
+
+    <!-- Tab Switcher (Login, Register, Request VIP) -->
+    <div style="display:flex;gap:6px;background:var(--surface-2);padding:4px;border-radius:10px;border:1px solid var(--line);margin-bottom:14px">
+      <button type="button" class="btn sm auth-tab-btn on" id="tabBtnLogin" onclick="switchAuthTab('login')" style="flex:1;font-weight:700;font-size:12.5px;border-radius:8px;padding:6px 4px">
+        🔑 ចូលគណនី
+      </button>
+      <button type="button" class="btn sm auth-tab-btn" id="tabBtnRegister" onclick="switchAuthTab('register')" style="flex:1;font-weight:700;font-size:12.5px;border-radius:8px;padding:6px 4px">
+        📝 ចុះឈ្មោះ
+      </button>
+      <button type="button" class="btn sm auth-tab-btn" id="tabBtnVip" onclick="switchAuthTab('vip')" style="flex:1;font-weight:700;font-size:12.5px;border-radius:8px;padding:6px 4px">
+        👑 ស្នើសុំ VIP
+      </button>
+    </div>
+
     <div class="modal-scroll" style="display:flex;flex-direction:column;gap:14px;overflow-y:auto;padding-right:4px">
-      <!-- Device ID & Current Status Card -->
-      <div id="regStatusBanner" style="background:var(--surface-2);padding:12px 14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:12px;color:var(--muted);font-weight:600">ស្ថានភាពគណនីរបស់អ្នក:</span>
-          <span id="regCurrentStatusBadge" style="font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:6px;background:rgba(255,255,255,0.1);color:var(--ink)">មិនទាន់ចុះឈ្មោះ</span>
+      <!-- TAB 1: LOGIN FORM -->
+      <div id="authTabLoginSec" style="display:flex;flex-direction:column;gap:12px">
+        <!-- Quick Admin Login Banner -->
+        <div style="background:rgba(255,106,43,0.1);border:1px solid rgba(255,106,43,0.32);border-radius:12px;padding:12px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div>
+              <b style="color:var(--accent);font-size:13px;display:flex;align-items:center;gap:6px">
+                <span>🛡️</span> <span>គណនី ADMIN (Full Control)</span>
+              </b>
+              <div style="font-size:11.5px;color:var(--ink-2);margin-top:3px">
+                Account: <code style="color:var(--accent);font-weight:800">ADMIN</code> | Password: <code style="color:var(--accent);font-weight:800">syd@168</code>
+              </div>
+              <div style="font-size:11px;color:var(--good);margin-top:2px">
+                ✓ មើលបានគ្រប់រឿង គ្រប់ភាគ គ្មានការ Lock ដាច់ខាត
+              </div>
+            </div>
+            <button type="button" class="btn primary sm" id="authQuickAdminBtn" style="font-size:11.5px;font-weight:800;padding:6px 12px;border-radius:16px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 10px rgba(255,106,43,0.35);cursor:pointer">
+              ⚡ ចូលជា ADMIN ភ្លាមៗ
+            </button>
+          </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:12px;color:var(--muted);font-weight:600">កាលបរិច្ឆេទ / រយៈពេល:</span>
-          <span id="regExpiryText" style="font-size:12px;font-weight:700;color:var(--ink-2)">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
-          <span style="font-size:11.5px;color:var(--muted);font-weight:600">Device ID:</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <code id="regDeviceId" style="font:700 11px var(--font-mono);color:var(--ink);background:var(--surface);padding:2px 6px;border-radius:4px;border:1px solid var(--line)">...</code>
-            <button class="btn ghost sm" id="regCopyDevId" style="padding:1px 6px;font-size:10px" title="Copy Device ID">📋 ចម្លង</button>
+
+        <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
+          <div style="font:700 13px var(--font-ui);color:var(--ink-2)">ចូលប្រើប្រាស់គណនី (Login)</div>
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ឈ្មោះគណនី ឬលេខទូរស័ព្ទ (Username / Phone) <span style="color:var(--accent)">*</span></label>
+            <input type="text" id="authLoginUser" placeholder="បញ្ចូល Username ឬ Phone" style="width:100%;height:38px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ពាក្យសម្ងាត់ (Password) <span style="color:var(--accent)">*</span></label>
+            <input type="password" id="authLoginPass" placeholder="បញ្ចូល Password" style="width:100%;height:38px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <button class="btn primary" id="authLoginSubmitBtn" style="height:38px;margin-top:6px;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#ff6a2b,#ff2e63)">
+            <span>🚀 ចូលគណនី (Login)</span>
+          </button>
+          <div style="text-align:center;margin-top:4px;font-size:12px;color:var(--muted)">
+            មិនទាន់មានគណនីមែនទេ? <a href="javascript:void(0)" onclick="switchAuthTab('register')" style="color:var(--accent);font-weight:700;text-decoration:underline">ចុះឈ្មោះគណនីធម្មតាទីនេះ (ឥតគិតថ្លៃ)</a>
           </div>
         </div>
       </div>
 
-      <!-- VIP Package Request Form -->
-      <div id="tabPanelVip" style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:12px">
-        <div style="font:700 13px var(--font-ui);color:var(--ink-2)">ជ្រើសរើសកញ្ចប់ VIP និងបំពេញព័ត៌មាន</div>
-        
-        <!-- Package Radios -->
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
-            <input type="radio" name="vipPackageRadio" value="1_month" checked>
-            <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:700;font-size:12.5px;color:var(--ink)">🌟 VIP 1 ខែ</span>
-              <span style="font-size:11.5px;color:var(--accent);font-weight:600">30 ថ្ងៃ</span>
-            </div>
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
-            <input type="radio" name="vipPackageRadio" value="3_months">
-            <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:700;font-size:12.5px;color:var(--ink)">🔥 VIP 3 ខែ</span>
-              <span style="font-size:11.5px;color:var(--accent);font-weight:600">90 ថ្ងៃ</span>
-            </div>
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
-            <input type="radio" name="vipPackageRadio" value="6_months">
-            <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:700;font-size:12.5px;color:var(--ink)">💎 VIP 6 ខែ</span>
-              <span style="font-size:11.5px;color:var(--accent);font-weight:600">180 ថ្ងៃ</span>
-            </div>
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
-            <input type="radio" name="vipPackageRadio" value="1_year">
-            <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:700;font-size:12.5px;color:var(--ink)">👑 VIP 1 ឆ្នាំ (ពេញនិយម)</span>
-              <span style="font-size:11.5px;color:var(--accent);font-weight:600">365 ថ្ងៃ</span>
-            </div>
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
-            <input type="radio" name="vipPackageRadio" value="lifetime">
-            <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:700;font-size:12.5px;color:var(--ink)">♾️ VIP មួយជីវិត (Lifetime)</span>
-              <span style="font-size:11.5px;color:var(--good);font-weight:700">គ្មានដែនកំណត់</span>
-            </div>
-          </label>
+      <!-- TAB 2: REGISTER FORM -->
+      <div id="authTabRegisterSec" style="display:none;flex-direction:column;gap:12px">
+        <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--ink);line-height:1.5">
+          🟢 <b>គណនីធម្មតា (Free Tier):</b> អាចទស្សនា Live Stream និងដោនឡូតរឿងភាគទី <b>1 ដល់ 10</b> ដោយឥតគិតថ្លៃ។ ចាប់ពីភាគទី 11+ ឡើងទៅ លោកអ្នកអាចស្នើសុំកញ្ចប់ VIP ពី Admin!
         </div>
 
-        <div>
-          <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ឈ្មោះអ្នកប្រើប្រាស់ (Name) <span style="color:var(--accent)">*</span></label>
-          <input type="text" id="regNameInput" placeholder="ឧ. សុខ ដារ៉ា / Sok Dara" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+        <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
+          <div style="font:700 13px var(--font-ui);color:var(--ink-2)">បង្កើតគណនីថ្មី (Register)</div>
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ឈ្មោះគណនី (Username) <span style="color:var(--accent)">*</span></label>
+            <input type="text" id="authRegUser" placeholder="ឧ. dara168" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ឈ្មោះពេញ (Full Name) <span style="color:var(--accent)">*</span></label>
+            <input type="text" id="authRegName" placeholder="ឧ. សុខ ដារ៉ា" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">លេខទូរស័ព្ទ ឬ Telegram (Phone / Telegram) <span style="color:var(--accent)">*</span></label>
+            <input type="text" id="authRegContact" placeholder="ឧ. 012 345 678 / @sokdara" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ពាក្យសម្ងាត់ (Password - យ៉ាងតិច ៤ ខ្ទង់) <span style="color:var(--accent)">*</span></label>
+            <input type="password" id="authRegPass" placeholder="កំណត់ Password របស់អ្នក" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ចំណាំបន្ថែម (Optional)</label>
+            <input type="text" id="authRegNote" placeholder="ឧ. អ្នកស្រលាញ់ចូលចិត្តទស្សនារឿងភាគ..." style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <button class="btn primary" id="authRegSubmitBtn" style="height:38px;margin-top:6px;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:8px">
+            <span>🎉 ចុះឈ្មោះប្រើប្រាស់ (Register Free)</span>
+          </button>
+          <div style="text-align:center;margin-top:4px;font-size:12px;color:var(--muted)">
+            មានគណនីរួចហើយ? <a href="javascript:void(0)" onclick="switchAuthTab('login')" style="color:var(--accent);font-weight:700;text-decoration:underline">ចូលគណនីនៅទីនេះ</a>
+          </div>
         </div>
-        <div>
-          <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">លេខទូរស័ព្ទ ឬ Telegram (Phone / Telegram) <span style="color:var(--accent)">*</span></label>
-          <input type="text" id="regContactInput" placeholder="ឧ. 012 345 678 / @sokdara" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
-        </div>
-        <div>
-          <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ចំណាំបន្ថែម (Note / Optional)</label>
-          <input type="text" id="regNoteInput" placeholder="ឧ. ស្នើសុំប្រើប្រាស់លើកុំព្យូទ័រធ្វើការ..." style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
-        </div>
-        <button class="btn primary" id="regSubmitBtn" style="height:38px;margin-top:4px;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:8px">
-          <span>🚀 ផ្ញើសំណើសុំកញ្ចប់ VIP</span>
-        </button>
+      </div>
 
-        <div style="padding:10px 12px;background:rgba(255,106,43,0.08);border:1px solid rgba(255,106,43,0.25);border-radius:10px;font:11.5px/1.5 var(--font-ui);color:var(--ink-2)">
-          💡 <b>ចំណាំ៖</b> បន្ទាប់ពីផ្ញើសំណើរួច សូមផ្ញើ Device ID ទៅកាន់ Admin ដើម្បីឱ្យ Admin អនុម័តបើកសិទ្ធិកញ្ចប់ VIP ជូនលោកអ្នក។
+      <!-- TAB 3: REQUEST VIP FORM -->
+      <div id="authTabVipSec" style="display:none;flex-direction:column;gap:12px">
+        <!-- Current User Status Card -->
+        <div id="regStatusBanner" style="background:var(--surface-2);padding:12px 14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:var(--muted);font-weight:600">ស្ថានភាពគណនីរបស់អ្នក:</span>
+            <span id="regCurrentStatusBadge" style="font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:6px;background:rgba(255,255,255,0.1);color:var(--ink)">មិនទាន់ចូលគណនី</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:var(--muted);font-weight:600">សិទ្ធិទស្សនា &amp; ដោនឡូត:</span>
+            <span id="regExpiryText" style="font-size:12px;font-weight:700;color:var(--ink-2)">ភាគ 1-10 ឥតគិតថ្លៃ</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
+            <span style="font-size:11.5px;color:var(--muted);font-weight:600">Device ID:</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <code id="regDeviceId" style="font:700 11px var(--font-mono);color:var(--ink);background:var(--surface);padding:2px 6px;border-radius:4px;border:1px solid var(--line)">...</code>
+              <button class="btn ghost sm" id="regCopyDevId" style="padding:1px 6px;font-size:10px" title="Copy Device ID">📋 ចម្លង</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIP Package Selection -->
+        <div id="tabPanelVip" style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:12px">
+          <div style="font:700 13px var(--font-ui);color:var(--ink-2)">ជ្រើសរើសកញ្ចប់ VIP ដើម្បីមើលគ្រប់ភាគ (Unlock All Episodes)</div>
+          
+          <!-- Package Radios -->
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
+              <input type="radio" name="vipPackageRadio" value="1_month">
+              <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:700;font-size:12.5px;color:var(--ink)">🌟 VIP 1 ខែ</span>
+                <span style="font-size:11.5px;color:var(--accent);font-weight:600">30 ថ្ងៃ</span>
+              </div>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
+              <input type="radio" name="vipPackageRadio" value="3_months">
+              <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:700;font-size:12.5px;color:var(--ink)">🔥 VIP 3 ខែ</span>
+                <span style="font-size:11.5px;color:var(--accent);font-weight:600">90 ថ្ងៃ</span>
+              </div>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
+              <input type="radio" name="vipPackageRadio" value="6_months">
+              <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:700;font-size:12.5px;color:var(--ink)">💎 VIP 6 ខែ</span>
+                <span style="font-size:11.5px;color:var(--accent);font-weight:600">180 ថ្ងៃ</span>
+              </div>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
+              <input type="radio" name="vipPackageRadio" value="1_year" checked>
+              <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:700;font-size:12.5px;color:var(--ink)">👑 VIP 1 ឆ្នាំ (ពេញនិយម)</span>
+                <span style="font-size:11.5px;color:var(--accent);font-weight:600">365 ថ្ងៃ</span>
+              </div>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);cursor:pointer">
+              <input type="radio" name="vipPackageRadio" value="lifetime">
+              <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:700;font-size:12.5px;color:var(--ink)">♾️ VIP មួយជីវិត (Lifetime)</span>
+                <span style="font-size:11.5px;color:var(--good);font-weight:700">គ្មានដែនកំណត់</span>
+              </div>
+            </label>
+          </div>
+
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ឈ្មោះអ្នកប្រើប្រាស់ (Name) <span style="color:var(--accent)">*</span></label>
+            <input type="text" id="regNameInput" placeholder="ឧ. សុខ ដារ៉ា / Sok Dara" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">លេខទូរស័ព្ទ ឬ Telegram (Phone / Telegram) <span style="color:var(--accent)">*</span></label>
+            <input type="text" id="regContactInput" placeholder="ឧ. 012 345 678 / @sokdara" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <div>
+            <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ចំណាំបន្ថែម (Note / Optional)</label>
+            <input type="text" id="regNoteInput" placeholder="ឧ. ស្នើសុំប្រើប្រាស់លើកុំព្យូទ័រធ្វើការ..." style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+          </div>
+          <button class="btn primary" id="regSubmitBtn" style="height:38px;margin-top:4px;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#ff6a2b,#ff2e63)">
+            <span>🚀 ផ្ញើសំណើសុំកញ្ចប់ VIP</span>
+          </button>
+
+          <div style="padding:10px 12px;background:rgba(255,106,43,0.08);border:1px solid rgba(255,106,43,0.25);border-radius:10px;font:11.5px/1.5 var(--font-ui);color:var(--ink-2)">
+            💡 <b>ចំណាំ៖</b> បន្ទាប់ពីផ្ញើសំណើរួច Admin នឹងពិនិត្យនិងបើកសិទ្ធិ VIP ជូនលោកអ្នក ដើម្បីដោះសោរគ្រប់ភាគទាំងអស់!
+          </div>
         </div>
       </div>
     </div>
-    <div class="modal-foot" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#3a2c20);display:flex;justify-content:flex-end">
+    <div class="modal-foot" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:center">
+      <div id="authFootUserLabel" style="font-size:11.5px;color:var(--muted)"></div>
       <button class="btn ghost sm" id="regCloseBtn2">បិទ</button>
     </div>
   </div>
@@ -3091,7 +3200,8 @@ async function start(){
   const conc = Number(($("#sqConc") && $("#sqConc").value) || ($("#conc") && $("#conc").value)) || 4;
   const sao = Number(($("#sqSeriesAtOnce") && $("#sqSeriesAtOnce").value) || ($("#seriesAtOnce") && $("#seriesAtOnce").value)) || 2;
   const devId = (window.userAccess && window.userAccess.device_id) || '';
-  const payload={series_ids:ids,quality:qual,concurrency:conc,series_at_once:sao,ranges,scores,ranks,titles_km,device_id:devId};
+  const authTok = localStorage.getItem('syd_auth_token') || '';
+  const payload={series_ids:ids,quality:qual,concurrency:conc,series_at_once:sao,ranges,scores,ranks,titles_km,device_id:devId,token:authTok};
   try{
     const j = DEMO ? demoStart(payload) : await (await fetch("/dl/submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})).json();
     if(!j.ok){
@@ -3699,11 +3809,17 @@ function renderDramaDetailEpisodes(){
   gridEl.innerHTML = visibleEps.map(n => {
     const isSel = ddSelectedEps.has(n);
     const isPlaying = (ddInlinePlayingEp === n);
+    const isLocked = isEpisodeLocked(n);
     let cls = "dd-epchip-item";
     if(isPlaying) cls += " active-playing";
     else if(!isStream && isSel) cls += " selected-for-dl";
+    if(isLocked) cls += " locked-vip";
     
-    return `<button type="button" class="${cls}" data-dei="${n}" aria-pressed="${isSel}" title="ភាគទី ${n} · ចុចដើម្បី ${isStream ? 'Live Stream មើលភ្លាមៗ' : 'ជ្រើសរើសដោនឡូត'}">${n}</button>`;
+    const titleHint = isLocked
+      ? `ភាគទី ${n} · 🔒 VIP Only (គណនីធម្មតាអាចមើលបានត្រឹមភាគ 1-10 · ចុចដើម្បីស្នើសុំ VIP)`
+      : `ភាគទី ${n} · ចុចដើម្បី ${isStream ? 'Live Stream មើលភ្លាមៗ' : 'ជ្រើសរើសដោនឡូត'}`;
+
+    return `<button type="button" class="${cls}" data-dei="${n}" aria-pressed="${isSel}" title="${titleHint}">${n}</button>`;
   }).join("");
 }
 
@@ -3927,8 +4043,16 @@ $("#ddDlAllBtn").onclick = $("#ddHeroDlBtn").onclick = () => {
   const id = ddCurrentDrama.id;
   const eps = ddAllEps || [];
   addToCart(id, ddCurrentDrama.title, ddCurrentDrama.total || eps.length, ddCurrentDrama.cover, false, ddCurrentDrama.score, 0, '', ddCurrentDrama.title_km);
+  if(!isUserFullAccess() && cart[id]){
+    const allowed = eps.filter(n => n <= 10);
+    cart[id].sel = allowed.length ? allowed : [1];
+    saveCart();
+    renderQueue();
+    toast(`⬇️ គណនីធម្មតា៖ បានដាក់ភាគ 1-10 នៃរឿង 《${ddCurrentDrama.title}》 ចូលក្នុង Queue`);
+  } else {
+    toast(`⬇️ បានដាក់រឿង 《${ddCurrentDrama.title}》 ចូលក្នុង Queue`);
+  }
   updateDdQueueBtn();
-  toast(`⬇️ បានដាក់រឿង 《${ddCurrentDrama.title}》 ចូលក្នុង Queue`);
 };
 
 $("#ddHeaderQueueBtn").onclick = $("#ddHeroQueueBtn").onclick = () => {
@@ -3946,6 +4070,13 @@ $("#ddHeaderQueueBtn").onclick = $("#ddHeroQueueBtn").onclick = () => {
 };
 
 $("#ddEpSelectAll").onclick = () => {
+  if(!isUserFullAccess()){
+    const allowed = (ddAllEps || []).filter(n => n <= 10);
+    ddSelectedEps = new Set(allowed);
+    renderDramaDetailEpisodes();
+    toast("💡 គណនីធម្មតាអាចជ្រើសរើសបានត្រឹមភាគ 1-10 ប៉ុណ្ណោះ។ សូមស្នើសុំ VIP ដើម្បីដោនឡូតគ្រប់ភាគ!");
+    return;
+  }
   ddSelectedEps = new Set(ddAllEps);
   renderDramaDetailEpisodes();
 };
@@ -3959,6 +4090,13 @@ $("#ddEpDlSelected").onclick = () => {
   if(!ddCurrentDrama) return;
   const id = ddCurrentDrama.id;
   const selArr = Array.from(ddSelectedEps);
+  if(!isUserFullAccess()){
+    const locked = selArr.filter(n => n > 10);
+    if(locked.length){
+      promptVipModal(locked[0]);
+      return;
+    }
+  }
   if(!selArr.length){
     toast("⚠️ សូមជ្រើសរើសយ៉ាងហោចណាស់ ១ ភាគ");
     return;
@@ -3980,6 +4118,10 @@ function openInlineLivePlayer(epNum, autoPlay = true){
   if(!ddCurrentDrama) return;
   const drama = ddCurrentDrama;
   const num = Number(epNum) || 1;
+  if(isEpisodeLocked(num)){
+    promptVipModal(num);
+    return;
+  }
   ddInlinePlayingEp = num;
 
   // Update Breadcrumb & Heading
@@ -4003,7 +4145,9 @@ function openInlineLivePlayer(epNum, autoPlay = true){
   if(playOverlay) playOverlay.hidden = true;
 
   if(video){
-    const streamUrl = `/dl/stream?series_id=${encodeURIComponent(drama.id)}&ep=${num}`;
+    const tok = localStorage.getItem('syd_auth_token') || '';
+    const dev = (window.userAccess && window.userAccess.device_id) || '';
+    const streamUrl = `/dl/stream?series_id=${encodeURIComponent(drama.id)}&ep=${num}&token=${encodeURIComponent(tok)}&device_id=${encodeURIComponent(dev)}`;
     video.src = streamUrl;
     video.load();
     if(autoPlay){
@@ -4060,6 +4204,10 @@ $("#ddEpGrid").addEventListener("click", e => {
   const b = e.target.closest("[data-dei]");
   if(!b) return;
   const n = Number(b.dataset.dei);
+  if(isEpisodeLocked(n)){
+    promptVipModal(n);
+    return;
+  }
   if(ddMode === 'stream'){
     // Stream mode: immediately play in left video player!
     openInlineLivePlayer(n, true);
@@ -4187,8 +4335,12 @@ if(inlineSysPlayBtn) inlineSysPlayBtn.onclick = async () => {
 const inlineDlCurBtn = $("#ddInlineDlCur");
 if(inlineDlCurBtn) inlineDlCurBtn.onclick = () => {
   if(!ddCurrentDrama || !ddInlinePlayingEp) return;
-  const id = ddCurrentDrama.id;
   const ep = ddInlinePlayingEp;
+  if(isEpisodeLocked(ep)){
+    promptVipModal(ep);
+    return;
+  }
+  const id = ddCurrentDrama.id;
   addToCart(id, ddCurrentDrama.title, ddCurrentDrama.total || (ddAllEps && ddAllEps.length) || 1, ddCurrentDrama.cover, false, ddCurrentDrama.score, 0, '', ddCurrentDrama.title_km);
   if(cart[id]){
     cart[id].sel = [ep];
@@ -4979,21 +5131,66 @@ const ucRef = $("#ucRefreshApp"); if(ucRef) ucRef.onclick = doAppRefresh;
 
 
 
-/* ---------- User Registration & Admin Access Control ---------- */
-window.userAccess = { mode: 'free_all', registered: true, status: 'approved', is_vip: true, is_dev: true, role: 'dev', device_id: 'direct_device_unlocked', package_name: 'VIP មួយជីវិត' };
+/* ---------- Auth, User Registration, VIP & Access Control ---------- */
 let currentAdminPin = sessionStorage.getItem('hg_admin_pin') || '';
+
+
+function isUserFullAccess(){
+  if(!window.userAccess) return false;
+  return !!(window.userAccess.is_admin || window.userAccess.is_vip || window.userAccess.role === 'admin' || window.userAccess.role === 'dev' || window.userAccess.mode === 'free_all');
+}
+
+function isEpisodeLocked(epNum){
+  if(isUserFullAccess()) return false;
+  return Number(epNum) > 10;
+}
+
+function switchAuthTab(tab){
+  const btnL = $("#tabBtnLogin"), btnR = $("#tabBtnRegister"), btnV = $("#tabBtnVip");
+  const secL = $("#authTabLoginSec"), secR = $("#authTabRegisterSec"), secV = $("#authTabVipSec");
+  if(btnL) btnL.classList.toggle('on', tab === 'login');
+  if(btnR) btnR.classList.toggle('on', tab === 'register');
+  if(btnV) btnV.classList.toggle('on', tab === 'vip');
+  if(secL) secL.style.display = (tab === 'login') ? 'flex' : 'none';
+  if(secR) secR.style.display = (tab === 'register') ? 'flex' : 'none';
+  if(secV) secV.style.display = (tab === 'vip') ? 'flex' : 'none';
+}
+
+function promptVipModal(epNum){
+  const banner = $("#authAlertBanner");
+  const alertText = $("#authAlertText");
+  if(banner && alertText){
+    alertText.innerHTML = `🔒 <b>ភាគទី ${epNum} ត្រូវបានចាក់សោរ (Locked)!</b><br>គណនីធម្មតាអាចទស្សនា & ដោនឡូតបានត្រឹម <b>ភាគ 1 ដល់ 10</b> ប៉ុណ្ណោះ។<br>👉 សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ឬចូលគណនី ADMIN ដើម្បីទស្សនាគ្រប់ភាគទាំងអស់ដោយគ្មានការ Lock!`;
+    banner.style.display = 'block';
+  }
+  openUserRegisterModal(window.userAccess && window.userAccess.username ? 'vip' : 'login');
+}
+
+function openUserRegisterModal(preferTab = 'login'){
+  const m = $("#userRegisterModal");
+  if(!m) return;
+  m.hidden = false;
+  switchAuthTab(preferTab);
+}
+
+function closeUserRegisterModal(){
+  const m = $("#userRegisterModal");
+  if(m) m.hidden = true;
+  const banner = $("#authAlertBanner");
+  if(banner) banner.style.display = 'none';
+}
 
 async function fetchAccessStatus(){
   try {
-    const res = await fetch("/dl/access/status");
+    const tok = localStorage.getItem('syd_auth_token') || '';
+    const res = await fetch(`/dl/access/status?token=${encodeURIComponent(tok)}`);
     if(res.ok){
       const data = await res.json();
-      data.is_vip = true;
-      data.is_dev = true;
-      data.status = 'approved';
-      data.mode = 'free_all';
       window.userAccess = data;
       updateAccessUI(data);
+      if(typeof renderDramaDetailEpisodes === 'function' && ddCurrentDrama){
+        renderDramaDetailEpisodes();
+      }
     }
   } catch(e){
     console.error("fetchAccessStatus error", e);
@@ -5004,47 +5201,142 @@ function updateAccessUI(data){
   const badge = $("#userAccessBadge");
   const icon = $("#uabIcon");
   const txt = $("#uabText");
-  if(badge && icon && txt){
-    icon.textContent = "👑";
-    txt.textContent = "VIP Unlocked ♾️ (ពេញលេញ)";
-    badge.style.borderColor = "var(--good)";
-    badge.style.color = "var(--good)";
-    badge.style.background = "rgba(46, 204, 113, 0.12)";
-    badge.style.boxShadow = "none";
+  const reqVipBtn = $("#topReqVipBtn");
+  const topUc = $("#topUserCtrlBtn");
+  const topLogout = $("#topLogoutBtn");
+  const footUser = $("#authFootUserLabel");
+
+  const isAdmin = !!(data.is_admin || data.role === 'admin');
+  const isVip = !!(data.is_vip);
+  const isUser = !!(data.username && !isAdmin);
+
+  if(isAdmin){
+    if(icon) icon.textContent = "🛡️";
+    if(txt) txt.textContent = "ADMIN (Full Control)";
+    if(badge){
+      badge.style.borderColor = "#c084fc";
+      badge.style.color = "#c084fc";
+      badge.style.background = "rgba(192,132,252,0.14)";
+      badge.style.boxShadow = "0 0 12px rgba(192,132,252,0.3)";
+    }
+    if(reqVipBtn) reqVipBtn.style.display = "none";
+    if(topUc) topUc.style.display = "inline-flex";
+    if(topLogout) topLogout.style.display = "inline-flex";
+    if(footUser) footUser.innerHTML = `<span style="color:#c084fc;font-weight:700">🛡️ ចូលជា: ADMIN (Full Control)</span>`;
+    // Auto-unlock Admin panel in User Control
+    currentAdminPin = 'syd@168';
+    sessionStorage.setItem('hg_admin_pin', 'syd@168');
+    const pinBox = $("#adminPinBox"); if(pinBox) pinBox.hidden = true;
+    const unPanel = $("#adminUnlockedPanel"); if(unPanel) unPanel.hidden = false;
+    const lockBadge = $("#adminLockBadge");
+    if(lockBadge){
+      lockBadge.textContent = "🔓 UNLOCKED (ADMIN)";
+      lockBadge.style.color = "var(--good)";
+      lockBadge.style.background = "rgba(46,204,113,0.15)";
+    }
+    refreshAdminUsersList();
+
+  } else if(isVip){
+    if(icon) icon.textContent = "👑";
+    if(txt) txt.textContent = `VIP: ${data.username || data.name || 'សមាជិក'}`;
+    if(badge){
+      badge.style.borderColor = "var(--good)";
+      badge.style.color = "var(--good)";
+      badge.style.background = "rgba(46, 204, 113, 0.12)";
+      badge.style.boxShadow = "none";
+    }
+    if(reqVipBtn) reqVipBtn.style.display = "none";
+    if(topUc) topUc.style.display = "none";
+    if(topLogout) topLogout.style.display = "inline-flex";
+    if(footUser) footUser.innerHTML = `<span style="color:var(--good);font-weight:700">👑 ចូលជា: ${esc(data.username || data.name)} (VIP Active)</span>`;
+  } else if(isUser){
+    if(icon) icon.textContent = "👤";
+    if(txt) txt.textContent = `${data.username} (ភាគ 1-10)`;
+    if(badge){
+      badge.style.borderColor = "rgba(255,106,43,0.5)";
+      badge.style.color = "var(--accent)";
+      badge.style.background = "rgba(255,106,43,0.1)";
+      badge.style.boxShadow = "none";
+    }
+    if(reqVipBtn) reqVipBtn.style.display = "inline-flex";
+    if(topUc) topUc.style.display = "none";
+    if(topLogout) topLogout.style.display = "inline-flex";
+    if(footUser) footUser.innerHTML = `<span style="color:var(--accent);font-weight:700">👤 ចូលជា: ${esc(data.username)} (ភាគ 1-10 ឥតគិតថ្លៃ)</span>`;
+  } else {
+    // Guest
+    if(icon) icon.textContent = "👤";
+    if(txt) txt.textContent = "ចូលគណនី / ចុះឈ្មោះ";
+    if(badge){
+      badge.style.borderColor = "rgba(255,106,43,0.4)";
+      badge.style.color = "var(--ink)";
+      badge.style.background = "transparent";
+      badge.style.boxShadow = "none";
+    }
+    if(reqVipBtn) reqVipBtn.style.display = "inline-flex";
+    if(topUc) topUc.style.display = "none";
+    if(topLogout) topLogout.style.display = "none";
+    if(footUser) footUser.textContent = "មិនទាន់ចូលគណនី (Guest - ភាគ 1-10)";
   }
 
-  // Update elements inside #userRegisterModal
+  // Update elements inside Modal Status Card
   const regDevId = $("#regDeviceId");
   if(regDevId) regDevId.textContent = data.device_id || "Unknown";
 
   const regStBadge = $("#regCurrentStatusBadge");
   const regExp = $("#regExpiryText");
   if(regStBadge){
-    regStBadge.textContent = "👑 VIP Active (Lifetime)";
-    regStBadge.style.color = "var(--good)";
-    regStBadge.style.background = "rgba(46,204,113,0.18)";
-    if(regExp) regExp.textContent = "♾️ មួយជីវិត (Lifetime)";
+    if(isAdmin){
+      regStBadge.textContent = "🛡️ ADMIN (Full Control)";
+      regStBadge.style.color = "#c084fc";
+      regStBadge.style.background = "rgba(192,132,252,0.2)";
+      if(regExp) regExp.textContent = "♾️ គ្មានការ Lock គ្រប់ភាគទាំងអស់";
+    } else if(isVip){
+      regStBadge.textContent = `👑 VIP Active (${data.package_badge || 'VIP'})`;
+      regStBadge.style.color = "var(--good)";
+      regStBadge.style.background = "rgba(46,204,113,0.18)";
+      if(regExp) regExp.textContent = data.expires_date || "VIP Unlimited";
+    } else if(isUser){
+      regStBadge.textContent = "👤 គណនីធម្មតា (Free Tier)";
+      regStBadge.style.color = "var(--accent)";
+      regStBadge.style.background = "rgba(255,106,43,0.15)";
+      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-10";
+    } else {
+      regStBadge.textContent = "មិនទាន់ចូលគណនី";
+      regStBadge.style.color = "var(--muted)";
+      regStBadge.style.background = "rgba(255,255,255,0.08)";
+      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-10";
+    }
   }
 
-  if(data.user_info){
-    const u = data.user_info;
-    if(u.name && $("#regNameInput") && !$("#regNameInput").value) $("#regNameInput").value = u.name;
-    if(u.contact && $("#regContactInput") && !$("#regContactInput").value) $("#regContactInput").value = u.contact;
+  if(data.name && $("#regNameInput") && !$("#regNameInput").value) $("#regNameInput").value = data.name;
+  if(data.contact && $("#regContactInput") && !$("#regContactInput").value) $("#regContactInput").value = data.contact;
+}
+
+// User Action Handlers
+const uabBtn = $("#userAccessBadge");
+if(uabBtn) uabBtn.onclick = () => {
+  if(window.userAccess && (window.userAccess.is_admin || window.userAccess.is_vip)){
+    openUserRegisterModal('vip');
+  } else {
+    openUserRegisterModal('login');
   }
-}
+};
 
-function openUserRegisterModal(){
-  toast("👑 គណនី VIP របស់អ្នកត្រូវបានបើកដំណើរការដោយស្វ័យប្រវត្តិ (Lifetime VIP Unlocked)!", false);
-  const m = $("#userRegisterModal");
-  if(m) m.hidden = true;
-}
+const topVipBtn = $("#topReqVipBtn");
+if(topVipBtn) topVipBtn.onclick = () => {
+  openUserRegisterModal('vip');
+};
 
-function closeUserRegisterModal(){
-  const m = $("#userRegisterModal");
-  if(m) m.hidden = true;
-}
+const topLogoutBtn = $("#topLogoutBtn");
+if(topLogoutBtn) topLogoutBtn.onclick = () => {
+  if(confirm("តើអ្នកពិតជាចង់ចាកចេញពីគណនីមែនទេ?")){
+    localStorage.removeItem('syd_auth_token');
+    localStorage.removeItem('syd_auth_user');
+    toast("🚪 បានចាកចេញពីគណនីជោគជ័យ");
+    fetchAccessStatus();
+  }
+};
 
-const uabBtn = $("#userAccessBadge"); if(uabBtn) uabBtn.onclick = () => { toast("👑 គណនី VIP របស់អ្នកត្រូវបានបើកដំណើរការដោយស្វ័យប្រវត្តិ (Lifetime VIP Unlocked)!", false); };
 const regCl = $("#regCloseBtn"); if(regCl) regCl.onclick = closeUserRegisterModal;
 const regCl2 = $("#regCloseBtn2"); if(regCl2) regCl2.onclick = closeUserRegisterModal;
 const regMod = $("#userRegisterModal"); if(regMod) regMod.addEventListener('click', e => { if(e.target === regMod) closeUserRegisterModal(); });
@@ -5063,6 +5355,135 @@ if(regCopyBtn){
   };
 }
 
+// Quick Admin Login Button
+const authQuickAdminBtn = $("#authQuickAdminBtn");
+if(authQuickAdminBtn){
+  authQuickAdminBtn.onclick = async () => {
+    if($("#authLoginUser")) $("#authLoginUser").value = "ADMIN";
+    if($("#authLoginPass")) $("#authLoginPass").value = "syd@168";
+    await executeLogin("ADMIN", "syd@168");
+  };
+}
+
+// Login Submit Handler
+async function executeLogin(user, pass){
+  const ident = user.trim();
+  const pw = pass.trim();
+  if(!ident){
+    toast("⚠️ សូមបញ្ចូល Username ឬ Phone!", true);
+    if($("#authLoginUser")) $("#authLoginUser").focus();
+    return;
+  }
+  if(!pw){
+    toast("⚠️ សូមបញ្ចូលពាក្យសម្ងាត់ (Password)!", true);
+    if($("#authLoginPass")) $("#authLoginPass").focus();
+    return;
+  }
+  const btn = $("#authLoginSubmitBtn");
+  if(btn){ btn.disabled = true; btn.innerHTML = "<span>កំពុងពិនិត្យ...</span>"; }
+  try {
+    const res = await fetch("/dl/access/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identity: ident,
+        password: pw,
+        device_id: (window.userAccess && window.userAccess.device_id) || ''
+      })
+    });
+    const j = await res.json();
+    if(j.ok){
+      localStorage.setItem('syd_auth_token', j.token || '');
+      localStorage.setItem('syd_auth_user', JSON.stringify(j.user || {}));
+      if(j.user && j.user.is_admin){
+        sessionStorage.setItem('hg_admin_pin', 'syd@168');
+        currentAdminPin = 'syd@168';
+        toast("🛡️ ស្វាគមន៍ការចូលប្រើប្រាស់ ADMIN (Full Control គ្មានការ Lock)!", false);
+      } else {
+        toast(`✅ ចូលប្រើប្រាស់ជោគជ័យ! សូមស្វាគមន៍ ${j.user.name || j.user.username}`);
+      }
+      closeUserRegisterModal();
+      await fetchAccessStatus();
+    } else {
+      toast("⚠️ " + (j.error || "ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ"), true);
+    }
+  } catch(e){
+    toast("⚠️ កំហុសបណ្តាញ៖ " + e, true);
+  } finally {
+    if(btn){ btn.disabled = false; btn.innerHTML = "<span>🚀 ចូលគណនី (Login)</span>"; }
+  }
+}
+
+const authLoginSubmitBtn = $("#authLoginSubmitBtn");
+if(authLoginSubmitBtn){
+  authLoginSubmitBtn.onclick = () => {
+    const u = ($("#authLoginUser") && $("#authLoginUser").value) || '';
+    const p = ($("#authLoginPass") && $("#authLoginPass").value) || '';
+    executeLogin(u, p);
+  };
+}
+
+// Register Submit Handler
+const authRegSubmitBtn = $("#authRegSubmitBtn");
+if(authRegSubmitBtn){
+  authRegSubmitBtn.onclick = async () => {
+    const username = ($("#authRegUser") && $("#authRegUser").value.trim()) || '';
+    const name = ($("#authRegName") && $("#authRegName").value.trim()) || '';
+    const contact = ($("#authRegContact") && $("#authRegContact").value.trim()) || '';
+    const password = ($("#authRegPass") && $("#authRegPass").value.trim()) || '';
+    const note = ($("#authRegNote") && $("#authRegNote").value.trim()) || '';
+
+    if(!username){
+      toast("⚠️ សូមបញ្ចូលឈ្មោះគណនី (Username)!", true);
+      if($("#authRegUser")) $("#authRegUser").focus();
+      return;
+    }
+    if(!name){
+      toast("⚠️ សូមបញ្ចូលឈ្មោះពេញ!", true);
+      if($("#authRegName")) $("#authRegName").focus();
+      return;
+    }
+    if(!contact){
+      toast("⚠️ សូមបញ្ចូលលេខទូរស័ព្ទ ឬ Telegram!", true);
+      if($("#authRegContact")) $("#authRegContact").focus();
+      return;
+    }
+    if(!password || password.length < 4){
+      toast("⚠️ ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច ៤ ខ្ទង់!", true);
+      if($("#authRegPass")) $("#authRegPass").focus();
+      return;
+    }
+
+    authRegSubmitBtn.disabled = true;
+    authRegSubmitBtn.innerHTML = "<span>កំពុងបង្កើតគណនី...</span>";
+    try {
+      const res = await fetch("/dl/access/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username, name, contact, password, note, package: '1_year',
+          device_id: (window.userAccess && window.userAccess.device_id) || ''
+        })
+      });
+      const j = await res.json();
+      if(j.ok){
+        localStorage.setItem('syd_auth_token', j.token || '');
+        localStorage.setItem('syd_auth_user', JSON.stringify(j.user || {}));
+        toast("🎉 ចុះឈ្មោះជោគជ័យ! អ្នកអាចទស្សនា & ដោនឡូតភាគ 1 ដល់ 10 ដោយសេរី។");
+        closeUserRegisterModal();
+        await fetchAccessStatus();
+      } else {
+        toast("⚠️ " + (j.error || "បរាជ័យក្នុងការចុះឈ្មោះ"), true);
+      }
+    } catch(e){
+      toast("⚠️ កំហុសបណ្តាញ៖ " + e, true);
+    } finally {
+      authRegSubmitBtn.disabled = false;
+      authRegSubmitBtn.innerHTML = "<span>🎉 ចុះឈ្មោះប្រើប្រាស់ (Register Free)</span>";
+    }
+  };
+}
+
 // VIP Request Submission
 const regSubBtn = $("#regSubmitBtn");
 if(regSubBtn){
@@ -5071,7 +5492,8 @@ if(regSubBtn){
     const contact = ($("#regContactInput") && $("#regContactInput").value.trim()) || '';
     const note = ($("#regNoteInput") && $("#regNoteInput").value.trim()) || '';
     const checkedPkg = document.querySelector('input[name="vipPackageRadio"]:checked');
-    const package = (checkedPkg && checkedPkg.value) || '1_year';
+    const packageVal = (checkedPkg && checkedPkg.value) || '1_year';
+
     if(!name){
       toast("⚠️ សូមបញ្ចូលឈ្មោះរបស់អ្នក!", true);
       if($("#regNameInput")) $("#regNameInput").focus();
@@ -5085,18 +5507,27 @@ if(regSubBtn){
     regSubBtn.disabled = true;
     regSubBtn.innerHTML = "<span>កំពុងផ្ញើសំណើ...</span>";
     try {
-      const res = await fetch("/dl/access/register", {
+      const tok = localStorage.getItem('syd_auth_token') || '';
+      const res = await fetch("/dl/access/request-vip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, contact, note, package, device_id: (window.userAccess && window.userAccess.device_id) || '' })
+        body: JSON.stringify({
+          token: tok,
+          package: packageVal,
+          note: note,
+          name: name,
+          contact: contact,
+          device_id: (window.userAccess && window.userAccess.device_id) || ''
+        })
       });
       const j = await res.json();
       if(j.ok){
-        toast("✅ សំណើសុំកញ្ចប់ VIP ត្រូវបានបញ្ជូនដោយជោគជ័យ!");
+        toast("✅ សំណើសុំកញ្ចប់ VIP ត្រូវបានបញ្ជូនទៅកាន់ Admin ដោយជោគជ័យ!");
+        closeUserRegisterModal();
         await fetchAccessStatus();
         if(currentAdminPin) refreshAdminUsersList();
       } else {
-        toast("⚠️ " + (j.error || "បរាជ័យក្នុងការចុះឈ្មោះ"), true);
+        toast("⚠️ " + (j.error || "បរាជ័យក្នុងការផ្ញើសំណើ"), true);
       }
     } catch(e){
       toast("⚠️ កំហុសបណ្តាញ៖ " + e, true);
@@ -5111,7 +5542,8 @@ if(regSubBtn){
 async function checkAndUnlockAdmin(pin){
   if(!pin) return false;
   try {
-    const res = await fetch(`/dl/access/admin/users?pin=${encodeURIComponent(pin)}`);
+    const tok = localStorage.getItem('syd_auth_token') || '';
+    const res = await fetch(`/dl/access/admin/users?pin=${encodeURIComponent(pin)}&token=${encodeURIComponent(tok)}`);
     const j = await res.json();
     if(j.ok){
       currentAdminPin = pin;
@@ -5152,76 +5584,71 @@ function renderAdminUserList(users){
     return;
   }
   container.innerHTML = users.map(u => {
-    const isDev = (u.role === 'dev');
-    const isApp = u.status === 'approved';
-    const isPend = u.status === 'pending';
-    const isExp = u.status === 'expired';
+    const isDev = (u.role === 'dev' || u.role === 'admin');
+    const isApp = (u.status === 'approved' || u.is_vip);
+    const isPend = (u.status === 'pending' || u.status === 'pending_vip');
+    const isExp = (u.status === 'expired');
     
     let stBadge = '';
-    if(isDev){
-      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:rgba(192,132,252,0.25);color:#c084fc">🛠️ DEV MASTER</span>`;
+    if(u.role === 'admin'){
+      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:rgba(192,132,252,0.25);color:#c084fc">🛡️ ADMIN</span>`;
     } else if(isApp){
       const daysTxt = u.days_left === -1 ? 'Lifetime' : `សល់ ${u.days_left} ថ្ងៃ`;
       stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:rgba(46,204,113,0.2);color:var(--good)">👑 VIP [${esc(u.package_name || u.approved_package || 'VIP')}] (${daysTxt})</span>`;
     } else if(isPend){
-      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:rgba(241,196,15,0.2);color:var(--gold)">⏳ PENDING [${esc(u.package_name || u.requested_package || 'VIP')}]</span>`;
-    } else if(isExp){
-      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:rgba(231,76,60,0.2);color:var(--bad)">⚠️ EXPIRED</span>`;
+      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:rgba(241,196,15,0.2);color:var(--gold)">⏳ PENDING VIP [${esc(u.requested_package || '1_year')}]</span>`;
     } else {
-      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:rgba(231,76,60,0.2);color:var(--bad)">⛔ REVOKED</span>`;
+      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:rgba(255,106,43,0.2);color:var(--accent)">👤 ធម្មតា (1-10 ភាគ)</span>`;
     }
     
     const reqPkg = u.requested_package || '1_year';
+    const targetKey = u.username || u.device_id || u.key;
 
     return `<div style="background:var(--surface-2);padding:10px 12px;border-radius:10px;border:1px solid var(--line);display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <b style="font-size:13px;color:var(--ink)">${esc(u.name || 'Unknown')}</b>
+            <b style="font-size:13px;color:var(--ink)">${esc(u.name || u.username || 'Unknown')}</b>
             ${stBadge}
+            ${u.username ? `<span style="font-size:11px;color:var(--muted)">(@${esc(u.username)})</span>` : ''}
             ${u.contact ? `<span style="font-size:11.5px;color:var(--accent)">📞 ${esc(u.contact)}</span>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-top:3px;font-size:11px;color:var(--muted);font-family:var(--font-mono)">
-            <span>Device ID: ${esc(u.device_id)}</span>
-            ${u.device_label ? `<span>(${esc(u.device_label)})</span>` : ''}
+            <span>Device: ${esc(u.device_id || 'Web Client')}</span>
           </div>
           ${u.note ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;font-style:italic">"${esc(u.note)}"</div>` : ''}
         </div>
-        <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" title="Delete record" onclick="adminDeleteUser('${esc(u.device_id)}')">🗑️</button>
+        ${u.role !== 'admin' ? `<button class="btn ghost sm" style="padding:2px 6px;font-size:11px" title="Delete record" onclick="adminDeleteUser('${esc(targetKey)}')">🗑️</button>` : ''}
       </div>
 
       <!-- Action Row -->
+      ${u.role !== 'admin' ? `
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;border-top:1px dashed var(--line);padding-top:6px">
-        <select id="pkgSel_${esc(u.device_id)}" style="height:28px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:0 6px;color:var(--ink);font:600 11px var(--font-ui)">
+        <select id="pkgSel_${esc(targetKey)}" style="height:28px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:0 6px;color:var(--ink);font:600 11px var(--font-ui)">
           <option value="1_month" ${reqPkg==='1_month'?'selected':''}>VIP 1 ខែ (30 ថ្ងៃ)</option>
           <option value="3_months" ${reqPkg==='3_months'?'selected':''}>VIP 3 ខែ (90 ថ្ងៃ)</option>
           <option value="6_months" ${reqPkg==='6_months'?'selected':''}>VIP 6 ខែ (180 ថ្ងៃ)</option>
           <option value="1_year" ${reqPkg==='1_year'?'selected':''}>VIP 1 ឆ្នាំ (365 ថ្ងៃ)</option>
           <option value="lifetime" ${reqPkg==='lifetime'?'selected':''}>VIP មួយជីវិត</option>
         </select>
-        <button class="btn primary sm" style="padding:2px 10px;font-size:11px;font-weight:700" onclick="adminApproveUser('${esc(u.device_id)}')">✅ Approve VIP</button>
+        <button class="btn primary sm" style="padding:2px 10px;font-size:11px;font-weight:700" onclick="adminApproveUser('${esc(targetKey)}')">✅ Approve VIP</button>
         
         ${isApp ? `
-          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;font-weight:700;color:var(--good)" onclick="adminExtendUser('${esc(u.device_id)}', 30)">+30d</button>
-          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;font-weight:700;color:var(--good)" onclick="adminExtendUser('${esc(u.device_id)}', 90)">+90d</button>
-          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;font-weight:700;color:var(--good)" onclick="adminExtendUser('${esc(u.device_id)}', 365)">+1y</button>
-          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;color:var(--bad)" onclick="adminRevokeUser('${esc(u.device_id)}')">⛔ Revoke</button>
+          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;font-weight:700;color:var(--good)" onclick="adminExtendUser('${esc(targetKey)}', 30)">+30d</button>
+          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;font-weight:700;color:var(--good)" onclick="adminExtendUser('${esc(targetKey)}', 90)">+90d</button>
+          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;font-weight:700;color:var(--good)" onclick="adminExtendUser('${esc(targetKey)}', 365)">+1y</button>
+          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;color:var(--bad)" onclick="adminRevokeUser('${esc(targetKey)}')">⛔ Revoke</button>
         ` : ''}
-
-        ${isDev ? `
-          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;color:var(--muted)" onclick="adminSetDev('${esc(u.device_id)}', false)">ដក DEV</button>
-        ` : `
-          <button class="btn ghost sm" style="padding:2px 8px;font-size:11px;color:#c084fc;border-color:rgba(192,132,252,0.4)" onclick="adminSetDev('${esc(u.device_id)}', true)">⭐ Set DEV</button>
-        `}
-      </div>
+      </div>` : ''}
     </div>`;
   }).join('');
 }
 
 async function refreshAdminUsersList(){
-  if(!currentAdminPin) return;
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  const pin = currentAdminPin || '8888';
   try {
-    const res = await fetch(`/dl/access/admin/users?pin=${encodeURIComponent(currentAdminPin)}`);
+    const res = await fetch(`/dl/access/admin/users?pin=${encodeURIComponent(pin)}&token=${encodeURIComponent(tok)}`);
     const j = await res.json();
     if(j.ok){
       renderAdminMode(j.mode);
@@ -5230,15 +5657,15 @@ async function refreshAdminUsersList(){
   } catch(e){}
 }
 
-window.adminApproveUser = async function(devId, explicitPkg){
-  if(!currentAdminPin) return;
-  const sel = $(`#pkgSel_${devId}`);
+window.adminApproveUser = async function(targetKey, explicitPkg){
+  const sel = $(`#pkgSel_${targetKey}`);
   const pkg = explicitPkg || (sel && sel.value) || '1_year';
+  const tok = localStorage.getItem('syd_auth_token') || '';
   try {
     const res = await fetch("/dl/access/admin/approve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: currentAdminPin, device_id: devId, package: pkg })
+      body: JSON.stringify({ pin: currentAdminPin || '8888', token: tok, target_id: targetKey, package: pkg })
     });
     const j = await res.json();
     if(j.ok){
@@ -5253,13 +5680,13 @@ window.adminApproveUser = async function(devId, explicitPkg){
   }
 };
 
-window.adminExtendUser = async function(devId, days){
-  if(!currentAdminPin) return;
+window.adminExtendUser = async function(targetKey, days){
+  const tok = localStorage.getItem('syd_auth_token') || '';
   try {
     const res = await fetch("/dl/access/admin/extend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: currentAdminPin, device_id: devId, days: Number(days) || 30 })
+      body: JSON.stringify({ pin: currentAdminPin || '8888', token: tok, target_id: targetKey, days: Number(days) || 30 })
     });
     const j = await res.json();
     if(j.ok){
@@ -5274,35 +5701,14 @@ window.adminExtendUser = async function(devId, days){
   }
 };
 
-window.adminSetDev = async function(devId, isDev){
-  if(!currentAdminPin) return;
-  try {
-    const res = await fetch("/dl/access/admin/set-dev", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: currentAdminPin, device_id: devId, is_dev: !!isDev })
-    });
-    const j = await res.json();
-    if(j.ok){
-      toast(isDev ? "⭐ បានដាក់ជា DEVELOPER រួចរាល់!" : "បានដកសិទ្ធិ DEV រួចរាល់");
-      refreshAdminUsersList();
-      fetchAccessStatus();
-    } else {
-      toast("⚠️ " + (j.error || "បរាជ័យ"), true);
-    }
-  } catch(e){
-    toast("Error: " + e, true);
-  }
-};
-
-window.adminRevokeUser = async function(devId){
-  if(!currentAdminPin) return;
-  if(!confirm("តើអ្នកពិតជាចង់ដកសិទ្ធិ VIP របស់ឧបករណ៍នេះមែនទេ?")) return;
+window.adminRevokeUser = async function(targetKey){
+  if(!confirm("តើអ្នកពិតជាចង់ដកសិទ្ធិ VIP របស់គណនីនេះមែនទេ?")) return;
+  const tok = localStorage.getItem('syd_auth_token') || '';
   try {
     const res = await fetch("/dl/access/admin/revoke", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: currentAdminPin, device_id: devId })
+      body: JSON.stringify({ pin: currentAdminPin || '8888', token: tok, target_id: targetKey })
     });
     const j = await res.json();
     if(j.ok){
@@ -5317,14 +5723,14 @@ window.adminRevokeUser = async function(devId){
   }
 };
 
-window.adminDeleteUser = async function(devId){
-  if(!currentAdminPin) return;
-  if(!confirm("តើអ្នកពិតជាចង់លុបទិន្នន័យនេះមែនទេ?")) return;
+window.adminDeleteUser = async function(targetKey){
+  if(!confirm("តើអ្នកពិតជាចង់លុបទិន្នន័យគណនីនេះមែនទេ?")) return;
+  const tok = localStorage.getItem('syd_auth_token') || '';
   try {
     const res = await fetch("/dl/access/admin/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: currentAdminPin, device_id: devId })
+      body: JSON.stringify({ pin: currentAdminPin || '8888', token: tok, target_id: targetKey })
     });
     const j = await res.json();
     if(j.ok){
@@ -5353,18 +5759,15 @@ if(adminPinBtn){
 const adminSaveModeBtn = $("#adminSaveModeBtn");
 if(adminSaveModeBtn){
   adminSaveModeBtn.onclick = async () => {
-    if(!currentAdminPin){
-      toast("⚠️ សូមដោះសោរ Admin ជាមុនសិន!", true);
-      return;
-    }
     const checked = document.querySelector('input[name="adminModeRadio"]:checked');
     if(!checked) return;
     const mode = checked.value;
+    const tok = localStorage.getItem('syd_auth_token') || '';
     try {
       const res = await fetch("/dl/access/admin/mode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: currentAdminPin, mode })
+        body: JSON.stringify({ pin: currentAdminPin || '8888', token: tok, mode })
       });
       const j = await res.json();
       if(j.ok){
@@ -5389,24 +5792,10 @@ if(adminManAppBtn){
     const devId = (devInput && devInput.value.trim()) || '';
     const pkg = ($("#adminManualPkg") && $("#adminManualPkg").value) || '1_year';
     if(!devId){
-      toast("⚠️ សូមបញ្ចូល Device ID", true);
+      toast("⚠️ សូមបញ្ចូល Device ID ឬ Username", true);
       return;
     }
     await window.adminApproveUser(devId, pkg);
-    if(devInput) devInput.value = '';
-  };
-}
-
-const adminManDevBtn = $("#adminManualDevBtn");
-if(adminManDevBtn){
-  adminManDevBtn.onclick = async () => {
-    const devInput = $("#adminManualDevId");
-    const devId = (devInput && devInput.value.trim()) || '';
-    if(!devId){
-      toast("⚠️ សូមបញ្ចូល Device ID", true);
-      return;
-    }
-    await window.adminSetDev(devId, true);
     if(devInput) devInput.value = '';
   };
 }
@@ -5418,10 +5807,24 @@ function openUserControl() {
   if(q && $("#ucQuality")) $("#ucQuality").value = q.value;
   if(s && $("#ucSeries")) $("#ucSeries").value = s.value;
   if($("#dirPath") && $("#ucFolderPath")) $("#ucFolderPath").textContent = $("#dirPath").textContent || "C:\\Users\\Administrator\\Videos\\Hongguo";
-  if(currentAdminPin) {
+  
+  // If user is ADMIN, auto unlock control panel immediately!
+  if(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin')){
+    currentAdminPin = 'syd@168';
+    const pinBox = $("#adminPinBox"); if(pinBox) pinBox.hidden = true;
+    const unPanel = $("#adminUnlockedPanel"); if(unPanel) unPanel.hidden = false;
+    const lockBadge = $("#adminLockBadge");
+    if(lockBadge){
+      lockBadge.textContent = "🔓 UNLOCKED (ADMIN)";
+      lockBadge.style.color = "var(--good)";
+      lockBadge.style.background = "rgba(46,204,113,0.15)";
+    }
+    refreshAdminUsersList();
+  } else if(currentAdminPin) {
     checkAndUnlockAdmin(currentAdminPin);
   }
   m.hidden = false;
+
 }
 function closeUserControl() {
   const m = $("#userCtrlModal");
@@ -5446,10 +5849,6 @@ if(ucS) ucS.onchange = e => {
 };
 const ucOpenF = $("#ucOpenFolder"); if(ucOpenF) ucOpenF.onclick = openDir;
 const ucChF = $("#ucChangeFolder"); if(ucChF) ucChF.onclick = pickDir;
-
-
-
-
 
 /* ---------- Folder Picker Modal & Drive Selection Logic ---------- */
 async function openFolderPickerModal(){
@@ -6226,11 +6625,42 @@ function startApp(){
     document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkUpdate(); });
   }
 }
+const tokenParam = new URLSearchParams(location.search).get("token");
+if(tokenParam){
+  localStorage.setItem('syd_auth_token', tokenParam);
+}
 renderQueue();
 startApp();
 if(new URLSearchParams(location.search).has("open_queue")){
   setTimeout(() => { if(typeof openSideQueue === 'function') openSideQueue(); }, 350);
 }
+const authParam = new URLSearchParams(location.search).get("auth");
+if(authParam){
+  setTimeout(() => { if(typeof openUserRegisterModal === 'function') openUserRegisterModal(authParam); }, 350);
+}
+if(new URLSearchParams(location.search).has("user_control")){
+  if(typeof openUserControl === 'function') openUserControl();
+}
+
+
+
+const dramaParam = new URLSearchParams(location.search).get("drama");
+if(dramaParam){
+  setTimeout(() => { if(typeof openDramaDetail === 'function') openDramaDetail(dramaParam); }, 450);
+}
+if(new URLSearchParams(location.search).has("open_first_drama")){
+  const checkCard = setInterval(() => {
+    const c = document.querySelector(".poster, .result-card");
+    if(c){
+      clearInterval(checkCard);
+      c.click();
+    }
+  }, 100);
+}
+
+
+
+
 </script>
 <script>
 /* Display size — scale the whole UI to fit the user's monitor / Windows display scaling

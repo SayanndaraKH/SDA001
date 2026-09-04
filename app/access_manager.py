@@ -1,6 +1,8 @@
 import os
 import json
 import time
+import secrets
+import hashlib
 import threading
 import licensing as LIC
 
@@ -18,14 +20,40 @@ VIP_PACKAGES = {
     "lifetime": {"key": "lifetime", "name": "VIP មួយជីវិត", "days": 0, "badge": "មួយជីវិត"}
 }
 
-# Master Keys for DEV unrestricted access
-DEV_KEYS = {"DEV8888", "DEV-MASTER", "8888"}
+# ADMIN Master Credentials
+ADMIN_USERNAME = "ADMIN"
+ADMIN_PASSWORD = "syd@168"
+DEV_KEYS = {"DEV8888", "DEV-MASTER", "8888", "syd@168"}
+
+# In-memory Active Sessions: token -> user_dict
+_sessions = {}
+
+def hash_pw(pw: str) -> str:
+    """Hash password using SHA-256."""
+    return hashlib.sha256((pw or "").strip().encode('utf-8')).hexdigest()
 
 DEFAULT_DATA = {
-    "mode": "free_all",  # "vip_required", "free_all"
+    "mode": "vip_required",  # "vip_required", "free_all"
     "admin_pin": "8888",
+    "admin_user": "ADMIN",
+    "admin_pass": "syd@168",
     "dev_key": "DEV8888",
-    "users": {}
+    "users": {
+        "admin": {
+            "username": "ADMIN",
+            "name": "Super Administrator",
+            "contact": "Admin Direct",
+            "password_hash": hash_pw(ADMIN_PASSWORD),
+            "role": "admin",
+            "is_admin": True,
+            "is_vip": True,
+            "status": "approved",
+            "max_free_episodes": 999999,
+            "created_at": 1788500000,
+            "approved_at": 1788500000,
+            "expires_at": 0
+        }
+    }
 }
 
 def _load_data():
@@ -35,13 +63,30 @@ def _load_data():
     try:
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            data["mode"] = "free_all"
+            if "mode" not in data:
+                data["mode"] = "vip_required"
             if "users" not in data:
                 data["users"] = {}
             if "admin_pin" not in data:
                 data["admin_pin"] = "8888"
             if "dev_key" not in data:
                 data["dev_key"] = "DEV8888"
+            # Ensure ADMIN exists
+            if "admin" not in data["users"]:
+                data["users"]["admin"] = {
+                    "username": "ADMIN",
+                    "name": "Super Administrator",
+                    "contact": "Admin Direct",
+                    "password_hash": hash_pw(ADMIN_PASSWORD),
+                    "role": "admin",
+                    "is_admin": True,
+                    "is_vip": True,
+                    "status": "approved",
+                    "max_free_episodes": 999999,
+                    "created_at": int(time.time()),
+                    "approved_at": int(time.time()),
+                    "expires_at": 0
+                }
             return data
     except Exception:
         return dict(DEFAULT_DATA)
@@ -54,16 +99,23 @@ def _save_data(data):
         print(f"[access_manager] save error: {e}")
 
 def get_mode():
-    return "free_all"
+    with _lock:
+        d = _load_data()
+        return d.get("mode", "vip_required")
 
 def set_mode(mode):
-    return "free_all"
+    with _lock:
+        d = _load_data()
+        d["mode"] = mode
+        _save_data(d)
+        return mode
 
 def verify_pin(pin):
     with _lock:
         d = _load_data()
         expected = str(d.get("admin_pin", "8888"))
-        return str(pin).strip() == expected
+        p = str(pin or "").strip()
+        return p == expected or p == "syd@168" or p == "DEV8888"
 
 def set_pin(new_pin):
     with _lock:
@@ -75,211 +127,377 @@ def set_pin(new_pin):
 def get_current_device_id():
     return LIC.device_id()
 
-def is_dev(device_id=None):
-    return True
+# ----------------- Authentication & User Management ----------------- #
 
-def is_vip(device_id=None):
-    return True
+def login(identity: str, password: str, device_id: str = ""):
+    """
+    Login handler for ADMIN and Regular Users.
+    ADMIN credentials: ADMIN / syd@168
+    """
+    ident = (identity or "").strip()
+    pw = (password or "").strip()
+    dev = (device_id or get_current_device_id()).strip()
 
-def get_user_status(device_id=None):
-    dev = str(device_id or get_current_device_id()).strip()
+    # 1. ADMIN Account check (Case-insensitive username)
+    if (ident.upper() == "ADMIN" and pw == ADMIN_PASSWORD) or (pw == ADMIN_PASSWORD and ident in DEV_KEYS) or (ident in DEV_KEYS and pw in DEV_KEYS):
+        token = "admin_" + secrets.token_hex(16)
+        admin_user = {
+            "token": token,
+            "device_id": dev,
+            "username": "ADMIN",
+            "name": "Super Administrator",
+            "contact": "System Admin",
+            "role": "admin",
+            "is_admin": True,
+            "is_vip": True,
+            "status": "approved",
+            "max_free_episodes": 999999,
+            "package": "lifetime",
+            "package_name": "Full Control (គ្មានការ Lock)",
+            "package_badge": "Full Control",
+            "expires_at": 0,
+            "expires_date": "Lifetime Full Access",
+            "days_left": -1
+        }
+        with _lock:
+            _sessions[token] = admin_user
+            if dev:
+                _sessions[dev] = admin_user
+        return True, admin_user
+
+    # 2. Regular User check
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+        target = None
+        target_key = None
+        for k, u in users.items():
+            u_name = str(u.get("username") or "").strip().lower()
+            u_cnt = str(u.get("contact") or "").strip().lower()
+            if ident.lower() in (u_name, u_cnt, k.lower()):
+                target = u
+                target_key = k
+                break
+
+        if not target:
+            return False, "រកមិនឃើញគណនីនេះទេ (សូមពិនិត្យមើល Username ឬលេខទូរស័ព្ទ)"
+
+        # Verify Password
+        stored_hash = target.get("password_hash", "")
+        if stored_hash:
+            if hash_pw(pw) != stored_hash and pw != target.get("password", ""):
+                return False, "ពាក្យសម្ងាត់មិនត្រឹមត្រូវ (Incorrect password)"
+        elif target.get("password"):
+            if pw != target.get("password"):
+                return False, "ពាក្យសម្ងាត់មិនត្រឹមត្រូវ (Incorrect password)"
+
+        now = int(time.time())
+        token = "usr_" + secrets.token_hex(16)
+        role = target.get("role", "user")
+        is_admin = (role == "admin")
+        is_vip = is_admin or (role == "dev") or (target.get("status") == "approved" and target.get("is_vip", False))
+
+        # Check expiration
+        exp = target.get("expires_at", 0)
+        if is_vip and not is_admin and role != "dev" and exp > 0 and exp < now:
+            is_vip = False
+            target["status"] = "expired"
+            target["is_vip"] = False
+
+        max_eps = 999999 if is_vip else 10
+        target["is_vip"] = is_vip
+        target["is_admin"] = is_admin
+        target["max_free_episodes"] = max_eps
+        target["token"] = token
+        target["device_id"] = dev
+        target["last_login"] = now
+
+        if exp > 0:
+            import datetime
+            target["expires_date"] = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
+            target["days_left"] = max(0, int((exp - now) / 86400))
+        elif exp == 0 and is_vip:
+            target["expires_date"] = "Lifetime VIP"
+            target["days_left"] = -1
+        else:
+            target["expires_date"] = "Free (1-10 ភាគ)"
+            target["days_left"] = 0
+
+        _save_data(d)
+        _sessions[token] = target
+        if dev:
+            _sessions[dev] = target
+
+        return True, target
+
+def register_user(username: str, name: str, contact: str, password: str, note: str = "", package: str = "1_year", device_id: str = ""):
+    """
+    Register a new regular user account.
+    Regular user gets free access to episodes 1-10.
+    """
+    u_name = (username or "").strip()
+    full_name = (name or "").strip()
+    cnt = (contact or "").strip()
+    pw = (password or "").strip()
+    dev = (device_id or get_current_device_id()).strip()
+    pkg = (package or "1_year").strip()
+
+    if not u_name:
+        return False, "សូមបញ្ចូលឈ្មោះគណនី (Username)"
+    if u_name.upper() == "ADMIN":
+        return False, "មិនអាចប្រើប្រាស់ឈ្មោះ ADMIN បានឡើយ"
+    if not pw:
+        return False, "សូមបញ្ចូលពាក្យសម្ងាត់ (Password)"
+    if len(pw) < 4:
+        return False, "ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច ៤ ខ្ទង់"
+    if not full_name:
+        full_name = u_name
+    if not cnt:
+        cnt = u_name
+
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+
+        # Check duplicates
+        for k, u in users.items():
+            if str(u.get("username") or "").strip().lower() == u_name.lower():
+                return False, f"ឈ្មោះគណនី '{u_name}' ត្រូវបានចុះឈ្មោះរួចហើយ សូមជ្រើសរើសឈ្មោះផ្សេង"
+            if cnt and str(u.get("contact") or "").strip().lower() == cnt.lower():
+                return False, f"លេខទូរស័ព្ទ ឬ Telegram '{cnt}' ត្រូវបានចុះឈ្មោះរួចហើយ"
+
+        now = int(time.time())
+        token = "usr_" + secrets.token_hex(16)
+        user_key = "user_" + secrets.token_hex(6)
+
+        user_record = {
+            "key": user_key,
+            "device_id": dev,
+            "username": u_name,
+            "name": full_name,
+            "contact": cnt,
+            "password_hash": hash_pw(pw),
+            "note": note,
+            "requested_package": pkg,
+            "approved_package": "",
+            "role": "user",
+            "is_vip": False,
+            "is_admin": False,
+            "status": "pending_vip" if pkg else "user",
+            "max_free_episodes": 10,
+            "created_at": now,
+            "updated_at": now,
+            "approved_at": 0,
+            "expires_at": 0,
+            "token": token,
+            "package_name": "គណនីធម្មតា (ភាគ 1-10)",
+            "package_badge": "ភាគ 1-10",
+            "expires_date": "Free Tier (ភាគ 1-10)",
+            "days_left": 0
+        }
+
+        users[user_key] = user_record
+        d["users"] = users
+        _save_data(d)
+
+        _sessions[token] = user_record
+        if dev:
+            _sessions[dev] = user_record
+
+        return True, user_record
+
+def get_user_status(token_or_device_id: str = ""):
+    """
+    Returns the user's status and allowed episode boundaries.
+    """
+    ident = (token_or_device_id or "").strip()
+    user = None
+
+    # Check active memory sessions
+    if ident and ident in _sessions:
+        user = _sessions[ident]
+
+    if not user and ident:
+        # Check database
+        with _lock:
+            d = _load_data()
+            for k, u in d.get("users", {}).items():
+                if k == ident or u.get("device_id") == ident or u.get("token") == ident or u.get("username") == ident:
+                    user = u
+                    break
+
+    if user:
+        role = user.get("role", "user")
+        is_admin = (role == "admin") or (str(user.get("username")).upper() == "ADMIN")
+        is_vip = is_admin or (role == "dev") or (user.get("status") == "approved" and user.get("is_vip", False))
+
+        now = int(time.time())
+        exp = user.get("expires_at", 0)
+        if is_vip and not is_admin and role != "dev" and exp > 0 and exp < now:
+            is_vip = False
+            user["status"] = "expired"
+
+        max_eps = 999999 if is_vip else 10
+
+        exp_date = "Lifetime Full Access" if is_admin else ("Lifetime VIP" if exp == 0 and is_vip else "Free Tier (ភាគ 1-10)")
+        days_left = -1 if (is_admin or (is_vip and exp == 0)) else (max(0, int((exp - now) / 86400)) if exp > 0 else 0)
+        if exp > 0:
+            import datetime
+            exp_date = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
+
+        return {
+            "authenticated": True,
+            "registered": True,
+            "device_id": user.get("device_id") or ident,
+            "username": user.get("username", "User"),
+            "name": user.get("name", user.get("username", "User")),
+            "contact": user.get("contact", ""),
+            "role": "admin" if is_admin else ("vip" if is_vip else "user"),
+            "is_admin": is_admin,
+            "is_dev": is_admin or (role == "dev"),
+            "is_vip": is_vip,
+            "status": "approved" if is_vip else user.get("status", "user"),
+            "max_free_episodes": max_eps,
+            "requested_package": user.get("requested_package", "1_year"),
+            "approved_package": user.get("approved_package", "lifetime" if is_admin else ""),
+            "package_name": "Full Control (គ្មានការ Lock)" if is_admin else ("VIP Member (ដោះសោរគ្រប់ភាគ)" if is_vip else "គណនីធម្មតា (ទស្សនាភាគ 1-10)"),
+            "package_badge": "ADMIN" if is_admin else ("VIP" if is_vip else "ភាគ 1-10"),
+            "expires_at": exp,
+            "expires_date": exp_date,
+            "days_left": days_left,
+            "packages_available": list(VIP_PACKAGES.values())
+        }
+
+    # Guest / Unauthenticated
     return {
-        "mode": "free_all",
-        "device_id": dev,
-        "registered": True,
-        "status": "approved",
-        "role": "dev",
-        "is_dev": True,
-        "is_vip": True,
-        "package": "lifetime",
-        "package_name": "VIP មួយជីវិត (Full Access)",
-        "package_badge": "មួយជីវិត",
+        "authenticated": False,
+        "registered": False,
+        "device_id": ident or get_current_device_id(),
+        "username": "ភ្ញៀវ (Guest)",
+        "name": "Guest Visitor",
+        "contact": "",
+        "role": "guest",
+        "is_admin": False,
+        "is_dev": False,
+        "is_vip": False,
+        "status": "guest",
+        "max_free_episodes": 10,
+        "package_name": "ភ្ញៀវមិនទាន់ Login (ភាគ 1-10)",
+        "package_badge": "Guest",
         "expires_at": 0,
-        "expires_date": "Lifetime",
-        "days_left": -1,
-        "user_info": {"name": "VIP Member", "role": "dev", "status": "approved"},
-        "label": LIC.device_label(),
+        "expires_date": "Free Tier (ភាគ 1-10)",
+        "days_left": 0,
         "packages_available": list(VIP_PACKAGES.values())
     }
 
-def register_user(name, contact, note="", package="1_year", device_id=None):
-    dev = str(device_id or get_current_device_id()).strip()
-    pkg = str(package).strip()
-    if pkg not in VIP_PACKAGES:
-        pkg = "1_year"
+def request_vip(token_or_id: str, package: str = "1_year", note: str = ""):
+    """Submit a VIP Package request to ADMIN."""
+    ident = (token_or_id or "").strip()
     with _lock:
         d = _load_data()
-        existing = d.get("users", {}).get(dev, {})
-        status = existing.get("status", "pending")
-        role = existing.get("role", "user")
-        if status not in ("approved", "pending"):
-            status = "pending"
+        users = d.get("users", {})
+        target = None
+        for k, u in users.items():
+            if k == ident or u.get("device_id") == ident or u.get("token") == ident or u.get("username") == ident:
+                target = u
+                break
+        if not target:
+            return False, "រកមិនឃើញគណនីអ្នកប្រើប្រាស់ (សូម Login ជាមុនសិន)"
         
-        now = int(time.time())
-        d["users"][dev] = {
-            "device_id": dev,
-            "name": str(name).strip(),
-            "contact": str(contact).strip(),
-            "note": str(note).strip(),
-            "requested_package": pkg,
-            "approved_package": existing.get("approved_package", ""),
-            "role": role,
-            "device_label": LIC.device_label(),
-            "status": status,
-            "updated_at": now,
-            "created_at": existing.get("created_at", now),
-            "approved_at": existing.get("approved_at", 0),
-            "expires_at": existing.get("expires_at", 0)
-        }
+        target["requested_package"] = package or "1_year"
+        target["note"] = note or target.get("note", "")
+        target["status"] = "pending_vip"
+        target["updated_at"] = int(time.time())
         _save_data(d)
-        return d["users"][dev]
+        return True, target
 
-def dev_login(key, device_id=None):
-    dev = str(device_id or get_current_device_id()).strip()
-    key_str = str(key).strip()
-    with _lock:
-        d = _load_data()
-        stored_dev_key = str(d.get("dev_key", "DEV8888"))
-        if key_str not in DEV_KEYS and key_str != stored_dev_key and key_str != str(d.get("admin_pin", "8888")):
-            return False, "DEV Key មិនត្រឹមត្រូវ"
-        
-        existing = d.get("users", {}).get(dev, {})
-        now = int(time.time())
-        d["users"][dev] = {
-            "device_id": dev,
-            "name": existing.get("name") or "Developer",
-            "contact": existing.get("contact") or "DEV Team",
-            "note": "Developer Master Account",
-            "requested_package": "lifetime",
-            "approved_package": "lifetime",
-            "role": "dev",
-            "device_label": LIC.device_label(),
-            "status": "approved",
-            "updated_at": now,
-            "created_at": existing.get("created_at", now),
-            "approved_at": now,
-            "expires_at": 0  # 0 means Lifetime / No expiry
-        }
-        _save_data(d)
-        return True, d["users"][dev]
-
-def approve_user(device_id, package=None, role="user", custom_days=None):
-    dev = str(device_id).strip()
+def approve_user_vip(target_id: str, package: str = None, custom_days: int = None):
+    """
+    ADMIN approves a user's VIP request.
+    Removes all episode locks and grants Full VIP Access.
+    """
+    ident = str(target_id or "").strip()
     now = int(time.time())
     with _lock:
         d = _load_data()
-        existing = d.get("users", {}).get(dev, {})
-        
-        target_pkg = package or existing.get("requested_package") or "1_year"
-        is_target_dev = (role == "dev" or target_pkg == "dev")
-        
-        if is_target_dev:
-            expires_at = 0
-            approved_pkg = "lifetime"
-            final_role = "dev"
+        users = d.get("users", {})
+        target = None
+        for k, u in users.items():
+            if k == ident or u.get("device_id") == ident or u.get("username") == ident or u.get("contact") == ident:
+                target = u
+                break
+
+        if not target:
+            return False, "រកមិនឃើញអ្នកប្រើប្រាស់នេះទេ"
+
+        target_pkg = package or target.get("requested_package") or "1_year"
+        if target_pkg in VIP_PACKAGES:
+            days = VIP_PACKAGES[target_pkg]["days"]
+            expires_at = (now + days * 86400) if days > 0 else 0
         else:
-            final_role = "user"
-            approved_pkg = target_pkg
-            if custom_days is not None and int(custom_days) > 0:
-                expires_at = now + int(custom_days) * 86400
-            elif target_pkg in VIP_PACKAGES:
-                days = VIP_PACKAGES[target_pkg]["days"]
-                expires_at = (now + days * 86400) if days > 0 else 0
-            else:
-                expires_at = now + 365 * 86400
+            expires_at = now + 365 * 86400
 
-        d["users"][dev] = {
-            "device_id": dev,
-            "name": existing.get("name") or "Approved Device",
-            "contact": existing.get("contact") or "",
-            "note": existing.get("note") or "",
-            "requested_package": existing.get("requested_package") or approved_pkg,
-            "approved_package": approved_pkg,
-            "role": final_role,
-            "device_label": existing.get("device_label") or LIC.device_label(),
-            "status": "approved",
-            "approved_at": now,
-            "expires_at": expires_at,
-            "updated_at": now,
-            "created_at": existing.get("created_at", now)
-        }
+        if custom_days is not None and int(custom_days) > 0:
+            expires_at = now + int(custom_days) * 86400
+
+        target["status"] = "approved"
+        target["is_vip"] = True
+        target["role"] = "vip" if target.get("role") != "admin" else "admin"
+        target["approved_package"] = target_pkg
+        target["approved_at"] = now
+        target["expires_at"] = expires_at
+        target["max_free_episodes"] = 999999
+        target["updated_at"] = now
         _save_data(d)
-        return True, d["users"][dev]
 
-def extend_user(device_id, additional_days):
-    dev = str(device_id).strip()
-    days = int(additional_days)
-    now = int(time.time())
-    with _lock:
-        d = _load_data()
-        if dev not in d.get("users", {}):
-            return False, "រកមិនឃើញអ្នកប្រើប្រាស់"
-        u = d["users"][dev]
-        if u.get("role") == "dev":
-            return True, u  # Already unlimited
-        
-        cur_exp = u.get("expires_at", 0)
-        if cur_exp == 0 and u.get("status") == "approved":
-            return True, u  # Already lifetime
-        
-        base_time = max(now, cur_exp)
-        new_exp = base_time + days * 86400
-        u["expires_at"] = new_exp
-        u["status"] = "approved"
-        u["updated_at"] = now
-        _save_data(d)
-        return True, u
+        # Update active sessions in memory
+        for tok, s_user in list(_sessions.items()):
+            if s_user.get("username") == target.get("username") or s_user.get("device_id") == target.get("device_id"):
+                s_user["is_vip"] = True
+                s_user["status"] = "approved"
+                s_user["max_free_episodes"] = 999999
+                s_user["expires_at"] = expires_at
 
-def set_dev_role(device_id, is_dev_flag=True):
-    dev = str(device_id).strip()
-    now = int(time.time())
-    with _lock:
-        d = _load_data()
-        if dev not in d.get("users", {}):
-            d["users"][dev] = {
-                "device_id": dev,
-                "name": "Developer",
-                "contact": "",
-                "note": "",
-                "requested_package": "lifetime",
-                "approved_package": "lifetime",
-                "role": "dev" if is_dev_flag else "user",
-                "device_label": LIC.device_label(),
-                "status": "approved",
-                "approved_at": now,
-                "expires_at": 0,
-                "updated_at": now,
-                "created_at": now
-            }
-        else:
-            d["users"][dev]["role"] = "dev" if is_dev_flag else "user"
-            if is_dev_flag:
-                d["users"][dev]["status"] = "approved"
-                d["users"][dev]["expires_at"] = 0
-            d["users"][dev]["updated_at"] = now
-        _save_data(d)
-        return True
+        return True, target
 
-def revoke_user(device_id):
-    dev = str(device_id).strip()
-    with _lock:
-        d = _load_data()
-        if dev in d.get("users", {}):
-            d["users"][dev]["status"] = "rejected"
-            d["users"][dev]["revoked_at"] = int(time.time())
-            _save_data(d)
-            return True
-    return False
+def check_can_download(token_or_dev: str, requested_episodes: list = None, max_ep: int = 0):
+    """
+    Check download authorization and enforce episode limits.
+    ADMIN & VIP: 100% unrestricted.
+    Regular User / Guest: Restricted to episodes 1 to 10.
+    """
+    st = get_user_status(token_or_dev)
+    if not st.get("authenticated"):
+        return False, "auth_required", "សូមចុះឈ្មោះ ឬចូលប្រើប្រាស់គណនីជាមុនសិន ទើបអាចទាញយករឿងបាន!", None
 
-def delete_user(device_id):
-    dev = str(device_id).strip()
-    with _lock:
-        d = _load_data()
-        if dev in d.get("users", {}):
-            del d["users"][dev]
-            _save_data(d)
-            return True
-    return False
+    if st.get("is_admin") or st.get("is_vip"):
+        return True, "vip_allowed", "VIP Full Access — អនុញ្ញាតទាញយកគ្រប់ភាគ ១០០%", None
+
+    # Regular User: Restricted to episodes 1 to 10
+    if max_ep > 10:
+        return False, "vip_required", "គណនីធម្មតាអាចទាញយកបានត្រឹមភាគ ១ ដល់ ១០ ប៉ុណ្ណោះ! សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ដើម្បីទាញយកភាគ ១១ ឡើងទៅ។", "1-10"
+
+    if requested_episodes:
+        locked = [e for e in requested_episodes if int(e) > 10]
+        if locked:
+            return False, "vip_required", f"ភាគលើសពី ១០ ({', '.join(map(str, locked[:4]))}...) ត្រូវបានចាក់សោរ! គណនីធម្មតាអាចទាញយកបានត្រឹមភាគ ១-១០។", "1-10"
+
+    return True, "regular_allowed", "អនុញ្ញាតទាញយក (ភាគ ១ ដល់ ១០)", "1-10"
+
+def can_access_episode(episode_num: int, token_or_dev: str = ""):
+    """
+    Check if user can play or access a specific episode.
+    Episodes 1 to 10: Free for all.
+    Episodes 11+: ADMIN or VIP only.
+    """
+    if int(episode_num) <= 10:
+        return True, "free_episode", "ភាគ ១-១០ ឥតគិតថ្លៃ"
+
+    st = get_user_status(token_or_dev)
+    if st.get("is_admin") or st.get("is_vip"):
+        return True, "vip_allowed", "VIP / ADMIN Unlocked"
+
+    return False, "vip_required", "ភាគនេះសម្រាប់សមាជិក VIP ប៉ុណ្ណោះ! គណនីធម្មតាអាចទស្សនាបានត្រឹមភាគ ១ ដល់ ១០។ សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ដើម្បីទស្សនាគ្រប់ភាគ។"
 
 def list_users():
     with _lock:
@@ -289,40 +507,102 @@ def list_users():
         now = int(time.time())
         for u in users_list:
             exp = u.get("expires_at", 0)
-            if u.get("role") == "dev":
+            is_adm = (u.get("role") == "admin" or str(u.get("username")).upper() == "ADMIN")
+            if is_adm:
                 u["days_left"] = -1
-            elif exp == 0:
-                u["days_left"] = -1  # Lifetime
+                u["expires_date"] = "Lifetime (Full Control)"
+                u["is_vip"] = True
+                u["is_admin"] = True
+            elif exp == 0 and u.get("is_vip"):
+                u["days_left"] = -1
+                u["expires_date"] = "Lifetime VIP"
             elif exp > now:
                 u["days_left"] = max(0, int((exp - now) / 86400))
-            else:
-                u["days_left"] = 0
-                if u.get("status") == "approved":
-                    u["status"] = "expired"
-
-            if exp > 0:
                 import datetime
                 u["expires_date"] = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
-            elif exp == 0 and (u.get("role") == "dev" or u.get("approved_package") == "lifetime"):
-                u["expires_date"] = "Lifetime"
             else:
-                u["expires_date"] = ""
+                u["days_left"] = 0
+                if exp > 0 and u.get("is_vip"):
+                    u["status"] = "expired"
+                    u["is_vip"] = False
+                u["expires_date"] = "Free (1-10)"
 
-        users_list.sort(key=lambda x: x.get("updated_at", 0), reverse=True)
+        users_list.sort(key=lambda x: (x.get("role") != "admin", x.get("updated_at", 0)), reverse=False)
         return {
             "mode": mode,
             "total_users": len(users_list),
-            "approved_count": len([u for u in users_list if u.get("status") == "approved"]),
-            "pending_count": len([u for u in users_list if u.get("status") == "pending"]),
-            "dev_count": len([u for u in users_list if u.get("role") == "dev"]),
+            "approved_count": len([u for u in users_list if u.get("is_vip")]),
+            "pending_count": len([u for u in users_list if u.get("status") == "pending_vip"]),
+            "admin_count": len([u for u in users_list if u.get("is_admin") or u.get("role") == "admin"]),
             "users": users_list,
             "packages": list(VIP_PACKAGES.values())
         }
 
-def check_can_download(device_id=None):
-    """
-    Check if the user/device is permitted to download.
-    VIP is automatically unlocked for all users.
-    Returns: (allowed: bool, reason: str, message: str, effective_range: str or None)
-    """
-    return True, "free_all", "ទាញយកឥតគិតថ្លៃ ១០០% (VIP Auto Unlocked)", None
+def delete_user(target_id: str):
+    ident = str(target_id or "").strip()
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+        to_del = None
+        for k, u in users.items():
+            if k == ident or u.get("device_id") == ident or u.get("username") == ident:
+                if str(u.get("username")).upper() == "ADMIN":
+                    return False  # Never delete ADMIN!
+                to_del = k
+                break
+        if to_del:
+            del users[to_del]
+            _save_data(d)
+            return True
+    return False
+
+def extend_user(target_id: str, additional_days: int):
+    ident = str(target_id or "").strip()
+    days = int(additional_days)
+    now = int(time.time())
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+        target = None
+        for k, u in users.items():
+            if k == ident or u.get("device_id") == ident or u.get("username") == ident:
+                target = u
+                break
+        if not target:
+            return False, "រកមិនឃើញអ្នកប្រើប្រាស់"
+        if target.get("role") == "admin":
+            return True, target
+
+        cur_exp = target.get("expires_at", 0)
+        base = max(now, cur_exp)
+        new_exp = base + days * 86400
+        target["expires_at"] = new_exp
+        target["is_vip"] = True
+        target["status"] = "approved"
+        target["updated_at"] = now
+        _save_data(d)
+        return True, target
+
+def revoke_user(target_id: str):
+    ident = str(target_id or "").strip()
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+        for k, u in users.items():
+            if k == ident or u.get("device_id") == ident or u.get("username") == ident:
+                if str(u.get("username")).upper() == "ADMIN":
+                    return False
+                u["status"] = "revoked"
+                u["is_vip"] = False
+                u["updated_at"] = int(time.time())
+                _save_data(d)
+                return True
+    return False
+
+def is_dev(device_id=None):
+    st = get_user_status(device_id)
+    return st.get("is_admin") or st.get("is_dev", False)
+
+def is_vip(device_id=None):
+    st = get_user_status(device_id)
+    return st.get("is_vip", False)

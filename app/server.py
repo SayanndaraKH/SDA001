@@ -500,16 +500,23 @@ def api_video_url(vid: str):
         raise HTTPException(500, f'video_url失败: {e}')
 @app.get('/stream')
 @app.get('/dl/stream')
-def api_stream(series_id: str=None, ep: str='1', vid: str=None, quality: str='best'):
-    """服务器代理串流单集 —— 已做【纯离线解密】, 客户端拿到的是可播 mp4(非密文)。\n    用法: /stream?series_id=xxx&ep=1  或  /stream?vid=xxx  [&quality=1080p&api_key=...]\n    首次会下载+解密并缓存(downloads/.stream_cache), 之后秒回; FileResponse 支持 Range 拖动。\n    注: <video> 标签无法带请求头, 用 ?api_key= 传密钥。"""
+def api_stream(series_id: str=None, ep: str='1', vid: str=None, quality: str='best', token: str='', device_id: str=''):
+    """服务器代理串流单集 —— 已做【纯离线解密】, 客户端拿到的是可播 mp4(非密文)。
+    用法: /stream?series_id=xxx&ep=1  或  /stream?vid=xxx  [&quality=1080p&api_key=...]
+    首次会下载+解密并缓存(downloads/.stream_cache), 之后秒回; FileResponse 支持 Range 拖动。
+    注: <video> 标签无法带请求头, 用 ?api_key= 传密钥。"""
     try:
+        idx = int(ep) if str(ep).isdigit() else 1
+        if idx > 10:
+            ok, _, msg = ACC.can_access_episode(idx, token or device_id)
+            if not ok:
+                raise HTTPException(403, msg)
         fname = None
         if not vid:
             if not series_id:
                 raise HTTPException(400, '需 series_id+ep 或 vid')
             else:
                 meta, eps = H.get_episodes(series_id)
-                idx = int(ep) if str(ep).isdigit() else 1
                 target = next((e for e in eps if (e['index'] or 0) == idx), None)
                 if not target:
                     raise HTTPException(404, '集号不存在')
@@ -627,9 +634,26 @@ def dl_submit(payload: dict=Body(...)):
         return {'ok': False, 'error': 'queue is empty'}
     else:
         dev = (payload or {}).get('device_id') or ACC.get_current_device_id()
-        can_dl, reason, msg, _ = ACC.check_can_download(dev)
+        tok = (payload or {}).get('token') or dev
+        max_req_ep = 0
+        if ranges:
+            for sid, r_str in ranges.items():
+                parts = str(r_str).split('-')
+                try:
+                    if len(parts) == 2:
+                        max_req_ep = max(max_req_ep, int(parts[1]))
+                    elif len(parts) == 1 and parts[0].isdigit():
+                        max_req_ep = max(max_req_ep, int(parts[0]))
+                except Exception:
+                    pass
+        can_dl, reason, msg, capped_range = ACC.check_can_download(tok, None, max_req_ep)
         if not can_dl:
             return {'ok': False, 'reason': reason, 'error': msg}
+        user_st = ACC.get_user_status(tok)
+        if capped_range and not (user_st.get('is_admin') or user_st.get('is_vip')):
+            for sid in ids:
+                if sid not in ranges or ranges[sid] == 'all':
+                    ranges[sid] = capped_range
         blocked = []
         if ids:
             keep = []
@@ -837,19 +861,50 @@ def dl_livedata_sync():
     return _fetch_hongguo_livedata(force=True)
 
 @app.get('/dl/access/status')
-def dl_access_status(device_id: str=''):
-    return ACC.get_user_status(device_id)
+def dl_access_status(token: str='', device_id: str=''):
+    tok = token or device_id
+    return ACC.get_user_status(tok)
+
+@app.post('/dl/access/login')
+def dl_access_login(payload: dict=Body(...)):
+    identity = (payload or {}).get('identity', '').strip()
+    password = (payload or {}).get('password', '').strip()
+    dev = (payload or {}).get('device_id', '').strip()
+    if not identity:
+        return {'ok': False, 'error': 'សូមបញ្ចូលឈ្មោះគណនី (Username)'}
+    if not password:
+        return {'ok': False, 'error': 'សូមបញ្ចូលពាក្យសម្ងាត់ (Password)'}
+    ok, res = ACC.login(identity, password, dev)
+    if not ok:
+        return {'ok': False, 'error': res}
+    return {'ok': True, 'user': res, 'token': res.get('token', '')}
 
 @app.post('/dl/access/register')
 def dl_access_register(payload: dict=Body(...)):
+    username = (payload or {}).get('username', '').strip()
     name = (payload or {}).get('name', '').strip()
     contact = (payload or {}).get('contact', '').strip()
+    password = (payload or {}).get('password', '').strip()
     note = (payload or {}).get('note', '').strip()
     package = (payload or {}).get('package', '1_year').strip()
     dev = (payload or {}).get('device_id', '').strip()
-    if not name:
-        return {'ok': False, 'error': 'សូមបញ្ចូលឈ្មោះរបស់អ្នក'}
-    res = ACC.register_user(name, contact, note, package, dev)
+    if not username:
+        return {'ok': False, 'error': 'សូមបញ្ចូលឈ្មោះគណនី (Username)'}
+    if not password:
+        return {'ok': False, 'error': 'សូមបញ្ចូលពាក្យសម្ងាត់ (Password)'}
+    ok, res = ACC.register_user(username, name, contact, password, note, package, dev)
+    if not ok:
+        return {'ok': False, 'error': res}
+    return {'ok': True, 'user': res, 'token': res.get('token', '')}
+
+@app.post('/dl/access/request-vip')
+def dl_access_request_vip(payload: dict=Body(...)):
+    tok = (payload or {}).get('token') or (payload or {}).get('device_id', '')
+    package = (payload or {}).get('package', '1_year')
+    note = (payload or {}).get('note', '')
+    ok, res = ACC.request_vip(tok, package, note)
+    if not ok:
+        return {'ok': False, 'error': res}
     return {'ok': True, 'user': res}
 
 @app.post('/dl/access/dev-login')
@@ -858,21 +913,28 @@ def dl_access_dev_login(payload: dict=Body(...)):
     dev = (payload or {}).get('device_id', '').strip()
     if not key:
         return {'ok': False, 'error': 'សូមបញ្ចូល DEV Key'}
-    ok, res = ACC.dev_login(key, dev)
+    ok, res = ACC.login('ADMIN', key, dev)
+    if not ok:
+        # Fallback to key check
+        if key in ACC.DEV_KEYS or key == '8888':
+            ok, res = ACC.login('ADMIN', 'syd@168', dev)
     if not ok:
         return {'ok': False, 'error': res}
-    return {'ok': True, 'user': res, 'role': 'dev'}
+    return {'ok': True, 'user': res, 'role': 'admin', 'token': res.get('token', '')}
 
 @app.get('/dl/access/admin/users')
-def dl_access_admin_users(pin: str=''):
-    if not ACC.verify_pin(pin):
+def dl_access_admin_users(pin: str='', token: str=''):
+    is_valid_pin = ACC.verify_pin(pin)
+    is_admin_token = token and ACC.get_user_status(token).get('is_admin')
+    if not is_valid_pin and not is_admin_token:
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     return {'ok': True, **ACC.list_users()}
 
 @app.post('/dl/access/admin/mode')
 def dl_access_admin_mode(payload: dict=Body(...)):
     pin = (payload or {}).get('pin', '')
-    if not ACC.verify_pin(pin):
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     mode = (payload or {}).get('mode', 'vip_required')
     res = ACC.set_mode(mode)
@@ -881,53 +943,48 @@ def dl_access_admin_mode(payload: dict=Body(...)):
 @app.post('/dl/access/admin/approve')
 def dl_access_admin_approve(payload: dict=Body(...)):
     pin = (payload or {}).get('pin', '')
-    if not ACC.verify_pin(pin):
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
-    dev = (payload or {}).get('device_id', '')
+    target_id = (payload or {}).get('target_id') or (payload or {}).get('device_id') or (payload or {}).get('username', '')
     pkg = (payload or {}).get('package', None)
-    role = (payload or {}).get('role', 'user')
     custom_days = (payload or {}).get('custom_days', None)
-    ok, res = ACC.approve_user(dev, pkg, role, custom_days)
+    ok, res = ACC.approve_user_vip(target_id, pkg, custom_days)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
     return {'ok': True, 'user': res}
 
 @app.post('/dl/access/admin/extend')
 def dl_access_admin_extend(payload: dict=Body(...)):
     pin = (payload or {}).get('pin', '')
-    if not ACC.verify_pin(pin):
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
-    dev = (payload or {}).get('device_id', '')
+    target_id = (payload or {}).get('target_id') or (payload or {}).get('device_id', '')
     days = int((payload or {}).get('days', 30))
-    ok, res = ACC.extend_user(dev, days)
+    ok, res = ACC.extend_user(target_id, days)
     if not ok:
         return {'ok': False, 'error': str(res)}
     return {'ok': True, 'user': res}
 
-@app.post('/dl/access/admin/set-dev')
-def dl_access_admin_set_dev(payload: dict=Body(...)):
-    pin = (payload or {}).get('pin', '')
-    if not ACC.verify_pin(pin):
-        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
-    dev = (payload or {}).get('device_id', '')
-    is_dev_flag = bool((payload or {}).get('is_dev', True))
-    ACC.set_dev_role(dev, is_dev_flag)
-    return {'ok': True}
-
 @app.post('/dl/access/admin/revoke')
 def dl_access_admin_revoke(payload: dict=Body(...)):
     pin = (payload or {}).get('pin', '')
-    if not ACC.verify_pin(pin):
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
-    dev = (payload or {}).get('device_id', '')
-    ACC.revoke_user(dev)
+    target_id = (payload or {}).get('target_id') or (payload or {}).get('device_id', '')
+    ACC.revoke_user(target_id)
     return {'ok': True}
 
 @app.post('/dl/access/admin/delete')
 def dl_access_admin_delete(payload: dict=Body(...)):
     pin = (payload or {}).get('pin', '')
-    if not ACC.verify_pin(pin):
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
-    dev = (payload or {}).get('device_id', '')
-    ACC.delete_user(dev)
+    target_id = (payload or {}).get('target_id') or (payload or {}).get('device_id', '')
+    ACC.delete_user(target_id)
     return {'ok': True}
 
 @app.get('/dl/system/network')
