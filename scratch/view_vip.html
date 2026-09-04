@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<iframe id="f" src="http://127.0.0.1:8000/" style="width:1280px;height:960px;border:none"></iframe>
+<script>
+const f = document.getElementById('f');
+f.onload = () => {
+  setTimeout(() => {
+    try {
+      const win = f.contentWindow;
+      // Set user access as regular user
+      win.userAccess = {
+        authenticated: true,
+        username: 'soktest1',
+        name: 'សុខ ពិសិដ្ឋ',
+        contact: '012888999',
+        is_admin: false,
+        is_vip: false,
+        status: 'user',
+        device_id: 'test_dev_001',
+        settings: {
+          khqr_image: 'https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg',
+          telegram_admin: 'https://t.me/syd_admin_support',
+          telegram_group: 'https://t.me/syd_drama_community'
+        }
+      };
+      win.updateAccessUI(win.userAccess);
+      win.openUserRegisterModal('vip');
+      document.title = "STATE_VIP_READY";
+    } catch(e){
+      console.error(e);
+    }
+  }, 1000);
+};
+</script>
+</body>
+</html>

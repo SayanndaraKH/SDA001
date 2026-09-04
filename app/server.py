@@ -987,6 +987,33 @@ def dl_access_admin_delete(payload: dict=Body(...)):
     ACC.delete_user(target_id)
     return {'ok': True}
 
+@app.get('/dl/access/settings')
+def dl_access_settings():
+    return {'ok': True, 'settings': ACC.get_settings()}
+
+@app.post('/dl/access/admin/settings')
+def dl_access_admin_settings(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    settings = (payload or {}).get('settings', {})
+    res = ACC.save_settings(settings)
+    return {'ok': True, 'settings': res}
+
+@app.post('/dl/access/admin/ban')
+def dl_access_admin_ban(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    target_id = (payload or {}).get('target_id') or (payload or {}).get('device_id') or (payload or {}).get('username', '')
+    banned = bool((payload or {}).get('banned', True))
+    ok, res = ACC.ban_user(target_id, banned)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+    return {'ok': True, 'user': res}
+
 @app.get('/dl/system/network')
 def dl_system_network():
     port = int(os.environ.get('PORT', '8000'))

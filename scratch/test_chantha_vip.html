@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<body style="margin:0;background:#15100d">
+<iframe id="testFrame" src="http://127.0.0.1:8000/?auth_token=usr_24e49c84c91ccd7c0f75adf75163db1a" style="width:1280px;height:950px;border:none;"></iframe>
+<script>
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const fWin = document.getElementById('testFrame').contentWindow;
+    // Open VIP modal
+    if(fWin && fWin.openUserRegisterModal) {
+      fWin.openUserRegisterModal('vip');
+      // Scroll modal-scroll down a bit so all steps are visible
+      setTimeout(() => {
+        const m = fWin.document.querySelector('.modal-scroll');
+        if(m) m.scrollTop = 120;
+      }, 500);
+    }
+  }, 1500);
+});
+</script>
+</body>
+</html>
