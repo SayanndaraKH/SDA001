@@ -1,0 +1,22 @@
+{
+  "mode": "vip_required",
+  "admin_pin": "8888",
+  "users": {
+    "d1:c32730ad5cd271421a6c7d52bc81952e": {
+      "device_id": "d1:c32730ad5cd271421a6c7d52bc81952e",
+      "name": "Developer",
+      "contact": "DEV Team",
+      "note": "Developer Master Account",
+      "requested_package": "lifetime",
+      "approved_package": "lifetime",
+      "role": "dev",
+      "device_label": "PC-1 / Dara",
+      "status": "approved",
+      "updated_at": 1788532057,
+      "created_at": 1788532057,
+      "approved_at": 1788532057,
+      "expires_at": 0
+    }
+  },
+  "dev_key": "DEV8888"
+}

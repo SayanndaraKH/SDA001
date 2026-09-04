@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Distribution / packaging / binaries
+dist/
+build/
+*.egg-info/
+*.exe
+*.dll
+*.pyd
+unins000.*
+
+# Bundled heavy runtimes (100MB+ precompiled binaries)
+python/
+jre/
+
+# Application downloads & runtime cache
+app/downloads/
+.stream_cache/
+*.mp4
+*.m4s
+*.ts
+*.tmp
+*.temp
+
+# Local logs & dev tokens
+*.log
+.env
+
+# Temporary dump / capture / backup files
+*.prev*
+*.bak
+chrome_dl_dom.html
+screen_catalog_live.png
+
+# IDE / OS files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
