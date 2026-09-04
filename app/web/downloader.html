@@ -2719,6 +2719,7 @@ function syncResultButtons(){
 
 /* ---------- queue render ---------- */
 function renderQueue(){
+  let cartDirty = false;
   const smap={}; (lastStatus.series||[]).forEach(s=>smap[s.sid]=s);
   const libMap = getLibMap();
   const ids=Object.keys(cart);
@@ -2817,7 +2818,7 @@ function renderQueue(){
     }
   }
 
-  let cartDirty = false;
+  cartDirty = false;
   el.innerHTML = ids.map(id=>{
     const c=cart[id], s=smap[id];
     const title=(s&&s.title)||c.title, total=(s&&s.total)||c.total||0;
@@ -5001,7 +5002,6 @@ function updateAccessUI(data){
     badge.style.background = "rgba(46, 204, 113, 0.12)";
     badge.style.boxShadow = "none";
   }
-}
 
   // Update elements inside #userRegisterModal
   const regDevId = $("#regDeviceId");
@@ -5010,40 +5010,10 @@ function updateAccessUI(data){
   const regStBadge = $("#regCurrentStatusBadge");
   const regExp = $("#regExpiryText");
   if(regStBadge){
-    if(data.is_dev){
-      regStBadge.textContent = "🛠️ Developer (គ្មានដែនកំណត់ / Full Access)";
-      regStBadge.style.color = "#c084fc";
-      regStBadge.style.background = "rgba(192,132,252,0.2)";
-      if(regExp) regExp.textContent = "♾️ គ្មានដែនកំណត់ (Permanent Master)";
-    } else if(data.is_vip){
-      const pkgLabel = data.package_name || "VIP";
-      regStBadge.textContent = `✅ VIP Active [${pkgLabel}]`;
-      regStBadge.style.color = "var(--good)";
-      regStBadge.style.background = "rgba(46,204,113,0.18)";
-      if(regExp){
-        regExp.textContent = data.days_left === -1 ? "♾️ មួយជីវិត (Lifetime)" : `សល់ ${data.days_left} ថ្ងៃ (${data.expires_date || ''})`;
-      }
-    } else if(data.status === 'pending'){
-      regStBadge.textContent = "⏳ រង់ចាំ Admin អនុម័ត (Pending)";
-      regStBadge.style.color = "var(--gold)";
-      regStBadge.style.background = "rgba(241,196,15,0.18)";
-      if(regExp) regExp.textContent = `កំពុងស្នើសុំ: ${data.package_name || data.requested_package || 'VIP'}`;
-    } else if(data.status === 'expired'){
-      regStBadge.textContent = "⚠️ VIP របស់អ្នកបានផុតកំណត់ហើយ!";
-      regStBadge.style.color = "var(--bad)";
-      regStBadge.style.background = "rgba(231,76,60,0.18)";
-      if(regExp) regExp.textContent = `បានផុតកំណត់នៅ: ${data.expires_date || 'Expired'}`;
-    } else if(data.status === 'rejected'){
-      regStBadge.textContent = "⛔ ត្រូវបានផ្អាក / ដកសិទ្ធិ (Revoked)";
-      regStBadge.style.color = "var(--bad)";
-      regStBadge.style.background = "rgba(231,76,60,0.18)";
-      if(regExp) regExp.textContent = "—";
-    } else {
-      regStBadge.textContent = "មិនទាន់ចុះឈ្មោះ (Not Registered)";
-      regStBadge.style.color = "var(--ink)";
-      regStBadge.style.background = "rgba(255,255,255,0.1)";
-      if(regExp) regExp.textContent = "—";
-    }
+    regStBadge.textContent = "👑 VIP Active (Lifetime)";
+    regStBadge.style.color = "var(--good)";
+    regStBadge.style.background = "rgba(46,204,113,0.18)";
+    if(regExp) regExp.textContent = "♾️ មួយជីវិត (Lifetime)";
   }
 
   if(data.user_info){
