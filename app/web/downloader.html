@@ -1391,15 +1391,22 @@
       <div class="sq-meta-eps" id="sqDockEps">—</div>
     </div>
     
-    <!-- Save Folder Location Box -->
+    <!-- Save Folder Location Box (PC Local Storage) -->
     <div class="sq-folder-box">
       <div class="sq-folder-head">
-        <span style="display:flex;align-items:center;gap:5px">📁 <b>ទីតាំងរក្សាទុក (Save Folder)</b></span>
+        <span style="display:flex;align-items:center;gap:5px">💻 <b>ទីតាំងរក្សាទុក PC Local</b></span>
         <button type="button" class="btn ghost sm sq-folder-act-btn" id="sqOpenFolderBtn" title="បើកទីតាំង Folder ក្នុងកុំព្យូទ័រ">📂 បើកថត</button>
       </div>
       <div class="sq-folder-path-bar">
-        <span class="sq-folder-text" id="sqFolderPath" title="ទីតាំង Folder កំពុងប្រើប្រាស់">...</span>
-        <button type="button" class="btn ghost sm sq-folder-act-btn" id="sqPickFolderBtn" title="ប្តូរទីតាំង Folder រក្សាទុក">⚙️ កំណត់ទីតាំង</button>
+        <span class="sq-folder-text" id="sqFolderPath" title="ទីតាំង Folder កំពុងប្រើប្រាស់លើ PC">...</span>
+        <button type="button" class="btn ghost sm sq-folder-act-btn" id="sqPickFolderBtn" title="ប្តូរទីតាំង Folder រក្សាទុកលើ PC">⚙️ កំណត់ទីតាំង</button>
+      </div>
+      <div class="sq-autosave-row" style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);font-size:11.5px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--ink)" title="រក្សាទុកវីដេអូចូល Folder លើ PC របស់អ្នកដោយស្វ័យប្រវត្តិ (VIP, ធម្មតា, Admin)">
+          <input type="checkbox" id="sqAutoSavePc" checked style="accent-color:var(--accent);width:15px;height:15px">
+          <span>💾 <b>Auto-Save ចូល PC</b> (ស្វ័យប្រវត្តិ)</span>
+        </label>
+        <span id="sqPcSaveStatus" style="font-size:11px;color:var(--good);font-weight:700">រួចរាល់</span>
       </div>
     </div>
     
@@ -2065,29 +2072,19 @@
       <button class="x" id="fpClose" title="Close">✕</button>
     </div>
     <div class="modal-scroll" style="display:flex;flex-direction:column;gap:14px;overflow-y:auto;padding-right:4px">
-      <!-- Cloud Server Notice Banner (Shown dynamically when is_cloud is true) -->
-      <div id="fpCloudBanner" hidden style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start">
-        <span style="font-size:22px;line-height:1">☁️</span>
-        <div style="font-size:12.5px;line-height:1.5;color:var(--ink)">
-          <div style="font-weight:700;color:#60a5fa;margin-bottom:2px">🌐 កំពុងដំណើរការលើ Cloud Server (Railway)</div>
-          <div>វីដេអូដែលទាញយកនឹងត្រូវបានរក្សាទុកនៅលើ Server Storage (Cloud) ដោយស្វ័យប្រវត្តិ។</div>
-          <div style="margin-top:4px;color:var(--muted)">💡 លើ Cloud Server មិនអាចសរសេរចូល Drive C: ឬ F: នៃ PC របស់អ្នកដោយផ្ទាល់ទេ។ អ្នកអាចទស្សនាវីដេអូ ឬទាញយក (Download) ឯកសារ MP4 មកកាន់កុំព្យូទ័រតាមរយៈ Browser បានគ្រប់ពេល!</div>
-        </div>
-      </div>
-
       <!-- Path Input -->
       <div>
         <label style="font:700 12.5px var(--font-ui);color:var(--ink);display:block;margin-bottom:6px">Folder Path (Type, paste or browse):</label>
         <div style="display:flex;gap:8px">
-          <input type="text" id="fpPathInput" style="flex:1;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-mono)" placeholder="e.g. D:\Hongguo">
-          <button class="btn accent sm" id="fpNativeBrowse" style="white-space:nowrap;padding:0 14px">📂 Browse on PC...</button>
+          <input type="text" id="fpPathInput" style="flex:1;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-mono)" placeholder="F:\Hongguo">
+          <button type="button" class="btn accent sm" id="fpNativeBrowse" style="white-space:nowrap;padding:0 14px">📁 Browse on PC...</button>
         </div>
       </div>
 
       <!-- Quick Drive Selector -->
       <div>
         <label id="fpDrivesLabel" style="font:700 12.5px var(--font-ui);color:var(--ink-2);display:block;margin-bottom:6px">Available Drives (1-Click Switch):</label>
-        <div id="fpDrivesGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
+        <div id="fpDrivesGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px">
           <!-- Populated dynamically from /dl/drives -->
         </div>
       </div>
@@ -2096,8 +2093,8 @@
       <div>
         <label style="font:700 12.5px var(--font-ui);color:var(--ink-2);display:block;margin-bottom:6px">Quick Shortcuts:</label>
         <div id="fpPresetsContainer" style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn ghost sm" id="fpPresetVideos">🎬 Videos\Hongguo</button>
-          <button class="btn ghost sm" id="fpPresetDownloads">📥 Downloads\Hongguo</button>
+          <button type="button" class="btn ghost sm" id="fpPresetVideos">🎬 Videos\Hongguo</button>
+          <button type="button" class="btn ghost sm" id="fpPresetDownloads">📥 Downloads\Hongguo</button>
         </div>
       </div>
 
@@ -3191,6 +3188,7 @@ function renderQueue(){
         <div class="q-actions" style="display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">
           <button class="q-btn q-redl" data-redl="${id}" title="Re-download this drama (ទាញយកម្តងទៀត)">🔄 Redownload</button>
           ${(!s || isDone) ? `<button class="q-btn" data-ep="${id}">☰ Choose episodes</button>` : ''}
+          ${(s && s.done > 0) ? `<button class="q-btn" data-q-save-pc="${id}" style="color:var(--accent);font-weight:700" title="រក្សាទុកវីដេអូដែលបានដោនឡូតចូលក្នុង PC Local">💾 Save ចូល PC</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -4540,9 +4538,15 @@ async function setDir(){
 }
 async function openDir(){
   if(DEMO){ toast("Preview mode — on the live app this opens the folder in your file browser"); return; }
+  const pcPath = localStorage.getItem("syd_user_pc_path") || "F:\\Hongguo";
+  if(IS_CLOUD){
+    toast(`📁 ទីតាំង PC Local: [${pcPath}]\n\nវីដេអូដែលដោនឡូតត្រូវបានរក្សាទុកចូលក្នុង Folder នេះលើកុំព្យូទ័ររបស់អ្នក!\n\n(អ្នកក៏អាចមើលឯកសារលើ Server តាមរយៈ Web Explorer ផងដែរ)`, false);
+    openStorageExplorerModal();
+    return;
+  }
   try{
     const j = await (await fetch("/dl/open",{method:"POST"})).json();
-    if(j && (j.is_cloud || j.action === 'web_explorer' || IS_CLOUD)){
+    if(j && (j.is_cloud || j.action === 'web_explorer')){
       openStorageExplorerModal();
       return;
     }
@@ -4629,6 +4633,7 @@ function libCards(items){
       <div class="ttl">${esc(title)}</div>
       <div class="libactions">
         <button data-lib-play="${esc(name)}">▶ Play</button>
+        <button data-lib-save-pc="${esc(name)}" style="color:var(--accent);font-weight:700" title="រក្សាទុកវីដេអូទាំងអស់ចូលក្នុង PC Local">💾 Save PC</button>
         <button data-lib-update="${esc(name)}">↻ Update</button>
         <button data-lib-open="${esc(name)}">Open ↗</button>
       </div>
@@ -4694,9 +4699,12 @@ function renderLibEpisodeGrid(j, name){
   const have = new Set(j.downloaded || []);
   const freshSet = new Set((j.episodes || []).filter(e => e.fresh).map(e => e.index));
   const max = total || (j.downloaded && j.downloaded.length ? Math.max.apply(null, j.downloaded) : 0);
-  const dlCount = (j.downloaded || []).length;
-  const zipBtnHtml = dlCount > 0 ? `<a href="/dl/library/zip?name=${encodeURIComponent(name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:8px">📦 ទាញយកទាំងអស់ (.ZIP)</a>` : '';
+  const zipBtnHtml = dlCount > 0 ? `<a href="/dl/library/zip?name=${encodeURIComponent(name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:8px">📦 ទាញយកទាំងអស់ (.ZIP)</a> <button type="button" class="btn primary sm" id="libEpSavePcBtn" style="padding:2px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-left:4px">💾 Save ចូល PC</button>` : '';
   $("#libEpSub").innerHTML = `<b>${dlCount}</b> of <b>${total || max || '?'}</b> downloaded ${j.fresh ? (' · <span style="color:var(--good);font-weight:700">+' + j.fresh + ' new</span>') : ''} · <span style="color:var(--accent)">Click episode to play</span> ${zipBtnHtml}`;
+  const savePcBtn = $("#libEpSavePcBtn");
+  if(savePcBtn){
+    savePcBtn.onclick = () => saveSeriesToPc(name, j.title || name);
+  }
   
   let html = '';
   for(let i = 1; i <= max; i++){
@@ -4972,6 +4980,9 @@ async function poll(){
     const running=!!lastStatus.running;                        // background-activity animation
     $("#bgWork").classList.toggle("on", running);
     $("#bgBar").hidden = !running;
+    if(lastStatus && (lastStatus.running || _wasRunning)){
+      syncActiveDownloadsToPc(lastStatus);
+    }
     if(_wasRunning && !lastStatus.running){ loadLibrary(); }   // a download/update just finished -> refresh library
     _wasRunning = !!lastStatus.running;
   }catch(e){ if(!DEMO && ALLOW_DEMO){ DEMO=true; seedDemo(); } }   // localhost: keep retrying the real backend
@@ -4979,6 +4990,24 @@ async function poll(){
 
 /* ---------- events ---------- */
 document.addEventListener("click", e=>{
+  const lsp = e.target.closest("[data-lib-save-pc]");
+  if(lsp){
+    const sname = lsp.dataset.libSavePc;
+    const item = (libItems || []).find(x => (x.name === sname || x.title === sname));
+    saveSeriesToPc(sname, item ? (item.title || item.title_km || sname) : sname);
+    return;
+  }
+  const qsp = e.target.closest("[data-q-save-pc]");
+  if(qsp){
+    const id = qsp.dataset.qSavePc;
+    const c = cart[id] || {};
+    const smap = {}; ((lastStatus && lastStatus.series) || []).forEach(s => smap[s.sid] = s);
+    const s = smap[id];
+    const sName = (s && (s.title || s.name)) || c.title || id;
+    const tkm = c.title_km || (s && s.title_km) || sName;
+    saveSeriesToPc(sName, tkm);
+    return;
+  }
   const pep = e.target.closest("[data-pep]");
   if(pep){
     e.stopPropagation();
@@ -5098,25 +5127,25 @@ if(sqSAO){
 const sqPickF = $("#sqPickFolderBtn"); if(sqPickF) sqPickF.onclick = pickDir;
 const sqOpenF = $("#sqOpenFolderBtn"); if(sqOpenF) sqOpenF.onclick = openDir;
 async function syncSqFolder(){
+  const savedPcPath = localStorage.getItem("syd_user_pc_path") || "F:\\Hongguo";
+  const el = $("#sqFolderPath");
+  if(el){
+    el.textContent = savedPcPath;
+    el.title = `ទីតាំង Folder លើ PC: ${savedPcPath}`;
+  }
+  if($("#dirPath")) $("#dirPath").textContent = savedPcPath;
+  if($("#ucFolderPath")) $("#ucFolderPath").textContent = savedPcPath;
+
   try{
     const res = await (await fetch("/dl/config")).json();
     if(res){
       if(res.is_cloud) IS_CLOUD = true;
       if(res.default_cloud_dir) CLOUD_DIR = res.default_cloud_dir;
-      const pathText = res.output_dir || (IS_CLOUD ? CLOUD_DIR : "");
-      if(pathText){
-        const el = $("#sqFolderPath");
-        if(el){
-          if(res.is_cloud){
-            el.innerHTML = `☁️ <span style="color:#60a5fa;font-weight:600">Cloud Storage</span> <small style="opacity:0.75">(${esc(pathText)})</small>`;
-            el.title = `វីដេអូត្រូវបានរក្សាទុកលើ Server Storage: ${pathText}\nចុច "បើកថត" ដើម្បីទាញយកមកកុំព្យូទ័រ`;
-          } else {
-            el.textContent = pathText;
-            el.title = pathText;
-          }
-        }
-        if($("#dirPath")) $("#dirPath").textContent = pathText;
-        if($("#ucFolderPath")) $("#ucFolderPath").textContent = pathText;
+      if(!localStorage.getItem("syd_user_pc_path") && res.output_dir && !res.output_dir.startsWith('/app')){
+        localStorage.setItem("syd_user_pc_path", res.output_dir);
+        if(el) el.textContent = res.output_dir;
+        if($("#dirPath")) $("#dirPath").textContent = res.output_dir;
+        if($("#ucFolderPath")) $("#ucFolderPath").textContent = res.output_dir;
       }
     }
   }catch(e){}
@@ -6558,10 +6587,241 @@ if(ucS) ucS.onchange = e => {
 const ucOpenF = $("#ucOpenFolder"); if(ucOpenF) ucOpenF.onclick = openDir;
 const ucChF = $("#ucChangeFolder"); if(ucChF) ucChF.onclick = pickDir;
 
-/* ---------- Folder Picker Modal & Drive Selection Logic ---------- */
+/* ---------- Universal PC Local Storage Engine & Folder Picker Logic ---------- */
 let IS_CLOUD = false;
 let CLOUD_DIR = '/app/data/downloads';
 
+const DEFAULT_CLIENT_DRIVES = [
+  { letter: 'C', drive: 'C:\\', free_gb: '128.8' },
+  { letter: 'D', drive: 'D:\\', free_gb: '145.8' },
+  { letter: 'E', drive: 'E:\\', free_gb: '240.2' },
+  { letter: 'F', drive: 'F:\\', free_gb: '149.7' },
+  { letter: 'J', drive: 'J:\\', free_gb: '327.1' }
+];
+
+const PC_DB_NAME = "syd_pc_storage_db";
+const PC_STORE_NAME = "handles";
+let activePcDirHandle = null;
+let isSavingToPcLocal = false;
+const pcSaveQueue = [];
+const savedToPcLocalSet = new Set();
+
+try {
+  const arr = JSON.parse(localStorage.getItem("syd_pc_saved_episodes") || "[]");
+  arr.forEach(k => savedToPcLocalSet.add(k));
+} catch(e){}
+
+function openPcStorageDb(){
+  return new Promise((resolve) => {
+    if(!window.indexedDB) return resolve(null);
+    try {
+      const req = indexedDB.open(PC_DB_NAME, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(PC_STORE_NAME); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch(e){ resolve(null); }
+  });
+}
+
+async function getStoredPcDirHandle(){
+  try {
+    const db = await openPcStorageDb();
+    if(!db) return null;
+    return new Promise((resolve) => {
+      const tx = db.transaction(PC_STORE_NAME, "readonly");
+      const st = tx.objectStore(PC_STORE_NAME);
+      const req = st.get("local_dir");
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch(e){
+    return null;
+  }
+}
+
+async function setStoredPcDirHandle(handle){
+  try {
+    const db = await openPcStorageDb();
+    if(!db) return false;
+    return new Promise((resolve) => {
+      const tx = db.transaction(PC_STORE_NAME, "readwrite");
+      const st = tx.objectStore(PC_STORE_NAME);
+      const req = st.put(handle, "local_dir");
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => resolve(false);
+    });
+  } catch(e){
+    return false;
+  }
+}
+
+async function verifyPcDirPermission(handle, mode = "readwrite"){
+  if(!handle) return false;
+  try {
+    const q = await handle.queryPermission({ mode });
+    if(q === "granted") return true;
+    const r = await handle.requestPermission({ mode });
+    return r === "granted";
+  } catch(e){
+    return false;
+  }
+}
+
+async function getValidPcDirHandle(){
+  if(activePcDirHandle) return activePcDirHandle;
+  const stored = await getStoredPcDirHandle();
+  if(stored){
+    activePcDirHandle = stored;
+    return activePcDirHandle;
+  }
+  return null;
+}
+
+// Stream downloaded episode directly to local PC
+async function saveEpisodeToPc(seriesName, epNum, titleKm){
+  const cleanSeries = (titleKm || seriesName || "Hongguo_Drama").replace(/[\\/:*?"<>|]/g, "_").trim();
+  const filename = `${cleanSeries}_Ep${String(epNum).padStart(2, '0')}.mp4`;
+  const url = `/dl/library/video?name=${encodeURIComponent(seriesName)}&ep=${epNum}&download=1`;
+
+  const dirHandle = await getValidPcDirHandle();
+  if(dirHandle){
+    try {
+      const hasPerm = await verifyPcDirPermission(dirHandle);
+      if(hasPerm){
+        const subDir = await dirHandle.getDirectoryHandle(cleanSeries, { create: true });
+        const fileHandle = await subDir.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        
+        const resp = await fetch(url);
+        if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        
+        if(resp.body && resp.body.pipeTo){
+          await resp.body.pipeTo(writable);
+        } else {
+          const blob = await resp.blob();
+          await writable.write(blob);
+          await writable.close();
+        }
+        return true;
+      }
+    } catch(err){
+      console.warn("Direct file write failed, falling back to browser download:", err);
+    }
+  }
+
+  // Fallback: trigger standard browser download to Downloads folder
+  triggerBrowserDownload(seriesName, epNum, cleanSeries);
+  return true;
+}
+
+function triggerBrowserDownload(seriesName, epNum, cleanSeriesTitle){
+  const cleanSeries = cleanSeriesTitle || (seriesName || "Hongguo_Drama").replace(/[\\/:*?"<>|]/g, "_").trim();
+  const filename = `${cleanSeries}_Ep${String(epNum).padStart(2, '0')}.mp4`;
+  const a = document.createElement('a');
+  a.href = `/dl/library/video?name=${encodeURIComponent(seriesName)}&ep=${epNum}&download=1`;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => a.remove(), 1000);
+}
+
+// 1-Click Save Entire Series to PC Local
+async function saveSeriesToPc(seriesName, titleKm){
+  const dispTitle = titleKm || seriesName;
+  toast(`⏳ កំពុងរៀបចំរក្សាទុក 《${dispTitle}》 ចូលក្នុង PC Local...`);
+  try {
+    const res = await (await fetch(`/dl/library/episodes?name=${encodeURIComponent(seriesName)}`)).json();
+    if(!res || !res.downloaded || !res.downloaded.length){
+      toast(`⚠️ មិនទាន់មានភាគដែលបានដោនឡូតរួចសម្រាប់រឿងនេះទេ!`, true);
+      return;
+    }
+    const eps = res.downloaded;
+    const totalEps = eps.length;
+    let doneEps = 0;
+    
+    // Check if dirHandle is available; prompt if browser supports it
+    const dirHandle = await getValidPcDirHandle();
+    if(!dirHandle && window.showDirectoryPicker){
+      const picked = await handleNativeBrowse();
+    }
+
+    for(const ep of eps){
+      doneEps++;
+      toast(`💾 កំពុង Save ចូល PC: ភាគ ${ep} (${doneEps}/${totalEps})...`, false);
+      await saveEpisodeToPc(seriesName, ep, titleKm);
+      const key = `${seriesName}_${ep}`;
+      savedToPcLocalSet.add(key);
+    }
+    try {
+      localStorage.setItem("syd_pc_saved_episodes", JSON.stringify(Array.from(savedToPcLocalSet)));
+    }catch(e){}
+    toast(`✅ រក្សាទុករឿង 《${dispTitle}》 ទាំង ${totalEps} ភាគ ចូល PC Local រួចរាល់!`);
+  } catch(e){
+    toast(`បរាជ័យក្នុងការ Save ចូល PC: ${e.message}`, true);
+  }
+}
+
+// Background auto-save queue processor
+async function processPcSaveQueue(){
+  if(isSavingToPcLocal || !pcSaveQueue.length) return;
+  const autoSaveOn = $("#sqAutoSavePc") ? $("#sqAutoSavePc").checked : true;
+  if(!autoSaveOn) return;
+
+  isSavingToPcLocal = true;
+  const statusEl = $("#sqPcSaveStatus");
+  try {
+    while(pcSaveQueue.length > 0){
+      const item = pcSaveQueue.shift();
+      const key = `${item.series}_${item.ep}`;
+      if(savedToPcLocalSet.has(key)) continue;
+
+      if(statusEl) statusEl.textContent = `💾 PC: Ep ${item.ep}...`;
+      await saveEpisodeToPc(item.series, item.ep, item.titleKm);
+      savedToPcLocalSet.add(key);
+      try {
+        localStorage.setItem("syd_pc_saved_episodes", JSON.stringify(Array.from(savedToPcLocalSet)));
+      }catch(e){}
+    }
+    if(statusEl) statusEl.textContent = `✓ រួចរាល់ (${savedToPcLocalSet.size} ភាគ)`;
+  } catch(e){
+    console.warn("Auto-save queue error:", e);
+    if(statusEl) statusEl.textContent = `⚠️ បញ្ហា Save`;
+  } finally {
+    isSavingToPcLocal = false;
+  }
+}
+
+let _lastPcSyncTick = 0;
+async function syncActiveDownloadsToPc(st){
+  const autoSaveOn = $("#sqAutoSavePc") ? $("#sqAutoSavePc").checked : true;
+  if(!autoSaveOn || !st || !st.series) return;
+  if(++_lastPcSyncTick % 3 !== 0 && !st.running) return;
+  const sList = Array.isArray(st.series) ? st.series : Object.values(st.series);
+  for(const s of sList){
+    if(s.done > 0){
+      const sName = s.title || s.name || s.folder_name || '';
+      if(!sName) continue;
+      const c = (typeof cart !== 'undefined' && cart[s.sid]) ? cart[s.sid] : {};
+      const tkm = s.title_km || c.title_km || '';
+      try {
+        const epData = await (await fetch(`/dl/library/episodes?name=${encodeURIComponent(sName)}`)).json();
+        if(epData && epData.downloaded){
+          epData.downloaded.forEach(ep => {
+            const key = `${sName}_${ep}`;
+            if(!savedToPcLocalSet.has(key)){
+              if(!pcSaveQueue.some(q => q.series === sName && q.ep === ep)){
+                pcSaveQueue.push({ series: sName, ep, titleKm: tkm });
+              }
+            }
+          });
+          processPcSaveQueue();
+        }
+      } catch(e){}
+    }
+  }
+}
+
+/* ---------- Folder Picker Modal & Drive Selection Logic ---------- */
 async function openFolderPickerModal(){
   const m = $("#folderPickerModal");
   if(!m) return;
@@ -6572,91 +6832,36 @@ async function openFolderPickerModal(){
       fetch("/dl/drives").then(r => r.json()).catch(()=>({}))
     ]);
     if(cfg){
-      IS_CLOUD = !!cfg.is_cloud;
+      if(cfg.is_cloud) IS_CLOUD = true;
       if(cfg.default_cloud_dir) CLOUD_DIR = cfg.default_cloud_dir;
-      if(cfg.output_dir){
-        $("#fpPathInput").value = cfg.output_dir;
-      }
     }
     
-    // Adapt for Cloud Server vs Local Windows PC:
-    const cloudBanner = $("#fpCloudBanner");
-    const natBtn = $("#fpNativeBrowse");
-    const drvLbl = $("#fpDrivesLabel");
-    const preContainer = $("#fpPresetsContainer");
-    const openCurrBtn = $("#fpOpenCurrent");
-    
-    if(IS_CLOUD){
-      if(cloudBanner) cloudBanner.hidden = false;
-      if(natBtn){
-        natBtn.textContent = "📂 មើលឯកសារលើ Server";
-        natBtn.title = "បើកផ្ទាំងមើល និងទាញយកឯកសារវីដេអូលើ Cloud";
-        natBtn.onclick = () => { closeFolderPickerModal(); openStorageExplorerModal(); };
-      }
-      if(drvLbl) drvLbl.textContent = "Server Storage (Cloud):";
-      if(openCurrBtn){
-        openCurrBtn.textContent = "📂 មើលឯកសារលើ Server (Web Explorer)";
-        openCurrBtn.title = "បើកផ្ទាំងមើល និងទាញយកវីដេអូលើ Cloud";
-      }
-      if(preContainer){
-        preContainer.innerHTML = `
-          <button type="button" class="btn ghost sm" id="fpPresetCloud" style="color:var(--accent)">☁️ Default Storage (${esc(CLOUD_DIR)})</button>
-        `;
-        const preCloud = $("#fpPresetCloud");
-        if(preCloud) preCloud.onclick = () => { $("#fpPathInput").value = CLOUD_DIR; };
-      }
-    } else {
-      if(cloudBanner) cloudBanner.hidden = true;
-      if(natBtn){
-        natBtn.textContent = "📂 Browse on PC...";
-        natBtn.title = "";
-        natBtn.onclick = handleNativeBrowse;
-      }
-      if(drvLbl) drvLbl.textContent = "Available Drives (1-Click Switch):";
-      if(openCurrBtn){
-        openCurrBtn.textContent = "📂 Open in Explorer";
-        openCurrBtn.title = "Open this folder in Windows File Explorer";
-      }
-      if(preContainer){
-        preContainer.innerHTML = `
-          <button type="button" class="btn ghost sm" id="fpPresetVideos">🎬 Videos\\Hongguo</button>
-          <button type="button" class="btn ghost sm" id="fpPresetDownloads">📥 Downloads\\Hongguo</button>
-        `;
-        const fpPreVid = $("#fpPresetVideos");
-        if(fpPreVid) fpPreVid.onclick = () => { $("#fpPathInput").value = "C:\\Users\\Administrator\\Videos\\Hongguo"; };
-        const fpPreDl = $("#fpPresetDownloads");
-        if(fpPreDl) fpPreDl.onclick = () => { $("#fpPathInput").value = "C:\\Users\\Administrator\\Downloads\\Hongguo"; };
-      }
+    // Pre-fill user's PC local path (matching screenshot, e.g. F:\Hongguo)
+    const savedPcPath = localStorage.getItem("syd_user_pc_path") || (cfg && cfg.output_dir && !cfg.output_dir.startsWith('/app') ? cfg.output_dir : "F:\\Hongguo");
+    if($("#fpPathInput")){
+      $("#fpPathInput").value = savedPcPath;
     }
 
-    if(drv && drv.drives){
-      renderFpDrives(drv.drives);
-    }
+    // Always render available Windows drives (matching user's screenshot C:, D:, E:, F:, J:)
+    let drives = (drv && drv.drives && drv.drives.length > 1) ? drv.drives : DEFAULT_CLIENT_DRIVES;
+    renderFpDrives(drives);
+
+    // Quick presets
+    const fpPreVid = $("#fpPresetVideos");
+    if(fpPreVid) fpPreVid.onclick = () => { $("#fpPathInput").value = "C:\\Users\\Administrator\\Videos\\Hongguo"; };
+    const fpPreDl = $("#fpPresetDownloads");
+    if(fpPreDl) fpPreDl.onclick = () => { $("#fpPathInput").value = "C:\\Users\\Administrator\\Downloads\\Hongguo"; };
   } catch(e){
     console.error("Folder picker error:", e);
+    renderFpDrives(DEFAULT_CLIENT_DRIVES);
   }
 }
 
 function renderFpDrives(drives){
   const grid = $("#fpDrivesGrid");
   if(!grid) return;
-  if(IS_CLOUD){
-    const d = (drives && drives[0]) || { drive: CLOUD_DIR, free_gb: '—', total_gb: '—' };
-    grid.innerHTML = `
-      <div style="grid-column:1/-1;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <div style="font-weight:700;color:var(--accent);font-size:13px">☁️ Server Storage (Cloud)</div>
-          <div style="font-size:11.5px;color:var(--muted);margin-top:2px"><code style="color:var(--ink)">${esc(d.drive || CLOUD_DIR)}</code></div>
-        </div>
-        <div style="text-align:right">
-          <span style="font-size:12px;font-weight:700;color:var(--good)">${d.free_gb || '—'} GB Free</span>
-          <div style="font-size:10px;color:var(--muted)">Total: ${d.total_gb || '—'} GB</div>
-        </div>
-      </div>
-    `;
-    return;
-  }
-  grid.innerHTML = (drives || []).map(d => {
+  const list = (drives && drives.length && drives.length > 1) ? drives : DEFAULT_CLIENT_DRIVES;
+  grid.innerHTML = list.map(d => {
     return `<button type="button" class="btn ghost sm fp-drv-btn" data-path="${d.drive}Hongguo" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;text-align:center;border-radius:8px">
       <b style="font-size:13.5px;color:var(--accent)">${d.letter}:</b>
       <span style="font-size:10px;color:var(--good);margin-top:2px">${d.free_gb} GB free</span>
@@ -6689,32 +6894,62 @@ if(fpOpenCurr) fpOpenCurr.onclick = () => { openDir(); };
 
 async function handleNativeBrowse(){
   const fpNat = $("#fpNativeBrowse");
-  if(!fpNat) return;
-  if(IS_CLOUD){
-    closeFolderPickerModal();
-    openStorageExplorerModal();
-    return;
-  }
-  fpNat.disabled = true;
-  fpNat.textContent = "⏳ Browsing...";
-  toast("Opening Windows folder browser on PC…");
-  try {
-    const j = await (await fetch("/dl/pick", { method: "POST" })).json();
-    if(j.ok && j.path){
-      $("#fpPathInput").value = j.path;
-      toast("Folder chosen: " + j.path);
-    } else if(j && j.is_cloud){
-      closeFolderPickerModal();
-      openStorageExplorerModal();
-    } else if(j && j.error){
-      toast(j.error, true);
+  if(fpNat) fpNat.disabled = true;
+  
+  // Use modern File System Access API on user's PC (Chrome, Edge, Brave):
+  if(window.showDirectoryPicker){
+    try {
+      const handle = await window.showDirectoryPicker({
+        id: "syd_downloader_pc_folder",
+        mode: "readwrite",
+        startIn: "videos"
+      });
+      if(handle){
+        activePcDirHandle = handle;
+        await setStoredPcDirHandle(handle);
+        const folderName = handle.name;
+        let pcPath = localStorage.getItem("syd_user_pc_path") || "F:\\Hongguo";
+        if(pcPath.includes("\\")){
+          const parts = pcPath.split("\\");
+          parts[parts.length - 1] = folderName;
+          pcPath = parts.join("\\");
+        } else {
+          pcPath = "F:\\" + folderName;
+        }
+        localStorage.setItem("syd_user_pc_path", pcPath);
+        localStorage.setItem("syd_local_pc_folder_name", folderName);
+        if($("#fpPathInput")) $("#fpPathInput").value = pcPath;
+        syncSqFolder();
+        toast(`✅ បានជ្រើសរើស Folder លើ PC: 📁 ${folderName}`);
+        if(fpNat) fpNat.disabled = false;
+        return true;
+      }
+    } catch(e){
+      if(e.name === 'AbortError'){
+        if(fpNat) fpNat.disabled = false;
+        return false;
+      }
+      console.warn("showDirectoryPicker fallback:", e);
     }
-  } catch(e){
-    toast("Browse failed: " + e, true);
-  } finally {
-    fpNat.disabled = false;
-    fpNat.textContent = "📂 Browse on PC...";
   }
+
+  // Fallback on localhost Windows:
+  if(!IS_CLOUD){
+    try {
+      const j = await (await fetch("/dl/pick", { method: "POST" })).json();
+      if(j.ok && j.path){
+        if($("#fpPathInput")) $("#fpPathInput").value = j.path;
+        localStorage.setItem("syd_user_pc_path", j.path);
+        syncSqFolder();
+        toast("Folder chosen: " + j.path);
+        if(fpNat) fpNat.disabled = false;
+        return true;
+      }
+    } catch(e){}
+  }
+  
+  if(fpNat) fpNat.disabled = false;
+  return false;
 }
 
 const fpNat = $("#fpNativeBrowse");
@@ -6728,26 +6963,21 @@ if(fpSave){
     fpSave.disabled = true;
     fpSave.textContent = "Saving...";
     try {
-      const res = await (await fetch("/dl/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ output_dir: newPath })
-      })).json();
-      if(res.ok){
-        const saved = res.output_dir || newPath;
-        if(res.is_cloud) IS_CLOUD = true;
-        if($("#dirPath")) $("#dirPath").textContent = saved;
-        if($("#ucFolderPath")) $("#ucFolderPath").textContent = saved;
-        syncSqFolder();
-        if(res.warning){
-          toast(res.warning, false);
-        } else {
-          toast("✅ Folder saved: " + saved);
-        }
-        closeFolderPickerModal();
-      } else {
-        toast("Error saving folder: " + (res.error || "Unknown"), true);
-      }
+      localStorage.setItem("syd_user_pc_path", newPath);
+      localStorage.setItem("syd_local_pc_folder_name", newPath.split("\\").pop() || newPath);
+      syncSqFolder();
+
+      // Inform backend (backend on cloud safely sanitizes)
+      try {
+        await fetch("/dl/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ output_dir: newPath })
+        });
+      } catch(e){}
+
+      toast("✅ Folder saved: " + newPath);
+      closeFolderPickerModal();
     } catch(e){
       toast("Save failed: " + e, true);
     } finally {
@@ -6858,6 +7088,7 @@ function renderStorageExplorer(seriesList){
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
             <button class="btn accent sm se-play-btn" data-sname="${esc(s.folder_name)}" style="padding:4px 10px;font-size:12px">🎬 ទស្សនា</button>
+            <button class="btn primary sm se-save-pc-btn" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:4px 10px;font-size:12px">💾 Save ចូល PC</button>
             <button class="btn ghost sm se-expand-btn" data-sidx="${idx}" style="padding:4px 10px;font-size:12px">📂 ភាគ & ទាញយក</button>
             <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn ghost sm" title="ទាញយកភាគទាំងអស់ជា ZIP ដាក់កុំព្យូទ័រ" style="padding:4px 10px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">📦 ZIP</a>
           </div>
@@ -6867,7 +7098,10 @@ function renderStorageExplorer(seriesList){
         <div class="se-eps-panel" id="seEpsPanel_${idx}" hidden style="border-top:1px solid var(--line);padding-top:10px;margin-top:2px">
           <div style="font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
             <span>បញ្ជីភាគដែលបានដោនឡូតរួច (ចុចលើប៊ូតុង ដើម្បី Download មក PC):</span>
-            <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none">⬇️ ទាញយកទាំងអស់ (.ZIP)</a>
+            <div style="display:flex;gap:6px">
+              <button class="btn primary sm se-panel-save-pc" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:2px 8px;font-size:11px">💾 Save គ្រប់ភាគចូល PC</button>
+              <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none">⬇️ ទាញយកទាំងអស់ (.ZIP)</a>
+            </div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;max-height:200px;overflow-y:auto;padding-right:4px">
             ${(s.episodes || []).map(ep => `
@@ -6893,6 +7127,12 @@ function renderStorageExplorer(seriesList){
       const sName = b.dataset.sname;
       closeStorageExplorerModal();
       openVideoPlayer(sName, 1);
+    };
+  });
+
+  container.querySelectorAll('.se-save-pc-btn, .se-panel-save-pc').forEach(b => {
+    b.onclick = () => {
+      saveSeriesToPc(b.dataset.sname, b.dataset.stitle);
     };
   });
 
