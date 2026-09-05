@@ -1408,13 +1408,6 @@
         <span class="sq-folder-text" id="sqFolderPath" title="ទីតាំង Folder កំពុងប្រើប្រាស់លើ PC">...</span>
         <button type="button" class="btn ghost sm sq-folder-act-btn" id="sqPickFolderBtn" title="ប្តូរទីតាំង Folder រក្សាទុកលើ PC">⚙️ កំណត់ទីតាំង</button>
       </div>
-      <div class="sq-autosave-row" style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);font-size:11.5px">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--ink)" title="រក្សាទុកវីដេអូចូល Folder លើ PC របស់អ្នកដោយស្វ័យប្រវត្តិ (VIP, ធម្មតា, Admin)">
-          <input type="checkbox" id="sqAutoSavePc" checked style="accent-color:var(--accent);width:15px;height:15px">
-          <span>💾 <b>Auto-Save ចូល PC</b> (ស្វ័យប្រវត្តិ)</span>
-        </label>
-        <span id="sqPcSaveStatus" style="font-size:11px;color:var(--good);font-weight:700">រួចរាល់</span>
-      </div>
     </div>
     
     <div class="sq-controls-row">
@@ -5080,12 +5073,9 @@ async function poll(){
     const running=!!lastStatus.running;                        // background-activity animation
     $("#bgWork").classList.toggle("on", running);
     $("#bgBar").hidden = !running;
-    if(lastStatus && (lastStatus.running || _wasRunning)){
-      syncActiveDownloadsToPc(lastStatus);
-    }
     if(_wasRunning && !lastStatus.running){
       loadLibrary();
-      autoDeliverCompletedDownloadsToPc();
+      toast("✅ ការទាញយកបានបញ្ចប់ដោយជោគជ័យ! វីដេអូត្រូវបានរក្សាទុកក្នុង Folder រួចរាល់។");
     }
     _wasRunning = !!lastStatus.running;
   }catch(e){ if(!DEMO && ALLOW_DEMO){ DEMO=true; seedDemo(); } }   // localhost: keep retrying the real backend
@@ -7334,69 +7324,14 @@ async function processPcSaveQueue(){
   }
 }
 
-let _lastPcSyncTick = 0;
 async function syncActiveDownloadsToPc(st){
-  const autoSaveOn = $("#sqAutoSavePc") ? $("#sqAutoSavePc").checked : true;
-  if(!autoSaveOn || !st || !st.series) return;
-  // If user hasn't selected a local folder handle via File System Access API,
-  // do NOT trigger per-episode standard browser downloads (Chrome blocks multiple simultaneous downloads).
-  // Series delivery will be done cleanly via single-click complete .ZIP or autoDeliverCompletedDownloadsToPc!
-  const dirHandle = await getValidPcDirHandle();
-  if(!dirHandle) return;
-  
-  if(++_lastPcSyncTick % 3 !== 0 && !st.running) return;
-  const sList = Array.isArray(st.series) ? st.series : Object.values(st.series);
-  for(const s of sList){
-    if(s.done > 0){
-      const sName = s.title || s.name || s.folder_name || '';
-      if(!sName) continue;
-      const c = (typeof cart !== 'undefined' && cart[s.sid]) ? cart[s.sid] : {};
-      const tkm = s.title_km || c.title_km || '';
-      try {
-        const epData = await (await fetch(`/dl/library/episodes?name=${encodeURIComponent(sName)}`)).json();
-        if(epData && epData.downloaded){
-          epData.downloaded.forEach(ep => {
-            const key = `${sName}_${ep}`;
-            if(!savedToPcLocalSet.has(key)){
-              if(!pcSaveQueue.some(q => q.series === sName && q.ep === ep)){
-                pcSaveQueue.push({ series: sName, ep, titleKm: tkm });
-              }
-            }
-          });
-          processPcSaveQueue();
-        }
-      } catch(e){}
-    }
-  }
+  // មិនបាច់ trigger browser download ឡើយ ដោយសារ Backend បាន Save វីដេអូ .mp4 ចូល PC Folder ដោយផ្ទាល់រួចហើយ
+  return;
 }
 
-const autoSavedSeriesToPcSet = new Set();
-try {
-  const arr = JSON.parse(localStorage.getItem("syd_auto_saved_series") || "[]");
-  if(Array.isArray(arr)) arr.forEach(x => autoSavedSeriesToPcSet.add(x));
-}catch(e){}
-
 async function autoDeliverCompletedDownloadsToPc(){
-  const autoSaveOn = $("#sqAutoSavePc") ? $("#sqAutoSavePc").checked : true;
-  if(!autoSaveOn) return;
-  try {
-    const res = await (await fetch("/dl/storage/files")).json();
-    if(!res || !res.series || !res.series.length) return;
-    for(const s of res.series){
-      const sName = s.folder_name;
-      if(!sName || autoSavedSeriesToPcSet.has(sName)) continue;
-      autoSavedSeriesToPcSet.add(sName);
-      try {
-        localStorage.setItem("syd_auto_saved_series", JSON.stringify(Array.from(autoSavedSeriesToPcSet)));
-      }catch(e){}
-      const dispTitle = s.title_km || s.title || sName;
-      toast(`📥 កំពុង Save រឿង 《${dispTitle}》 ចូល PC របស់អ្នក... (Folder: ${localStorage.getItem("syd_user_pc_path") || "F:\\Hongguo"})`, false);
-      await saveSeriesToPc(sName, dispTitle);
-      break;
-    }
-  } catch(e){
-    console.warn("Auto-deliver to PC error:", e);
-  }
+  // មិនបាច់ trigger browser .zip download ឡើយ ដោយសារវីដេអូមានក្នុង PC Folder រួចជាស្រេច
+  return;
 }
 
 /* ---------- Folder Picker Modal & Drive Selection Logic ---------- */

@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Hongguo Downloader - Standalone Single EXE Builder
-ឧបករណ៍វេចខ្ចប់កម្មវិធី Hongguo Downloader ជាកញ្ចប់ Standalone EXE មួយគត់ (HongguoDownloader.exe)
-- បង្កើតតែ File EXE មួយគត់ (100% All-in-One Standalone)
+SYD DOWNLOADER PRO - Standalone Single EXE Builder
+ឧបករណ៍វេចខ្ចប់កម្មវិធី SYD Downloader Pro ជាកញ្ចប់ Standalone EXE មួយគត់
+- បង្កើត File EXE ដាក់ឈ្មោះតាម Version: SYD-Downloader-Pro V1.0.1.exe
+- រាល់ការ build ម្តង ជំនាន់រាប់ឡើង +1 (1.0.1 -> 1.0.2 ... រហូតដល់ 10 ក្លាយជា 1.1.0)
 - កូដ Python ទាំងអស់ត្រូវ compile ជា Bytecode (គ្មាន file .py សម្រាប់ Hack ឬ Bypass ឡើយ)
-- រួមបញ្ចូលទាំង Signer, Server, JRE និង UI ទាំងអស់ក្នុង EXE តែមួយ
+- រួមបញ្ចូលទាំង Signer, Server, JRE, Firebase Cloud និង UI ទាំងអស់ក្នុង EXE តែមួយ
 """
 
 import os
 import sys
+import json
 import shutil
 import subprocess
 import time
@@ -20,15 +22,78 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
-ROOT_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DIST_DIR = os.path.join(ROOT_DIR, "output")
 ICON_PATH = os.path.join(ROOT_DIR, "icon.ico")
 PYINSTALLER_EXE = r"C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Scripts\pyinstaller.exe"
 
-def banner():
+def get_and_bump_version():
+    """
+    Auto-increment version on each build:
+    - Major.Minor.Patch (e.g. 1.0.1)
+    - Starts at 1.0.1
+    - Increments patch by +1: 1.0.1 -> 1.0.2 -> ... -> 1.0.9
+    - When patch reaches 10: rolls over to 1.1.0 (and 1.1.9 -> 1.2.0)
+    """
+    version_file = os.path.join(ROOT_DIR, "app", "version.json")
+    major, minor, patch = 1, 0, 0
+    if os.path.isfile(version_file):
+        try:
+            with open(version_file, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                v_str = str(d.get("version") or "").strip().lstrip("vV")
+                parts = [int(p) for p in v_str.split(".") if p.isdigit()]
+                if len(parts) >= 3:
+                    major, minor, patch = parts[0], parts[1], parts[2]
+                elif len(parts) == 2:
+                    major, minor, patch = parts[0], parts[1], 0
+                elif len(parts) == 1:
+                    major, minor, patch = parts[0], 0, 0
+        except Exception:
+            pass
+
+    # Increment version
+    patch += 1
+    if patch >= 10:
+        minor += 1
+        patch = 0
+    if minor >= 10:
+        major += 1
+        minor = 0
+
+    new_version = f"{major}.{minor}.{patch}"
+    version_tag = f"V{new_version}"
+
+    now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    ver_data = {
+        "version": new_version,
+        "version_tag": version_tag,
+        "app_name": "SYD-Downloader-Pro",
+        "updated_at": now_str,
+        "message": f"Release {version_tag} ({now_str})"
+    }
+
+    for vf in [os.path.join(ROOT_DIR, "app", "version.json"), os.path.join(ROOT_DIR, "version.json")]:
+        try:
+            with open(vf, "w", encoding="utf-8") as f:
+                json.dump(ver_data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    for tf in [os.path.join(ROOT_DIR, "app", "version.txt"), os.path.join(ROOT_DIR, "version.txt")]:
+        try:
+            with open(tf, "w", encoding="utf-8") as f:
+                f.write(new_version)
+        except Exception:
+            pass
+
+    return new_version, version_tag
+
+def banner(version_tag):
     print("=" * 68)
-    print("   🚀 HONGGUO DOWNLOADER - STANDALONE SINGLE EXE BUILDER")
-    print("   🛡️ វេចខ្ចប់ជាកញ្ចប់ EXE មួយគត់ (ការពារកូដ 100% គ្មាន File .py សម្រាប់ Hack)")
+    print("   🚀 SYD DOWNLOADER PRO - STANDALONE SINGLE EXE BUILDER")
+    print(f"   🏷️  BUILD VERSION: {version_tag}")
+    print("   🛡️  វេចខ្ចប់ជាកញ្ចប់ EXE មួយគត់ (ការពារកូដ 100% គ្មាន File .py សម្រាប់ Hack)")
     print("=" * 68)
     print(f"[*] Workspace Root: {ROOT_DIR}")
     print(f"[*] Output Target:  {DIST_DIR}\n")
@@ -64,21 +129,10 @@ def prepare_stage_app():
     print("      ✓ Stage app prepared.")
     return stage_app
 
-def build_single_exe(stage_app):
-    print("[3/4] Compiling and packaging Standalone HongguoDownloader.exe...")
+def build_single_exe(stage_app, version_tag):
+    print(f"[3/4] Compiling and packaging Standalone SYD-Downloader-Pro {version_tag}.exe...")
     os.makedirs(DIST_DIR, exist_ok=True)
     
-    # Remove old installer / zip files from output if present
-    for old_item in ["Hongguo Downloader", "Hongguo_Downloader_Portable.zip", "Hongguo_Downloader_Setup.exe"]:
-        old_path = os.path.join(DIST_DIR, old_item)
-        if os.path.isdir(old_path):
-            shutil.rmtree(old_path, ignore_errors=True)
-        elif os.path.isfile(old_path):
-            try:
-                os.remove(old_path)
-            except Exception:
-                pass
-
     pyinstaller = PYINSTALLER_EXE if os.path.isfile(PYINSTALLER_EXE) else "pyinstaller"
     main_py = os.path.join(ROOT_DIR, "main.py")
     jre_dir = os.path.join(ROOT_DIR, "jre")
@@ -90,7 +144,7 @@ def build_single_exe(stage_app):
         "--clean",
         "--contents-directory=.",
         f"--icon={ICON_PATH}" if os.path.isfile(ICON_PATH) else "",
-        "--name=HongguoDownloader",
+        "--name=SYD-Downloader-Pro",
         f"--add-data={jre_dir};jre",
         f"--add-data={stage_app};app",
         f"--add-data={ICON_PATH};." if os.path.isfile(ICON_PATH) else "",
@@ -146,14 +200,32 @@ def build_single_exe(stage_app):
         print(f"      ❌ PyInstaller build returned code: {res.returncode}")
         return None
         
-    final_exe = os.path.join(DIST_DIR, "HongguoDownloader.exe")
-    if os.path.isfile(final_exe):
-        sz_mb = os.path.getsize(final_exe) / (1024 * 1024)
-        print(f"      ✓ SUCCESS: Created Standalone Single EXE: {final_exe} ({sz_mb:.1f} MB)")
-        return final_exe
-    else:
-        print(f"      ⚠️ Warning: {final_exe} was not found.")
-        return None
+    compiled_exe = os.path.join(DIST_DIR, "SYD-Downloader-Pro.exe")
+    if not os.path.isfile(compiled_exe):
+        # Fallback check
+        alt_exe = os.path.join(DIST_DIR, "HongguoDownloader.exe")
+        if os.path.isfile(alt_exe):
+            compiled_exe = alt_exe
+        else:
+            print(f"      ❌ Error: Compiled executable not found in {DIST_DIR}")
+            return None
+
+    # Create version-tagged EXE: SYD-Downloader-Pro V1.0.1.exe
+    versioned_exe_name = f"SYD-Downloader-Pro {version_tag}.exe"
+    versioned_exe_path = os.path.join(DIST_DIR, versioned_exe_name)
+    shutil.copy2(compiled_exe, versioned_exe_path)
+
+    # Ensure compatibility copies exist
+    syd_std_exe = os.path.join(DIST_DIR, "SYD-Downloader-Pro.exe")
+    hg_std_exe = os.path.join(DIST_DIR, "HongguoDownloader.exe")
+    if not os.path.isfile(syd_std_exe):
+        shutil.copy2(compiled_exe, syd_std_exe)
+    if not os.path.isfile(hg_std_exe):
+        shutil.copy2(compiled_exe, hg_std_exe)
+
+    sz_mb = os.path.getsize(versioned_exe_path) / (1024 * 1024)
+    print(f"      ✓ SUCCESS: Created Standalone Single EXE: {versioned_exe_name} ({sz_mb:.1f} MB)")
+    return versioned_exe_path
 
 def cleanup_stage():
     print("[4/4] Cleaning build staging files...")
@@ -163,10 +235,14 @@ def cleanup_stage():
 
 def main():
     t0 = time.time()
-    banner()
+    
+    # 1. Bump version first so stage_app includes updated version.json
+    new_version, version_tag = get_and_bump_version()
+    
+    banner(version_tag)
     clean_temp()
     stage_app = prepare_stage_app()
-    final_exe = build_single_exe(stage_app)
+    final_exe = build_single_exe(stage_app, version_tag)
     cleanup_stage()
     
     elapsed = time.time() - t0
@@ -176,6 +252,7 @@ def main():
     if final_exe and os.path.isfile(final_exe):
         print(f"   📦 Single Standalone EXE (មួយគត់ គ្រប់គ្រាន់):")
         print(f"      👉 {final_exe}")
+        print(f"      👉 {os.path.join(DIST_DIR, 'SYD-Downloader-Pro.exe')}")
         print("   🔒 All code compiled as bytecode - 100% Protected from bypass/hacks!")
     print("=" * 68)
 
