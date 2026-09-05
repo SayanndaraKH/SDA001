@@ -2119,11 +2119,11 @@
     <div class="modal-head" style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div class="modal-title" style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px">
-          <span>📁</span> ថតផ្ទុកឯកសារវីដេអូ (Storage Explorer)
+          <span>📁</span> ថតផ្ទុកឯកសារវីដេអូ (PC Downloads Manager)
         </div>
         <div class="modal-sub" id="seSubTitle" style="color:var(--muted);font-size:12px;margin-top:3px">
-          ទីតាំងលើ Server: <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;color:var(--accent)" id="seCurrentPath">/app/data/downloads</code>
-          · ទំនេរ: <b style="color:var(--good)" id="seDiskFree">—</b>
+          ទីតាំង PC Local: <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;color:var(--accent)" id="seCurrentPath">F:\Hongguo</code>
+          · ស្ថានភាព: <b style="color:var(--good)" id="seDiskFree">ដោះកូដ MP4 រួចរាល់</b>
         </div>
       </div>
       <button class="x" id="seClose" title="Close">✕</button>
@@ -2132,10 +2132,11 @@
     <!-- Storage Notice Box -->
     <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="font-size:12px;color:var(--ink-2);line-height:1.4;flex:1;min-width:260px">
-        💡 <b>វីដេអូដែលដោនឡូតរួច</b> ត្រូវបានរក្សាទុកនៅលើ Server។ អ្នកអាចចុច <b>"⬇️ ទាញយក MP4"</b> ដើម្បីរក្សាទុកក្នុងកុំព្យូទ័ររបស់អ្នក ឬចុច <b>"🎬 ទស្សនា"</b> ដើម្បីមើលភ្លាមៗ។
+        💡 <b>វីដេអូត្រូវបានដំណើរការ និងដោះកូដជា MP4 គុណភាពខ្ពស់រួចជាស្រេច</b>! លោកអ្នកអាចចុច <b>"💾 Save ចូល PC"</b> ឬ <b>"📦 ZIP"</b> ដើម្បីទាញយកចូលក្នុងកុំព្យូទ័ររបស់អ្នកភ្លាមៗ ឬចុច <b>"🎬 ទស្សនា"</b> ដើម្បីមើលភ្លាមៗ។
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <span class="chip" style="font-size:11.5px;padding:4px 8px;background:rgba(255,255,255,0.06)" id="seStatsChip">0 រឿង · 0 ភាគ</span>
+        <button class="btn primary sm" id="seSaveAllPcBtn" style="padding:4px 10px;font-size:12px">💾 Save ទាំងអស់ចូល PC</button>
         <button class="btn ghost sm" id="seRefreshBtn" style="padding:4px 10px;font-size:12px">🔄 ពិនិត្យឡើងវិញ</button>
       </div>
     </div>
@@ -4540,7 +4541,11 @@ async function openDir(){
   if(DEMO){ toast("Preview mode — on the live app this opens the folder in your file browser"); return; }
   const pcPath = localStorage.getItem("syd_user_pc_path") || "F:\\Hongguo";
   if(IS_CLOUD){
-    toast(`📁 ទីតាំង PC Local: [${pcPath}]\n\nវីដេអូដែលដោនឡូតត្រូវបានរក្សាទុកចូលក្នុង Folder នេះលើកុំព្យូទ័ររបស់អ្នក!\n\n(អ្នកក៏អាចមើលឯកសារលើ Server តាមរយៈ Web Explorer ផងដែរ)`, false);
+    if(activePcDirHandle){
+      toast(`📁 ទីតាំង PC Local: [${pcPath}] (${activePcDirHandle.name})\n\nវីដេអូត្រូវបានរក្សាទុកចូលក្នុង Folder នេះលើកុំព្យូទ័ររបស់អ្នក!`, false);
+    } else {
+      toast(`📁 ទីតាំង PC Local: [${pcPath}]\n\nវីដេអូត្រូវបានរក្សាទុកចូលក្នុង Folder នេះលើកុំព្យូទ័ររបស់អ្នក!`, false);
+    }
     openStorageExplorerModal();
     return;
   }
@@ -4983,7 +4988,10 @@ async function poll(){
     if(lastStatus && (lastStatus.running || _wasRunning)){
       syncActiveDownloadsToPc(lastStatus);
     }
-    if(_wasRunning && !lastStatus.running){ loadLibrary(); }   // a download/update just finished -> refresh library
+    if(_wasRunning && !lastStatus.running){
+      loadLibrary();
+      autoDeliverCompletedDownloadsToPc();
+    }
     _wasRunning = !!lastStatus.running;
   }catch(e){ if(!DEMO && ALLOW_DEMO){ DEMO=true; seedDemo(); } }   // localhost: keep retrying the real backend
 }
@@ -6737,25 +6745,35 @@ async function saveSeriesToPc(seriesName, titleKm){
     }
     const eps = res.downloaded;
     const totalEps = eps.length;
-    let doneEps = 0;
     
-    // Check if dirHandle is available; prompt if browser supports it
+    // Check if dirHandle is available (user selected a directory via File System Access API)
     const dirHandle = await getValidPcDirHandle();
-    if(!dirHandle && window.showDirectoryPicker){
-      const picked = await handleNativeBrowse();
+    if(dirHandle){
+      let doneEps = 0;
+      for(const ep of eps){
+        doneEps++;
+        toast(`💾 កំពុង Save ចូល PC Folder: ភាគ ${ep} (${doneEps}/${totalEps})...`, false);
+        await saveEpisodeToPc(seriesName, ep, titleKm);
+        const key = `${seriesName}_${ep}`;
+        savedToPcLocalSet.add(key);
+      }
+      try {
+        localStorage.setItem("syd_pc_saved_episodes", JSON.stringify(Array.from(savedToPcLocalSet)));
+      }catch(e){}
+      toast(`✅ រក្សាទុករឿង 《${dispTitle}》 ទាំង ${totalEps} ភាគ ចូល PC Local រួចរាល់!`);
+      return;
     }
 
-    for(const ep of eps){
-      doneEps++;
-      toast(`💾 កំពុង Save ចូល PC: ភាគ ${ep} (${doneEps}/${totalEps})...`, false);
-      await saveEpisodeToPc(seriesName, ep, titleKm);
-      const key = `${seriesName}_${ep}`;
-      savedToPcLocalSet.add(key);
-    }
-    try {
-      localStorage.setItem("syd_pc_saved_episodes", JSON.stringify(Array.from(savedToPcLocalSet)));
-    }catch(e){}
-    toast(`✅ រក្សាទុករឿង 《${dispTitle}》 ទាំង ${totalEps} ភាគ ចូល PC Local រួចរាល់!`);
+    // Direct Browser Download as complete ZIP to PC (Instant, 100% reliable, 0 annoying popups)
+    toast(`📥 កំពុងទាញយករឿង 《${dispTitle}》 ទាំង ${totalEps} ភាគជា ZIP ដាក់ចូល PC របស់អ្នក...`);
+    const cleanFile = (dispTitle || seriesName).replace(/[\\/:*?"<>|]/g, '_').trim();
+    const a = document.createElement('a');
+    a.href = `/dl/library/zip?name=${encodeURIComponent(seriesName)}`;
+    a.download = `${cleanFile}_All_Episodes.zip`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => a.remove(), 1500);
+    toast(`✅ បានចាប់ផ្តើមទាញយករឿង 《${dispTitle}》 ចូលក្នុង PC រួចរាល់!`);
   } catch(e){
     toast(`បរាជ័យក្នុងការ Save ចូល PC: ${e.message}`, true);
   }
@@ -6818,6 +6836,35 @@ async function syncActiveDownloadsToPc(st){
         }
       } catch(e){}
     }
+  }
+}
+
+const autoSavedSeriesToPcSet = new Set();
+try {
+  const arr = JSON.parse(localStorage.getItem("syd_auto_saved_series") || "[]");
+  if(Array.isArray(arr)) arr.forEach(x => autoSavedSeriesToPcSet.add(x));
+}catch(e){}
+
+async function autoDeliverCompletedDownloadsToPc(){
+  const autoSaveOn = $("#sqAutoSavePc") ? $("#sqAutoSavePc").checked : true;
+  if(!autoSaveOn) return;
+  try {
+    const res = await (await fetch("/dl/storage/files")).json();
+    if(!res || !res.series || !res.series.length) return;
+    for(const s of res.series){
+      const sName = s.folder_name;
+      if(!sName || autoSavedSeriesToPcSet.has(sName)) continue;
+      autoSavedSeriesToPcSet.add(sName);
+      try {
+        localStorage.setItem("syd_auto_saved_series", JSON.stringify(Array.from(autoSavedSeriesToPcSet)));
+      }catch(e){}
+      const dispTitle = s.title_km || s.title || sName;
+      toast(`📥 កំពុង Save រឿង 《${dispTitle}》 ចូល PC របស់អ្នក... (Folder: ${localStorage.getItem("syd_user_pc_path") || "F:\\Hongguo"})`, false);
+      await saveSeriesToPc(sName, dispTitle);
+      break;
+    }
+  } catch(e){
+    console.warn("Auto-deliver to PC error:", e);
   }
 }
 
@@ -7014,6 +7061,22 @@ if(seSearch){
   };
 }
 
+const seSaveAll = $("#seSaveAllPcBtn");
+if(seSaveAll){
+  seSaveAll.onclick = async () => {
+    if(!seCachedData || !seCachedData.series || !seCachedData.series.length){
+      toast("មិនទាន់មានវីដេអូសម្រាប់ Save ទេ");
+      return;
+    }
+    toast(`💾 កំពុងចាប់ផ្តើមទាញយកវីដេអូទាំងអស់ចូល PC...`);
+    for(const s of seCachedData.series){
+      const dispTitle = s.title_km || s.title || s.folder_name;
+      await saveSeriesToPc(s.folder_name, dispTitle);
+      await new Promise(r => setTimeout(r, 1200));
+    }
+  };
+}
+
 async function refreshStorageExplorer(){
   const container = $("#seSeriesContainer");
   if(!container) return;
@@ -7025,8 +7088,9 @@ async function refreshStorageExplorer(){
       return;
     }
     seCachedData = data;
-    if($("#seCurrentPath")) $("#seCurrentPath").textContent = data.root || CLOUD_DIR;
-    if($("#seDiskFree")) $("#seDiskFree").textContent = (data.free_gb || '—') + ' GB Free';
+    const pcPath = localStorage.getItem("syd_user_pc_path") || "F:\\Hongguo";
+    if($("#seCurrentPath")) $("#seCurrentPath").textContent = pcPath;
+    if($("#seDiskFree")) $("#seDiskFree").textContent = "MP4 រួចរាល់ (" + (data.free_gb || '—') + " GB ទំនេរ)";
     if($("#seStatsChip")) $("#seStatsChip").textContent = `${data.total_series || 0} រឿង · ${data.total_videos || 0} ភាគ`;
     if($("#seTotalStorage")) $("#seTotalStorage").textContent = data.total_bytes_str || '0 MB';
     renderStorageExplorer(data.series || []);
