@@ -907,8 +907,8 @@
       <button class="btn ghost sm" id="userAccessBadge" style="border-radius:20px;font-weight:800;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-color:rgba(255,106,43,0.4);color:var(--ink)" title="ស្ថានភាពគណនី / ចូលគណនី">
         <span id="uabIcon">👤</span> <span id="uabText">ចូលគណនី / ចុះឈ្មោះ</span>
       </button>
-      <button class="btn primary sm" id="topReqVipBtn" style="border-radius:20px;font-weight:800;font-size:12px;display:none;align-items:center;gap:5px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 10px rgba(255,106,43,0.3)" title="ស្នើសុំកញ្ចប់ VIP ដើម្បីទស្សនាគ្រប់ភាគ">
-        <span>👑 ស្នើសុំ VIP</span>
+      <button class="btn primary sm" id="topReqVipBtn" onclick="openUserRegisterModal('vip')" style="border-radius:20px;font-weight:800;font-size:12px;display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 10px rgba(255,106,43,0.35);cursor:pointer;padding:5px 14px" title="ស្នើសុំកញ្ចប់ VIP ដើម្បីទស្សនាគ្រប់ភាគ">
+        <span style="font-size:13px">👑</span> <span id="topReqVipText">ស្នើសុំ VIP</span>
       </button>
       <button class="btn ghost sm" id="topRefreshBtn" title="Refresh library and queue">🔄 Refresh</button>
       <!-- Auto Update Button: strictly hidden by default; appears only when GitHub has new commit/push -->
@@ -953,6 +953,20 @@
       <button class="btn primary" id="omniGo" style="font-family:var(--font-km);font-weight:700;font-size:14px;padding:10px 24px;border-radius:9999px;display:inline-flex;align-items:center;gap:6px"><span>🔍 ស្វែងរក</span></button>
     </div>
   </section>
+
+  <!-- Home VIP Promotion & Request Banner -->
+  <div id="homeVipPromoBanner" style="display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,rgba(255,106,43,0.14),rgba(255,46,99,0.08));border:1.5px solid rgba(255,106,43,0.4);border-radius:14px;padding:12px 18px;margin:0 0 16px;flex-wrap:wrap;gap:12px;box-shadow:0 4px 16px rgba(255,106,43,0.12)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 12px rgba(255,106,43,0.4)">👑</div>
+      <div>
+        <div style="font-weight:800;font-size:14px;color:var(--ink);font-family:var(--font-km)">កញ្ចប់ VIP ដោះសោរគ្រប់ភាគទាំងអស់ (ភាគ 11+ ឡើងទៅ)!</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;font-family:var(--font-km)">គណនីធម្មតាអាចមើលបានត្រឹមភាគ 1-10 · ស្នើសុំ VIP ឥឡូវនេះ ដើម្បីទស្សនា និងដោនឡូតរឿងទាំងអស់ដោយគ្មានដែនកំណត់ (Admin អនុម័ត)</div>
+      </div>
+    </div>
+    <button type="button" class="btn primary" onclick="openUserRegisterModal('vip')" style="font-weight:800;font-size:13px;padding:8px 20px;border-radius:24px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 4px 14px rgba(255,106,43,0.4);display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--font-km)">
+      <span>⚡ ស្នើសុំ VIP ដោះសោរគ្រប់ភាគ</span>
+    </button>
+  </div>
 
   <section class="sec" id="resultsSec">
     <div class="sechead">
@@ -1169,6 +1183,9 @@
           <button class="btn ghost sm" id="ddHeroQueueBtn" style="font-family:var(--font-km);font-size:12px;padding:7px 14px">
             ➕ ដាក់ចូល Queue
           </button>
+          <button class="btn primary sm" id="ddVipUnlockBtn" onclick="promptVipModal(11)" style="font-family:var(--font-km);font-weight:800;font-size:12px;padding:7px 14px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 12px rgba(255,106,43,0.4);display:inline-flex;align-items:center;gap:6px" title="ស្នើសុំ VIP ដើម្បីដោះសោរគ្រប់ភាគ">
+            <span>👑 ស្នើសុំ VIP (ដោះសោរគ្រប់ភាគ)</span>
+          </button>
           
           <!-- Mode Toggle (Stream vs Select) -->
           <div style="margin-left:auto;display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px">
@@ -1199,6 +1216,17 @@
             <!-- Range tabs injected dynamically -->
           </div>
           <span id="ddEpTotalHint" style="font-size:11.5px;color:var(--muted);white-space:nowrap;font-family:var(--font-mono)"></span>
+        </div>
+
+        <!-- VIP Episode Alert Banner (Visible when user is not VIP) -->
+        <div id="ddVipEpisodeBanner" style="display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,rgba(255,106,43,0.12),rgba(255,46,99,0.08));border:1px solid rgba(255,106,43,0.35);border-radius:10px;padding:8px 14px;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:12px;color:var(--ink);display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">👑</span>
+            <span><b>គណនីធម្មតា:</b> ទស្សនា &amp; ដោនឡូតបានត្រឹមភាគ <b>1 ដល់ 10</b> (ភាគ 11+ ត្រូវបានចាក់សោរ)</span>
+          </div>
+          <button type="button" class="btn primary sm" onclick="promptVipModal(11)" style="font-size:11.5px;font-weight:800;padding:5px 14px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 2px 8px rgba(255,106,43,0.35);white-space:nowrap">
+            ⚡ ស្នើសុំ VIP ដោះសោរគ្រប់ភាគ
+          </button>
         </div>
 
         <!-- Episodes Grid (6 Columns exactly like screenshot!) -->
@@ -1619,6 +1647,20 @@
       </div>
     </div>
 
+    <!-- Firebase RTDB License Check Notice Banner -->
+    <div id="firebaseStartupNotice" style="display:none;background:rgba(255,106,43,0.12);border:1.5px solid var(--accent);padding:12px 14px;border-radius:12px;margin-bottom:12px;font-size:12.5px;color:var(--ink);line-height:1.5">
+      <div style="font-weight:800;color:var(--accent);display:flex;align-items:center;gap:6px">
+        <span>🔥</span> <span>ត្រួតពិនិត្យ Firebase Realtime Database (syd-drama-default-rtdb):</span>
+      </div>
+      <div style="margin-top:4px">
+        ⚠️ <b>User PC នេះមិនទាន់មាន Account / License Key ក្នុង Firebase នៅឡើយទេ។</b><br>
+        ដាច់ខាតត្រូវតែចុះឈ្មោះបង្កើតគណនីជាមុនសិន ដើម្បីក្លាយជា <b>User ធម្មតា</b> (ទស្សនា &amp; ដោនឡូតបានភាគ 1 ដល់ 10 ឥតគិតថ្លៃ)!
+      </div>
+      <div style="margin-top:6px;font-family:var(--font-mono);font-size:11px;color:var(--muted)">
+        License Key (PC): <b id="fbLicenseKeyText" style="color:var(--ink)">...</b>
+      </div>
+    </div>
+
     <!-- Alert / Notice Banner (shown e.g. when clicking a locked episode) -->
     <div id="authAlertBanner" style="display:none;background:rgba(255,46,99,0.12);border:1px solid rgba(255,46,99,0.35);padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:12.5px;color:var(--ink);line-height:1.5">
       <span id="authAlertText">🔒 ភាគនេះត្រូវបានចាក់សោរ (Locked)! គណនីធម្មតាអាចមើលបានត្រឹមភាគ 1-10 ប៉ុណ្ណោះ។</span>
@@ -1700,6 +1742,25 @@
 
       <!-- TAB 3: REQUEST VIP FORM -->
       <div id="authTabVipSec" style="display:none;flex-direction:column;gap:12px">
+        <!-- Guest Notice Banner (Shown when not authenticated) -->
+        <div id="vipGuestWarningBanner" style="display:none;background:rgba(255,106,43,0.12);border:1.5px solid var(--accent);border-radius:12px;padding:12px 14px;flex-direction:column;gap:8px">
+          <div style="font-weight:800;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:6px">
+            <span>💡</span> <span>ព័ត៌មានសម្រាប់ស្នើសុំកញ្ចប់ VIP:</span>
+          </div>
+          <div style="font-size:12px;color:var(--ink);line-height:1.6">
+            ដើម្បីអាចស្នើសុំកញ្ចប់ VIP បាន ដាច់ខាតលោកអ្នកត្រូវចុះឈ្មោះគណនី User ធម្មតា (ឬ Login) ជាមុនសិន។<br>
+            សូមចុចប៊ូតុងខាងក្រោមដើម្បីបង្កើតគណនីភ្លាមៗ (ឥតគិតថ្លៃ ចំណាយពេលត្រឹម ៥ វិនាទី)៖
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn primary sm" onclick="switchAuthTab('register')" style="font-weight:800;font-size:12px;padding:6px 14px;background:linear-gradient(135deg,#ff6a2b,#ff2e63)">
+              📝 ចុះឈ្មោះគណនីធម្មតាឥឡូវនេះ
+            </button>
+            <button type="button" class="btn ghost sm" onclick="switchAuthTab('login')" style="font-weight:700;font-size:12px;padding:6px 12px">
+              🔑 ចូលគណនីដែលមានស្រាប់
+            </button>
+          </div>
+        </div>
+
         <!-- Current User Status Card -->
         <div id="regStatusBanner" style="background:var(--surface-2);padding:14px;border-radius:14px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
@@ -1730,6 +1791,16 @@
           <div style="font-size:26px;margin-bottom:4px">⏳</div>
           <div style="font-weight:800;font-size:14px;color:var(--gold);margin-bottom:4px">សំណើសុំកញ្ចប់ VIP របស់អ្នកបានផ្ញើរួចរាល់ហើយ!</div>
           <div style="font-size:12px;color:var(--ink-2);line-height:1.5">គណនីរបស់អ្នកកំពុងស្ថិតក្នុងការត្រួតពិនិត្យដោយ Admin។<br>សូមផ្ញើ Device ID ខាងលើទៅកាន់ Admin តាមរយៈ Telegram ខាងក្រោម ដើម្បីឱ្យ Admin បើកសិទ្ធិ VIP ជូនភ្លាមៗ។</div>
+        </div>
+
+        <!-- Quick VIP Submit Action Banner -->
+        <div id="vipTopSubmitCard" style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:linear-gradient(135deg,rgba(255,106,43,0.14),rgba(255,46,99,0.08));border:1.5px solid rgba(255,106,43,0.4);border-radius:12px;padding:10px 14px;flex-wrap:wrap">
+          <div style="font-size:12.5px;color:var(--ink);font-weight:700">
+            👑 ស្នើសុំកញ្ចប់ VIP ទៅកាន់ Admin (Firebase RTDB)៖
+          </div>
+          <button type="button" class="btn primary sm" id="vipTopQuickBtn" onclick="doSubmitVipRequest()" style="font-weight:800;font-size:12px;padding:6px 16px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 10px rgba(255,106,43,0.35);border-radius:20px;white-space:nowrap;cursor:pointer">
+            <span>🚀 ផ្ញើសំណើសុំ VIP ឥឡូវនេះ</span>
+          </button>
         </div>
 
         <!-- Step 1: Choose VIP Package Duration -->
@@ -6098,10 +6169,8 @@ function isEpisodeLocked(epNum){
 
 function switchAuthTab(tab){
   const isAuth = !!(window.userAccess && window.userAccess.authenticated);
-  if(tab === 'vip' && !isAuth){
-    toast("⚠️ ដាច់ខាតត្រូវតែចុះឈ្មោះ User ធម្មតាជាមុនសិន មុនការស្នើសុំ VIP!", true);
-    tab = 'register';
-  }
+  const isPendingVip = !!(window.userAccess && window.userAccess.status === 'pending_vip');
+
   const btnL = $("#tabBtnLogin"), btnR = $("#tabBtnRegister"), btnV = $("#tabBtnVip");
   const secL = $("#authTabLoginSec"), secR = $("#authTabRegisterSec"), secV = $("#authTabVipSec");
   if(btnL) btnL.classList.toggle('on', tab === 'login');
@@ -6110,6 +6179,40 @@ function switchAuthTab(tab){
   if(secL) secL.style.display = (tab === 'login') ? 'flex' : 'none';
   if(secR) secR.style.display = (tab === 'register') ? 'flex' : 'none';
   if(secV) secV.style.display = (tab === 'vip') ? 'flex' : 'none';
+
+  if(tab === 'vip'){
+    const guestWarn = $("#vipGuestWarningBanner");
+    const regSubBtn = $("#regSubmitBtn");
+    const pendBanner = $("#vipPendingBanner");
+    const pkgCard = $("#tabPanelVip");
+    const submitCard = $("#vipSubmitFormCard");
+
+    if(!isAuth){
+      if(guestWarn) guestWarn.style.display = 'flex';
+      if(pendBanner) pendBanner.style.display = 'none';
+      if(pkgCard) pkgCard.style.display = 'flex';
+      if(submitCard) submitCard.style.display = 'flex';
+      if(regSubBtn) {
+        regSubBtn.innerHTML = "<span>📝 សូមចុះឈ្មោះគណនីជាមុនសិន ដើម្បីស្នើសុំ VIP</span>";
+        regSubBtn.onclick = () => { switchAuthTab('register'); };
+      }
+    } else {
+      if(guestWarn) guestWarn.style.display = 'none';
+      if(isPendingVip){
+        if(pendBanner) pendBanner.style.display = 'block';
+        if(pkgCard) pkgCard.style.display = 'none';
+        if(submitCard) submitCard.style.display = 'none';
+      } else {
+        if(pendBanner) pendBanner.style.display = 'none';
+        if(pkgCard) pkgCard.style.display = 'flex';
+        if(submitCard) submitCard.style.display = 'flex';
+        if(regSubBtn) {
+          regSubBtn.innerHTML = "<span>🚀 ផ្ញើសំណើសុំកញ្ចប់ VIP ទៅកាន់ Admin</span>";
+          regSubBtn.onclick = doSubmitVipRequest;
+        }
+      }
+    }
+  }
 }
 
 let isMandatoryAuth = false;
@@ -6121,28 +6224,27 @@ function promptVipModal(epNum){
     alertText.innerHTML = `🔒 <b>ភាគទី ${epNum} ត្រូវបានចាក់សោរ (Locked)!</b><br>គណនីធម្មតាអាចទស្សនា & ដោនឡូតបានត្រឹម <b>ភាគ 1 ដល់ 10</b> ប៉ុណ្ណោះ។<br>👉 សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ដើម្បីទស្សនា និងដោនឡូតគ្រប់ភាគទាំងអស់ដោយគ្មានការ Lock!`;
     banner.style.display = 'block';
   }
-  const isAuth = !!(window.userAccess && window.userAccess.authenticated);
-  openUserRegisterModal(isAuth ? 'vip' : 'register', !isAuth);
+  openUserRegisterModal('vip', false);
 }
 
 function openUserRegisterModal(preferTab = 'register', isMandatory = false){
   const m = $("#userRegisterModal");
   if(!m) return;
   const isAuth = !!(window.userAccess && window.userAccess.authenticated);
-  isMandatoryAuth = !isAuth || !!isMandatory;
+  isMandatoryAuth = !isAuth && !!isMandatory;
   const closeBtn1 = $("#regCloseBtn");
   const closeBtn2 = $("#regCloseBtn2");
   if(closeBtn1) closeBtn1.style.display = isMandatoryAuth ? 'none' : 'block';
   if(closeBtn2) closeBtn2.style.display = isMandatoryAuth ? 'none' : 'block';
 
-  const isAdmin = !!(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin'));
+  const isAdmin = !!(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin' || window.userAccess.role === 'dev'));
   const isVip = !!(window.userAccess && window.userAccess.is_vip);
   const isPendingVip = !!(window.userAccess && window.userAccess.status === 'pending_vip');
 
-  // Tab VIP button is strictly hidden for unauthenticated guests, or admins/vips/pending
+  // Tab VIP button: ALWAYS VISIBLE for anyone who is not already Admin or approved VIP!
   const tabVipBtn = $("#tabBtnVip");
   if(tabVipBtn){
-    if(!isAuth || isMandatoryAuth || isAdmin || isVip || isPendingVip){
+    if(isAdmin || isVip){
       tabVipBtn.style.display = 'none';
     } else {
       tabVipBtn.style.display = 'block';
@@ -6151,8 +6253,8 @@ function openUserRegisterModal(preferTab = 'register', isMandatory = false){
 
   const sub = $("#regModalSub");
   if(sub){
-    if(!isAuth || isMandatoryAuth){
-      sub.textContent = "⚠️ ដាច់ខាតត្រូវតែចុះឈ្មោះ User ធម្មតា (ឬ Login) ជាមុនសិន ទើបអាចប្រើប្រាស់កម្មវិធី និងស្នើសុំ VIP បាន";
+    if(!isAuth){
+      sub.textContent = "សូមចូលគណនី ឬចុះឈ្មោះគណនីធម្មតាដើម្បីទស្សនាភាគ 1-10 និងស្នើសុំ VIP";
       sub.style.color = "var(--accent)";
     } else if(isPendingVip){
       sub.textContent = "⏳ សំណើសុំ VIP របស់អ្នកកំពុងរង់ចាំ Admin អនុម័ត (ភាគ 1-10 ឥតគិតថ្លៃ)";
@@ -6169,9 +6271,7 @@ function openUserRegisterModal(preferTab = 'register', isMandatory = false){
   m.hidden = false;
   
   let targetTab = preferTab;
-  if(!isAuth){
-    if(targetTab === 'vip') targetTab = 'register';
-  } else if(isAdmin || isVip){
+  if(isAdmin || isVip){
     if(targetTab === 'vip') targetTab = 'login';
   }
   switchAuthTab(targetTab);
@@ -6285,14 +6385,17 @@ function updateVipPortalSettings(settings, userAccess){
   const pendBanner = $("#vipPendingBanner");
   const pkgForm = $("#tabPanelVip");
   const submitCard = $("#vipSubmitFormCard");
+  const topSubmitCard = $("#vipTopSubmitCard");
   if(isPendingVip){
     if(pendBanner) pendBanner.style.display = "block";
     if(pkgForm) pkgForm.style.display = "none";
     if(submitCard) submitCard.style.display = "none";
+    if(topSubmitCard) topSubmitCard.style.display = "none";
   } else {
     if(pendBanner) pendBanner.style.display = "none";
     if(pkgForm) pkgForm.style.display = "flex";
     if(submitCard) submitCard.style.display = "flex";
+    if(topSubmitCard) topSubmitCard.style.display = "flex";
   }
 }
 
@@ -6310,8 +6413,8 @@ async function fetchAccessStatus(){
       window.userAccess = data;
       updateAccessUI(data);
 
-      // Enforce mandatory Login or Register on startup
-      if(!data.authenticated){
+      // Enforce mandatory Register on startup if no account in Firebase Realtime Database
+      if(!data.authenticated || data.must_register || !data.has_firebase_account){
         openUserRegisterModal('register', true);
       } else {
         isMandatoryAuth = false;
@@ -6345,6 +6448,24 @@ function updateAccessUI(data){
   const isBanned = (data.status === 'banned' || data.is_banned);
   const isUser = !!(data.username && !isAdmin);
 
+  // Home VIP Promotion Banner Visibility
+  const homeVipBanner = $("#homeVipPromoBanner");
+  if(homeVipBanner){
+    homeVipBanner.style.display = (isAdmin || isVip) ? "none" : "flex";
+  }
+
+  // Firebase Realtime Database Startup Notice
+  const fbNotice = $("#firebaseStartupNotice");
+  const fbLicKey = $("#fbLicenseKeyText");
+  if(fbLicKey && data.license_key) fbLicKey.textContent = data.license_key;
+  if(fbNotice){
+    if(!data.has_firebase_account || data.must_register || !data.authenticated){
+      fbNotice.style.display = "block";
+    } else {
+      fbNotice.style.display = "none";
+    }
+  }
+
   const acctBtn = $("#acctBtn");
   if(acctBtn){
     if(isAdmin){
@@ -6356,24 +6477,42 @@ function updateAccessUI(data){
     }
   }
 
-  // USER REQUIREMENT:
-  // "ការស្នើសុំ VIP មើលឃើញតែ User ធម្មតា ដែលពុំទាន់ស្នើសុំVIP ប៉ុណ្ណោះ"
-  // Top bar "👑 ស្នើសុំ VIP" button: ONLY visible to regular users who have NOT yet requested VIP
+  // Top bar "👑 ស្នើសុំ VIP" button: Visible to anyone who is not already Admin or approved VIP!
   if(reqVipBtn){
-    if(isAdmin || isVip || isPendingVip || isBanned){
+    if(isAdmin || isVip || isBanned){
       reqVipBtn.style.display = "none";
+    } else if(isPendingVip){
+      reqVipBtn.style.display = "inline-flex";
+      reqVipBtn.style.background = "linear-gradient(135deg,#f59e0b,#d97706)";
+      reqVipBtn.style.boxShadow = "0 3px 10px rgba(245,158,11,0.35)";
+      reqVipBtn.innerHTML = `<span>⏳ សំណើ VIP កំពុងរង់ចាំ</span>`;
+      reqVipBtn.title = "សំណើ VIP កំពុងរង់ចាំ Admin អនុម័ត (ចុចដើម្បីមើល)";
     } else {
       reqVipBtn.style.display = "inline-flex";
+      reqVipBtn.style.background = "linear-gradient(135deg,#ff6a2b,#ff2e63)";
+      reqVipBtn.style.boxShadow = "0 3px 10px rgba(255,106,43,0.3)";
+      reqVipBtn.innerHTML = `<span>👑 ស្នើសុំ VIP</span>`;
+      reqVipBtn.title = "ស្នើសុំកញ្ចប់ VIP ដើម្បីទស្សនាគ្រប់ភាគ";
     }
   }
 
   const tabVipBtn = $("#tabBtnVip");
   if(tabVipBtn){
-    if(isAdmin || isVip || isPendingVip || isBanned){
+    if(isAdmin || isVip || isBanned){
       tabVipBtn.style.display = "none";
     } else {
       tabVipBtn.style.display = "block";
     }
+  }
+
+  // Drama Detail VIP Buttons
+  const ddVipBtn = $("#ddVipUnlockBtn");
+  const ddVipBanner = $("#ddVipEpisodeBanner");
+  if(ddVipBtn){
+    ddVipBtn.style.display = (isAdmin || isVip) ? "none" : "inline-flex";
+  }
+  if(ddVipBanner){
+    ddVipBanner.style.display = (isAdmin || isVip) ? "none" : "flex";
   }
 
   if(isAdmin){
@@ -6508,8 +6647,10 @@ function updateAccessUI(data){
 // User Action Handlers
 const uabBtn = $("#userAccessBadge");
 if(uabBtn) uabBtn.onclick = () => {
-  if(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin')){
+  if(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin' || window.userAccess.role === 'dev')){
     openUserControl();
+  } else if(window.userAccess && window.userAccess.authenticated && !window.userAccess.is_vip){
+    openUserRegisterModal('vip');
   } else {
     openUserRegisterModal('login');
   }
@@ -6721,62 +6862,69 @@ if(authRegSubmitBtn){
 }
 
 // VIP Request Submission
-const regSubBtn = $("#regSubmitBtn");
-if(regSubBtn){
-  regSubBtn.onclick = async () => {
-    if(!window.userAccess || !window.userAccess.authenticated){
-      toast("⚠️ ដាច់ខាតត្រូវតែចុះឈ្មោះ User ធម្មតាជាមុនសិន មុនការស្នើសុំ VIP!", true);
-      openUserRegisterModal('register', true);
-      return;
-    }
+async function doSubmitVipRequest() {
+  if(!window.userAccess || !window.userAccess.authenticated){
+    toast("⚠️ ដាច់ខាតត្រូវតែចុះឈ្មោះ User ធម្មតាជាមុនសិន មុនការស្នើសុំ VIP!", true);
+    openUserRegisterModal('register', true);
+    return;
+  }
 
-    const name = ($("#regNameInput") && $("#regNameInput").value.trim()) || (window.userAccess && (window.userAccess.name || window.userAccess.username)) || '';
-    const contact = ($("#regContactInput") && $("#regContactInput").value.trim()) || (window.userAccess && window.userAccess.contact) || '';
-    const note = ($("#regNoteInput") && $("#regNoteInput").value.trim()) || '';
-    const checkedPkg = document.querySelector('input[name="vipPackageRadio"]:checked');
-    const packageVal = (checkedPkg && checkedPkg.value) || '1_year';
+  const name = ($("#regNameInput") && $("#regNameInput").value.trim()) || (window.userAccess && (window.userAccess.name || window.userAccess.username)) || '';
+  const contact = ($("#regContactInput") && $("#regContactInput").value.trim()) || (window.userAccess && window.userAccess.contact) || '';
+  const note = ($("#regNoteInput") && $("#regNoteInput").value.trim()) || '';
+  const checkedPkg = document.querySelector('input[name="vipPackageRadio"]:checked');
+  const packageVal = (checkedPkg && checkedPkg.value) || '1_year';
 
-    if(!name){
-      toast("⚠️ សូមបញ្ចូលឈ្មោះរបស់អ្នក!", true);
-      if($("#regNameInput")) $("#regNameInput").focus();
-      return;
-    }
-    if(!contact){
-      toast("⚠️ សូមបញ្ចូលលេខទូរស័ព្ទ ឬ Telegram!", true);
-      if($("#regContactInput")) $("#regContactInput").focus();
-      return;
-    }
+  if(!name){
+    toast("⚠️ សូមបញ្ចូលឈ្មោះរបស់អ្នក!", true);
+    if($("#regNameInput")) $("#regNameInput").focus();
+    return;
+  }
+  if(!contact){
+    toast("⚠️ សូមបញ្ចូលលេខទូរស័ព្ទ ឬ Telegram!", true);
+    if($("#regContactInput")) $("#regContactInput").focus();
+    return;
+  }
+  const regSubBtn = $("#regSubmitBtn");
+  if(regSubBtn){
     regSubBtn.disabled = true;
     regSubBtn.innerHTML = "<span>កំពុងផ្ញើសំណើ...</span>";
-    try {
-      const tok = localStorage.getItem('syd_auth_token') || '';
-      const res = await fetch("/dl/access/request-vip", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token: tok,
-          package: packageVal,
-          note: note,
-          name: name,
-          contact: contact,
-          device_id: (window.userAccess && window.userAccess.device_id) || ''
-        })
-      });
-      const j = await res.json();
-      if(j.ok){
-        toast("✅ សំណើសុំ VIP ត្រូវបានបញ្ជូនតាមរយៈ Firebase Realtime Database រួចរាល់! សូមរង់ចាំ Admin អនុម័ត...", false);
-        await fetchAccessStatus();
-        if(currentAdminPin) refreshAdminUsersList();
-      } else {
-        toast("⚠️ " + (j.error || "បរាជ័យក្នុងការផ្ញើសំណើ"), true);
-      }
-    } catch(e){
-      toast("⚠️ កំហុសបណ្តាញ៖ " + e, true);
-    } finally {
-      regSubBtn.disabled = false;
-      regSubBtn.innerHTML = "<span>🚀 ផ្ញើសំណើសុំកញ្ចប់ VIP</span>";
+  }
+  try {
+    const tok = localStorage.getItem('syd_auth_token') || '';
+    const res = await fetch("/dl/access/request-vip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: tok,
+        package: packageVal,
+        note: note,
+        name: name,
+        contact: contact,
+        device_id: (window.userAccess && window.userAccess.device_id) || ''
+      })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast("✅ សំណើសុំ VIP ត្រូវបានបញ្ជូនតាមរយៈ Firebase Realtime Database រួចរាល់! សូមរង់ចាំ Admin អនុម័ត...", false);
+      await fetchAccessStatus();
+      if(currentAdminPin) refreshAdminUsersList();
+    } else {
+      toast("⚠️ " + (j.error || "បរាជ័យក្នុងការផ្ញើសំណើ"), true);
     }
-  };
+  } catch(e){
+    toast("⚠️ កំហុសបណ្តាញ៖ " + e, true);
+  } finally {
+    if(regSubBtn){
+      regSubBtn.disabled = false;
+      regSubBtn.innerHTML = "<span>🚀 ផ្ញើសំណើសុំកញ្ចប់ VIP ទៅកាន់ Admin</span>";
+    }
+  }
+}
+
+const regSubBtn = $("#regSubmitBtn");
+if(regSubBtn){
+  regSubBtn.onclick = doSubmitVipRequest;
 }
 
 /* ---------- Admin Access Panel Handlers ---------- */
@@ -8903,6 +9051,8 @@ function startApp(){
   else switchBoardTab("explorer");
   loadLibrary(); loadTotalPosterStats();
   fetchAccessStatus();
+  // Live poll access status from Firebase Realtime Database every 5 seconds
+  setInterval(fetchAccessStatus, 5000);
   // Auto-sync live posters from https://hongguoduanju.com/ every 5 minutes in background
   setInterval(fetchLiveStatsOnly, 5 * 60 * 1000);
   // adaptive poll: ~1s while a job runs (smooth live poster reveal), relaxed to 2s when idle

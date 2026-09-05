@@ -374,14 +374,22 @@ def register_user(username: str, name: str, contact: str, password: str, note: s
         if dev:
             _sessions[dev] = user_record
 
-        # Async sync to Firebase Realtime Database
-        threading.Thread(target=firebase_sync_license, args=(user_record,), daemon=True).start()
+        # Sync to Firebase Realtime Database
+        try:
+            firebase_sync_license(user_record)
+        except Exception as ex:
+            print(f"[firebase] register sync error: {ex}")
+            threading.Thread(target=firebase_sync_license, args=(user_record,), daemon=True).start()
 
         return True, user_record
 
 def get_user_status(token_or_device_id: str = ""):
     """
     Returns the user's status, settings, and allowed episode boundaries.
+    Startup check: Queries Firebase Realtime Database (https://syd-drama-default-rtdb.firebaseio.com)
+    for License Key / Account.
+    - If NO account in Firebase: Requires mandatory registration as regular user (Free Tier 1-10).
+    - If account in Firebase: Returns regular user (episodes 1-10) or VIP (episodes 1-all if approved by ADMIN).
     """
     ident = (token_or_device_id or "").strip()
     user = None
@@ -391,7 +399,7 @@ def get_user_status(token_or_device_id: str = ""):
         user = _sessions[ident]
 
     if not user and ident:
-        # Check database
+        # Check local database
         with _lock:
             d = _load_data()
             for k, u in d.get("users", {}).items():
@@ -400,32 +408,136 @@ def get_user_status(token_or_device_id: str = ""):
                     break
 
     settings = get_settings()
+    dev_check = (user.get("device_id") if user else ident) or get_current_device_id()
+    clean_id = clean_firebase_key(dev_check)
 
-    # Auto-sync with Firebase Realtime Database for current device
+    # 1. ADMIN check: Admin is exempt from registration and has full control
+    is_admin = False
+    if user:
+        role = user.get("role", "user")
+        if (role == "admin") or (str(user.get("username")).upper() == "ADMIN"):
+            is_admin = True
+
+    if is_admin:
+        return {
+            "authenticated": True,
+            "registered": True,
+            "has_firebase_account": True,
+            "must_register": False,
+            "device_id": user.get("device_id") or dev_check,
+            "license_key": clean_id,
+            "username": user.get("username", "ADMIN"),
+            "name": user.get("name", "Super Administrator"),
+            "contact": user.get("contact", ""),
+            "role": "admin",
+            "is_admin": True,
+            "is_dev": True,
+            "is_vip": True,
+            "status": "approved",
+            "max_free_episodes": 999999,
+            "requested_package": "lifetime",
+            "approved_package": "lifetime",
+            "package_name": "Full Control (ADMIN - គ្មានការ Lock)",
+            "package_badge": "ADMIN",
+            "expires_at": 0,
+            "expires_date": "Lifetime Full Access",
+            "days_left": -1,
+            "firebase_database": "https://syd-drama-default-rtdb.firebaseio.com",
+            "settings": settings,
+            "packages_available": list(VIP_PACKAGES.values())
+        }
+
+    # 2. Check Firebase Realtime Database for this User PC License Key
+    fb_data = None
     try:
-        dev_check = (user.get("device_id") if user else ident) or get_current_device_id()
-        if dev_check and (not user or not user.get("is_vip") or user.get("status") == "pending_vip"):
-            now_t = time.time()
-            if now_t - _firebase_last_poll.get(dev_check, 0) > 8:
-                _firebase_last_poll[dev_check] = now_t
-                fb_data = firebase_fetch_license(dev_check)
-                if fb_data and fb_data.get("is_vip"):
-                    if user:
-                        user["is_vip"] = True
-                        user["status"] = "approved"
-                        user["expires_at"] = fb_data.get("expires_at", 0)
-                        user["expires_date"] = fb_data.get("expires_date", "")
-                        user["approved_package"] = fb_data.get("approved_package", "")
-    except Exception:
-        pass
+        now_t = time.time()
+        if now_t - _firebase_last_poll.get(dev_check, 0) > 4:
+            _firebase_last_poll[dev_check] = now_t
+            fb_data = firebase_fetch_license(dev_check)
+    except Exception as ex:
+        print(f"[firebase] startup check error: {ex}")
 
+    has_fb_account = bool(fb_data and isinstance(fb_data, dict) and fb_data.get("username"))
+
+    if has_fb_account:
+        fb_vip = bool(fb_data.get("is_vip", False))
+        fb_status = fb_data.get("status", "user")
+        fb_exp = fb_data.get("expires_at", 0)
+        now_sec = int(time.time())
+        if fb_vip and fb_exp > 0 and fb_exp < now_sec:
+            fb_vip = False
+            fb_status = "expired"
+
+        if user:
+            user["is_vip"] = fb_vip
+            user["status"] = fb_status
+            user["expires_at"] = fb_exp
+            user["approved_package"] = fb_data.get("approved_package", user.get("approved_package", ""))
+            user["requested_package"] = fb_data.get("requested_package", user.get("requested_package", "1_year"))
+            user["max_free_episodes"] = 999999 if fb_vip else 10
+        else:
+            # Reconstitute regular user from Firebase Realtime Database
+            tok = "usr_" + clean_id[-12:]
+            user = {
+                "key": "user_" + clean_id[-8:],
+                "token": tok,
+                "device_id": dev_check,
+                "username": fb_data.get("username", "User"),
+                "name": fb_data.get("name", fb_data.get("username", "User")),
+                "contact": fb_data.get("contact", ""),
+                "role": fb_data.get("role", "vip" if fb_vip else "user"),
+                "is_vip": fb_vip,
+                "is_admin": False,
+                "status": fb_status,
+                "requested_package": fb_data.get("requested_package", "1_year"),
+                "approved_package": fb_data.get("approved_package", ""),
+                "expires_at": fb_exp,
+                "max_free_episodes": 999999 if fb_vip else 10,
+                "created_at": fb_data.get("created_at", now_sec),
+                "package_name": "VIP Member (ដោះសោរគ្រប់ភាគ)" if fb_vip else "គណនីធម្មតា (ភាគ 1-10)",
+                "package_badge": "VIP" if fb_vip else "ភាគ 1-10"
+            }
+            _sessions[tok] = user
+            _sessions[dev_check] = user
+
+    # 3. If NO account exists in Firebase Realtime Database and no local user:
+    if not has_fb_account and not (user and user.get("role") not in ("guest", None)):
+        return {
+            "authenticated": False,
+            "registered": False,
+            "has_firebase_account": False,
+            "must_register": True,
+            "device_id": dev_check,
+            "license_key": clean_id,
+            "username": "ភ្ញៀវ (Guest)",
+            "name": "Guest Visitor",
+            "contact": "",
+            "role": "guest",
+            "is_admin": False,
+            "is_dev": False,
+            "is_vip": False,
+            "status": "guest",
+            "max_free_episodes": 10,
+            "package_name": "ភ្ញៀវមិនទាន់ចុះឈ្មោះ (ភាគ 1-10)",
+            "package_badge": "Guest",
+            "expires_at": 0,
+            "expires_date": "Free Tier (ភាគ 1-10)",
+            "days_left": 0,
+            "firebase_database": "https://syd-drama-default-rtdb.firebaseio.com",
+            "message": "User PC មិនទាន់មានគណនីក្នុង Firebase Realtime Database (syd-drama-default-rtdb) នៅឡើយទេ។ ដាច់ខាតត្រូវតែចុះឈ្មោះជាមុនសិន ដើម្បីក្លាយជា User ធម្មតា!",
+            "settings": settings,
+            "packages_available": list(VIP_PACKAGES.values())
+        }
+
+    # 4. Registered Regular User or Approved VIP
     if user:
         if user.get("status") == "banned":
             return {
                 "authenticated": False,
                 "registered": True,
                 "is_banned": True,
-                "device_id": user.get("device_id") or ident,
+                "device_id": dev_check,
+                "license_key": clean_id,
                 "username": user.get("username", "User"),
                 "status": "banned",
                 "error": "🚫 គណនីនេះត្រូវបានបិទមិនឱ្យប្រើប្រាស់ដោយ Admin!",
@@ -434,52 +546,53 @@ def get_user_status(token_or_device_id: str = ""):
             }
 
         role = user.get("role", "user")
-        is_admin = (role == "admin") or (str(user.get("username")).upper() == "ADMIN")
-        is_vip = is_admin or (role == "dev") or (user.get("status") == "approved" and user.get("is_vip", False))
-
+        is_vip = bool(user.get("is_vip", False))
+        max_eps = 999999 if is_vip else 10
         now = int(time.time())
         exp = user.get("expires_at", 0)
-        if is_vip and not is_admin and role != "dev" and exp > 0 and exp < now:
-            is_vip = False
-            user["status"] = "expired"
 
-        max_eps = 999999 if is_vip else 10
-
-        exp_date = "Lifetime Full Access" if is_admin else ("Lifetime VIP" if exp == 0 and is_vip else "Free Tier (ភាគ 1-10)")
-        days_left = -1 if (is_admin or (is_vip and exp == 0)) else (max(0, int((exp - now) / 86400)) if exp > 0 else 0)
-        if exp > 0:
+        exp_date = "Lifetime VIP" if (is_vip and exp == 0) else ("Free Tier (ភាគ 1-10)" if not is_vip else "")
+        days_left = -1 if (is_vip and exp == 0) else (max(0, int((exp - now) / 86400)) if exp > 0 else 0)
+        if exp > 0 and is_vip:
             import datetime
             exp_date = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
 
         return {
             "authenticated": True,
             "registered": True,
-            "device_id": user.get("device_id") or ident,
+            "has_firebase_account": True,
+            "must_register": False,
+            "device_id": user.get("device_id") or dev_check,
+            "license_key": clean_id,
             "username": user.get("username", "User"),
             "name": user.get("name", user.get("username", "User")),
             "contact": user.get("contact", ""),
-            "role": "admin" if is_admin else ("vip" if is_vip else "user"),
-            "is_admin": is_admin,
-            "is_dev": is_admin or (role == "dev"),
+            "role": "vip" if is_vip else "user",
+            "is_admin": False,
+            "is_dev": False,
             "is_vip": is_vip,
-            "status": "approved" if is_vip else user.get("status", "user"),
+            "status": user.get("status", "user"),
             "max_free_episodes": max_eps,
             "requested_package": user.get("requested_package", "1_year"),
-            "approved_package": user.get("approved_package", "lifetime" if is_admin else ""),
-            "package_name": "Full Control (គ្មានការ Lock)" if is_admin else ("VIP Member (ដោះសោរគ្រប់ភាគ)" if is_vip else "គណនីធម្មតា (ទស្សនាភាគ 1-10)"),
-            "package_badge": "ADMIN" if is_admin else ("VIP" if is_vip else "ភាគ 1-10"),
+            "approved_package": user.get("approved_package", ""),
+            "package_name": "VIP Member (ដោះសោរគ្រប់ភាគ)" if is_vip else "គណនីធម្មតា (ភាគ 1-10 ឥតគិតថ្លៃ)",
+            "package_badge": "VIP" if is_vip else "ភាគ 1-10",
             "expires_at": exp,
             "expires_date": exp_date,
             "days_left": days_left,
+            "firebase_database": "https://syd-drama-default-rtdb.firebaseio.com",
             "settings": settings,
             "packages_available": list(VIP_PACKAGES.values())
         }
 
-    # Guest / Unauthenticated
+    # Fallback
     return {
         "authenticated": False,
         "registered": False,
-        "device_id": ident or get_current_device_id(),
+        "has_firebase_account": False,
+        "must_register": True,
+        "device_id": dev_check,
+        "license_key": clean_id,
         "username": "ភ្ញៀវ (Guest)",
         "name": "Guest Visitor",
         "contact": "",
@@ -494,6 +607,8 @@ def get_user_status(token_or_device_id: str = ""):
         "expires_at": 0,
         "expires_date": "Free Tier (ភាគ 1-10)",
         "days_left": 0,
+        "firebase_database": "https://syd-drama-default-rtdb.firebaseio.com",
+        "message": "User PC មិនទាន់មានគណនីក្នុង Firebase Realtime Database (syd-drama-default-rtdb) នៅឡើយទេ។ ដាច់ខាតត្រូវតែចុះឈ្មោះជាមុនសិន ដើម្បីក្លាយជា User ធម្មតា!",
         "settings": settings,
         "packages_available": list(VIP_PACKAGES.values())
     }
@@ -512,9 +627,35 @@ def request_vip(token_or_id: str, package: str = "1_year", note: str = "", name:
                 target = u
                 break
 
+        if not target and ident:
+            if ident in _sessions:
+                target = _sessions[ident]
+            else:
+                try:
+                    fb = firebase_fetch_license(ident)
+                    if fb and isinstance(fb, dict) and fb.get("username"):
+                        clean_id = clean_firebase_key(ident)
+                        tok = "usr_" + clean_id[-12:]
+                        target = {
+                            "device_id": ident,
+                            "username": fb.get("username", "User"),
+                            "name": fb.get("name") or name or fb.get("username"),
+                            "contact": fb.get("contact") or contact,
+                            "status": "pending_vip",
+                            "role": "user",
+                            "is_vip": False,
+                            "token": tok
+                        }
+                        users["user_" + clean_id[-8:]] = target
+                        d["users"] = users
+                        _sessions[tok] = target
+                        _sessions[ident] = target
+                except Exception:
+                    pass
+
         now = int(time.time())
-        # STRICT RULE: Must be an authentically registered user first (with password_hash)!
-        if not target or not target.get("password_hash") or not target.get("username") or str(target.get("username")).lower().startswith("guest") or str(target.get("username")).lower().startswith("pc_") or target.get("role") == "guest":
+        # STRICT RULE: Must be an authentically registered user first!
+        if not target or not target.get("username") or str(target.get("username")).lower().startswith("guest") or target.get("role") == "guest":
             return False, "សូមចុះឈ្មោះ User ធម្មតាជាមុនសិន មុននឹងស្នើសុំ VIP!"
 
         if name:
@@ -537,7 +678,11 @@ def request_vip(token_or_id: str, package: str = "1_year", note: str = "", name:
                 su["requested_package"] = target["requested_package"]
 
         # Push to Firebase Realtime Database
-        threading.Thread(target=firebase_sync_license, args=(target,), daemon=True).start()
+        try:
+            firebase_sync_license(target)
+        except Exception as ex:
+            print(f"[firebase] request_vip sync error: {ex}")
+            threading.Thread(target=firebase_sync_license, args=(target,), daemon=True).start()
 
         return True, target
 
