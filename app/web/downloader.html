@@ -6820,6 +6820,12 @@ let _lastPcSyncTick = 0;
 async function syncActiveDownloadsToPc(st){
   const autoSaveOn = $("#sqAutoSavePc") ? $("#sqAutoSavePc").checked : true;
   if(!autoSaveOn || !st || !st.series) return;
+  // If user hasn't selected a local folder handle via File System Access API,
+  // do NOT trigger per-episode standard browser downloads (Chrome blocks multiple simultaneous downloads).
+  // Series delivery will be done cleanly via single-click complete .ZIP or autoDeliverCompletedDownloadsToPc!
+  const dirHandle = await getValidPcDirHandle();
+  if(!dirHandle) return;
+  
   if(++_lastPcSyncTick % 3 !== 0 && !st.running) return;
   const sList = Array.isArray(st.series) ? st.series : Object.values(st.series);
   for(const s of sList){

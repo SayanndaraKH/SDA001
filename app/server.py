@@ -1639,64 +1639,248 @@ def dl_library():
         return ODL.library_scan()
     except Exception as e:
         return {'items': [], 'error': str(e)}
+def _find_series_folder(name: str = ''):
+    """Robustly resolve any series folder by exact name, sub-name, Chinese title, Khmer title, or series ID across all storage roots."""
+    if not name:
+        return None
+    import re
+    name = str(name).strip()
+    safe = os.path.basename(name)
+    
+    roots = []
+    if ODL.OUT and os.path.isdir(ODL.OUT):
+        roots.append(ODL.OUT)
+        
+    candidates = [
+        os.environ.get('HG_OUT'),
+        'F:\\GENERATE\\Hongguo-Dramma\\0-OK',
+        'F:\\GENERATE\\Hongguo-Dramma',
+        'F:\\GENERATE\\0-OK',
+        'F:\\GENERATE',
+        'F:\\Hongguo',
+        'D:\\Hongguo',
+        'C:\\Hongguo',
+        os.path.join(os.path.expanduser('~'), 'Videos', 'Hongguo'),
+        os.path.join(os.path.expanduser('~'), 'Downloads'),
+        '/app/data/downloads',
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads'),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'downloads'),
+        'downloads',
+        'app/downloads'
+    ]
+    for alt in candidates:
+        if alt and os.path.isdir(alt) and alt not in roots:
+            roots.append(alt)
+            
+    # Auto-discover 1st-level subdirectories of F:\GENERATE or other base roots
+    if os.path.isdir('F:\\GENERATE'):
+        try:
+            for sub in os.listdir('F:\\GENERATE'):
+                p_sub = os.path.join('F:\\GENERATE', sub)
+                if os.path.isdir(p_sub) and p_sub not in roots:
+                    roots.append(p_sub)
+        except Exception:
+            pass
+
+    # 1. Exact direct match
+    for r in roots:
+        p = os.path.join(r, safe)
+        if os.path.isdir(p):
+            return p
+        p_raw = os.path.join(r, name)
+        if os.path.isdir(p_raw):
+            return p_raw
+            
+    # 2. Reverse lookup in translation cache if name is Khmer or Chinese
+    cn_title = ''
+    km_title = ''
+    try:
+        import translator as TR
+        cache = TR.load_cache()
+        clean_n = re.sub(r'[^\w\u4e00-\u9fa5\u1780-\u17ff]', '', name).lower()
+        for k, v in cache.items():
+            if v:
+                clean_v = re.sub(r'[^\w\u4e00-\u9fa5\u1780-\u17ff]', '', v).lower()
+                if clean_n and (clean_n in clean_v or clean_v in clean_n) and len(clean_n) >= 4:
+                    cn_title = k.strip()
+                    km_title = v.strip()
+                    break
+        if not cn_title and name in cache:
+            cn_title = name
+            km_title = cache[name]
+    except Exception:
+        pass
+            
+    # 3. Match by partial folder name, series metadata (series_id, title, title_km) or Khmer title text file
+    clean_target = re.sub(r'[^\w\u4e00-\u9fa5\u1780-\u17ff]', '', name).lower()
+    clean_cn = re.sub(r'[^\w\u4e00-\u9fa5\u1780-\u17ff]', '', cn_title).lower() if cn_title else ''
+    clean_km = re.sub(r'[^\w\u4e00-\u9fa5\u1780-\u17ff]', '', km_title).lower() if km_title else ''
+
+    for r in roots:
+        try:
+            entries = os.listdir(r)
+        except Exception:
+            continue
+        for entry in entries:
+            folder = os.path.join(r, entry)
+            if not os.path.isdir(folder) or entry.startswith('.'):
+                continue
+                
+            clean_entry = re.sub(r'[^\w\u4e00-\u9fa5\u1780-\u17ff]', '', entry).lower()
+            if clean_target and (clean_target in clean_entry or clean_entry in clean_target):
+                return folder
+            if clean_cn and (clean_cn in clean_entry or clean_entry in clean_cn):
+                return folder
+            if clean_km and (clean_km in clean_entry or clean_entry in clean_km):
+                return folder
+                
+            # Check metadata
+            meta = ODL._lib_meta(folder)
+            sid = str(meta.get('series_id') or '')
+            title = str(meta.get('title') or '')
+            title_km_meta = str(meta.get('title_km') or '')
+            if sid and (sid == name or sid == str(name).strip()):
+                return folder
+            if title:
+                clean_title = re.sub(r'[^\w\u4e00-\u9fa5\u1780-\u17ff]', '', title).lower()
+                if clean_target and (clean_target in clean_title or clean_title in clean_target):
+                    return folder
+                if clean_cn and (clean_cn in clean_title or clean_title in clean_cn):
+                    return folder
+            if title_km_meta:
+                clean_km_meta = re.sub(r'[^\w\u4e00-\u9fa5\u1780-\u17ff]', '', title_km_meta).lower()
+                if clean_target and (clean_target in clean_km_meta or clean_km_meta in clean_target):
+                    return folder
+                if clean_km and (clean_km in clean_km_meta or clean_km_meta in clean_km):
+                    return folder
+                    
+            # Check Khmer title text file
+            txt_path = os.path.join(folder, 'ចំណងជើងរឿង_Khmer_Title.txt')
+            if os.path.exists(txt_path):
+                try:
+                    txt_c = open(txt_path, encoding='utf-8', errors='ignore').read()
+                    clean_txt = re.sub(r'[^\w\u4e00-\u9fa5\u1780-\u17ff]', '', txt_c).lower()
+                    if clean_target and len(clean_target) >= 4 and clean_target in clean_txt:
+                        return folder
+                    if clean_cn and clean_cn in clean_txt:
+                        return folder
+                except Exception:
+                    pass
+                
+    return None
+
 @app.get('/dl/library/episodes')
 def dl_library_episodes(name: str=''):
-    """Downloaded-episode list for one series (for the Library expand view)."""
-    r = ODL.library_episodes(name or '')
-    if r is None:
-        raise HTTPException(404, 'series not found')
-    else:
-        return r
+    """Downloaded-episode list for one series (for the Library expand view & PC auto-save)."""
+    import re
+    folder = _find_series_folder(name)
+    if not folder or not os.path.isdir(folder):
+        # Fallback to ODL default
+        r = ODL.library_episodes(name or '')
+        if r is not None:
+            return r
+        raise HTTPException(404, f'Series folder not found for "{name}"')
+    
+    meta = ODL._lib_meta(folder)
+    eps_m = {}
+    try:
+        for f in os.listdir(folder):
+            if f.lower().endswith('.mp4') and not f.lower().endswith('.raw.mp4') and not f.lower().endswith('.h264.mp4'):
+                m = re.search(r'(?:第|ep|episode)[\s_]*(\d+)', f, re.I)
+                if m:
+                    ep_idx = int(m.group(1))
+                else:
+                    m2 = re.search(r'(\d+)(?=\.mp4$)', f, re.I)
+                    ep_idx = int(m2.group(1)) if m2 else 0
+                if ep_idx > 0:
+                    fp = os.path.join(folder, f)
+                    if os.path.getsize(fp) > 0:
+                        eps_m[ep_idx] = os.path.getmtime(fp)
+    except Exception:
+        pass
+
+    seen_at = float(meta.get('seen_at') or 0)
+    total = int(meta.get('total') or 0) or (max(eps_m) if eps_m else 0)
+    episodes = [{'index': i, 'fresh': bool(seen_at > 0 and mt > seen_at)} for i, mt in sorted(eps_m.items())]
+    return {
+        'name': os.path.basename(folder),
+        'title': meta.get('title') or os.path.basename(folder),
+        'total': total,
+        'downloaded': sorted(eps_m.keys()),
+        'fresh': sum((1 for e in episodes if e['fresh'])),
+        'episodes': episodes
+    }
+
 @app.post('/dl/library/seen')
 def dl_library_seen(payload: dict=Body(...)):
-    """Mark a series as viewed (clears the \'new episode\' highlight)."""
+    """Mark a series as viewed (clears the 'new episode' highlight)."""
     return {'ok': ODL.library_mark_seen((payload or {}).get('name', ''))}
+
 @app.get('/dl/poster')
 def dl_poster(name: str=''):
     """Serve a downloaded series\' local poster.jpg."""
+    folder = _find_series_folder(name)
+    if folder:
+        for p_cand in ['poster.jpg', f'{os.path.basename(folder)}.jpg', 'cover.jpg']:
+            p = os.path.join(folder, p_cand)
+            if os.path.exists(p):
+                return FileResponse(p, media_type='image/jpeg', headers={'Cache-Control': 'max-age=3600'})
+        # Any jpg in folder
+        try:
+            for f in os.listdir(folder):
+                if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                    return FileResponse(os.path.join(folder, f), media_type='image/jpeg', headers={'Cache-Control': 'max-age=3600'})
+        except Exception:
+            pass
+
     safe = os.path.basename(name or '')
-    p = os.path.join(ODL.OUT, safe, 'poster.jpg')
-    if safe and os.path.exists(p):
-        return FileResponse(p, media_type='image/jpeg', headers={'Cache-Control': 'max-age=3600'})
-    else:
-        raise HTTPException(404, 'no poster')
+    p_fallback = os.path.join(ODL.OUT, safe, 'poster.jpg')
+    if safe and os.path.exists(p_fallback):
+        return FileResponse(p_fallback, media_type='image/jpeg', headers={'Cache-Control': 'max-age=3600'})
+    raise HTTPException(404, 'no poster')
+
 @app.post('/dl/library/open')
 def dl_library_open(payload: dict=Body(...)):
     import subprocess
     import sys
-    safe = os.path.basename((payload or {}).get('name', '') or '')
-    folder = os.path.join(ODL.OUT, safe)
-    if not safe or not os.path.isdir(folder):
+    name = (payload or {}).get('name', '') or ''
+    folder = _find_series_folder(name)
+    if not folder or not os.path.isdir(folder):
         return {'ok': False, 'error': 'folder not found'}
-    else:
-        try:
-            if sys.platform.startswith('win'):
-                os.startfile(folder)
+    try:
+        if sys.platform.startswith('win'):
+            os.startfile(folder)
+        else:
+            if sys.platform == 'darwin':
+                subprocess.Popen(['open', folder])
             else:
-                if sys.platform == 'darwin':
-                    subprocess.Popen(['open', folder])
-                else:
-                    subprocess.Popen(['xdg-open', folder])
-            return {'ok': True}
-        except Exception as e:
-            return {'ok': False, 'error': str(e)}
+                subprocess.Popen(['xdg-open', folder])
+        return {'ok': True}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
 @app.api_route('/dl/library/video', methods=['GET', 'HEAD'])
 def dl_library_video(name: str = '', ep: int = 1, download: int = 0):
     """Serve local downloaded MP4 video file with streaming range support or trigger browser download."""
     import re
-    safe = os.path.basename(name or '')
-    folder = os.path.join(ODL.OUT, safe)
-    if not safe or not os.path.isdir(folder):
-        raise HTTPException(404, 'folder not found')
+    import urllib.parse
+    folder = _find_series_folder(name)
+    if not folder or not os.path.isdir(folder):
+        raise HTTPException(404, f'Series folder not found for "{name}"')
     files = []
     for f in os.listdir(folder):
         if f.lower().endswith('.mp4') and not f.lower().endswith('.raw.mp4') and not f.lower().endswith('.h264.mp4'):
-            m = re.search(r'(\d+)', f)
-            files.append((int(m.group(1)) if m else 0, f))
+            m = re.search(r'(?:第|ep|episode)[\s_]*(\d+)', f, re.I)
+            if m:
+                ep_n = int(m.group(1))
+            else:
+                m2 = re.search(r'(\d+)(?=\.mp4$)', f, re.I)
+                ep_n = int(m2.group(1)) if m2 else 0
+            files.append((ep_n, f))
     files.sort()
     target = next((f for n, f in files if n == int(ep)), None)
     if not target:
-        raise HTTPException(404, f'Episode {ep} not found')
+        raise HTTPException(404, f'Episode {ep} not found in {os.path.basename(folder)}')
     
     # Check if an H.264 compatible version exists
     target_h264 = target.replace('.mp4', '.h264.mp4')
@@ -1707,50 +1891,65 @@ def dl_library_video(name: str = '', ep: int = 1, download: int = 0):
         path = os.path.join(folder, target)
         
     if download:
-        clean_name = re.sub(r'[^\w\-\.]', '_', f"{safe}_Ep{int(ep):02d}.mp4")
+        meta = ODL._lib_meta(folder)
+        disp_title = meta.get('title') or os.path.basename(folder)
+        clean_series = re.sub(r'[\\/:*?"<>|]', '_', disp_title).strip() or os.path.basename(folder)
         return FileResponse(
             path,
             media_type='video/mp4',
-            filename=clean_name,
-            headers={'Content-Disposition': f'attachment; filename="{clean_name}"'}
+            filename=f"{clean_series}_Ep{int(ep):02d}.mp4"
         )
     return FileResponse(path, media_type='video/mp4')
 
-@app.get('/dl/library/zip')
+@app.api_route('/dl/library/zip', methods=['GET', 'HEAD'])
 def dl_library_zip(name: str = ''):
-    """Stream all episodes of a series as a single zip archive for 1-click batch download to PC."""
+    """Serve all episodes of a series as a single zip archive for 1-click batch download to PC."""
     import zipfile
-    import io
+    import tempfile
+    import hashlib
     import re
-    safe = os.path.basename(name or '')
-    folder = os.path.join(ODL.OUT, safe)
-    if not safe or not os.path.isdir(folder):
-        raise HTTPException(404, 'Series folder not found')
+    folder = _find_series_folder(name)
+    if not folder or not os.path.isdir(folder):
+        raise HTTPException(404, f'Series folder not found for "{name}"')
     
-    files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith('.mp4') and not f.lower().endswith('.raw.mp4')]
+    files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith('.mp4') and not f.lower().endswith('.raw.mp4') and not f.lower().endswith('.h264.mp4')]
     if not files:
-        raise HTTPException(404, 'No MP4 video files found in this series')
+        raise HTTPException(404, f'No MP4 video files found in series folder {os.path.basename(folder)}')
         
-    clean_series_name = re.sub(r'[^\w\-]', '_', safe)
+    meta = ODL._lib_meta(folder)
+    disp_title = meta.get('title_km') or meta.get('title') or re.sub(r'^\[No\.\d+\]\s*', '', os.path.basename(folder))
+    clean_series_name = re.sub(r'[\\/:*?"<>|]', '_', disp_title).strip() or os.path.basename(folder)
     zip_filename = f"{clean_series_name}_All_Episodes.zip"
     
-    def iter_zip():
-        buffer = io.BytesIO()
-        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_STORED) as zf:
-            for f in files:
-                fp = os.path.join(folder, f)
-                zf.write(fp, arcname=f)
-        buffer.seek(0)
-        while True:
-            chunk = buffer.read(1024 * 1024)
-            if not chunk:
-                break
-            yield chunk
+    # Check if a cached ZIP archive exists and is up-to-date
+    cache_zip = os.path.join(folder, '.all_episodes.zip')
+    latest_mtime = max((os.path.getmtime(os.path.join(folder, f)) for f in files), default=0)
+    
+    target_zip = None
+    if os.path.exists(cache_zip) and os.path.getmtime(cache_zip) >= latest_mtime and os.path.getsize(cache_zip) > 0:
+        target_zip = cache_zip
+    else:
+        # Build the zip file without keeping data in RAM
+        try:
+            tmp_path = cache_zip + '.tmp'
+            with zipfile.ZipFile(tmp_path, 'w', compression=zipfile.ZIP_STORED) as zf:
+                for f in files:
+                    zf.write(os.path.join(folder, f), arcname=f)
+            os.replace(tmp_path, cache_zip)
+            target_zip = cache_zip
+        except Exception:
+            # If folder is not writable (e.g. read-only permission), write to system temp
+            temp_target = os.path.join(tempfile.gettempdir(), f"syd_zip_{hashlib.md5(folder.encode('utf-8', errors='ignore')).hexdigest()[:10]}.zip")
+            if not os.path.exists(temp_target) or os.path.getmtime(temp_target) < latest_mtime:
+                with zipfile.ZipFile(temp_target, 'w', compression=zipfile.ZIP_STORED) as zf:
+                    for f in files:
+                        zf.write(os.path.join(folder, f), arcname=f)
+            target_zip = temp_target
             
-    return StreamingResponse(
-        iter_zip(),
+    return FileResponse(
+        target_zip,
         media_type='application/zip',
-        headers={'Content-Disposition': f'attachment; filename="{zip_filename}"'}
+        filename=zip_filename
     )
 
 @app.get('/dl/storage/files')
@@ -1845,11 +2044,12 @@ def dl_storage_delete(payload: dict = Body(...)):
     """Delete a series folder or single episode file from storage."""
     import shutil
     import re
-    safe = os.path.basename((payload or {}).get('name', '') or '')
+    raw_name = (payload or {}).get('name', '') or ''
+    safe = os.path.basename(raw_name)
     ep = (payload or {}).get('ep')
-    if not safe:
+    if not raw_name:
         return {'ok': False, 'error': 'Missing series name'}
-    folder = os.path.join(ODL.OUT, safe)
+    folder = _find_series_folder(raw_name) or os.path.join(ODL.OUT, safe)
     if not os.path.isdir(folder):
         return {'ok': False, 'error': 'Series not found'}
     try:
@@ -1872,10 +2072,11 @@ def dl_library_transcode(payload: dict = Body(...)):
     """Convert an episode from HEVC to H.264 using RTX 5060 NVENC or CPU."""
     import subprocess
     import re
-    safe = os.path.basename((payload or {}).get('name', '') or '')
+    raw_name = (payload or {}).get('name', '') or ''
+    safe = os.path.basename(raw_name)
     ep = (payload or {}).get('ep', 1)
-    folder = os.path.join(ODL.OUT, safe)
-    if not safe or not os.path.isdir(folder):
+    folder = _find_series_folder(raw_name) or os.path.join(ODL.OUT, safe)
+    if not folder or not os.path.isdir(folder):
         return {'ok': False, 'error': 'folder not found'}
     files = []
     for f in os.listdir(folder):
@@ -1944,9 +2145,10 @@ def dl_library_play(payload: dict=Body(...)):
     import subprocess
     import sys
     import re
-    safe = os.path.basename((payload or {}).get('name', '') or '')
-    folder = os.path.join(ODL.OUT, safe)
-    if not safe or not os.path.isdir(folder):
+    raw_name = (payload or {}).get('name', '') or ''
+    safe = os.path.basename(raw_name)
+    folder = _find_series_folder(raw_name) or os.path.join(ODL.OUT, safe)
+    if not folder or not os.path.isdir(folder):
         return {'ok': False, 'error': 'folder not found'}
     else:
         files = []
