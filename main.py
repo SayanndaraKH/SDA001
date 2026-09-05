@@ -49,7 +49,7 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
 
 # Determine Directories
 if getattr(sys, 'frozen', False):
-    ROOT_DIR = os.path.dirname(sys.executable)
+    ROOT_DIR = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
 else:
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -57,7 +57,7 @@ APP_DIR = os.path.join(ROOT_DIR, 'app')
 SIGN_DIR = os.path.join(APP_DIR, 'sign')
 SIGN_JAR = os.path.join(SIGN_DIR, 'unidbg-sign.jar')
 DEFAULT_OUT = os.path.join(os.path.expanduser('~'), 'Videos', 'Hongguo')
-DATA_DIR = os.path.join(os.environ.get('LOCALAPPDATA', ROOT_DIR), 'HongguoDownloader')
+DATA_DIR = os.path.join(os.environ.get('LOCALAPPDATA', os.path.dirname(sys.executable)), 'HongguoDownloader')
 
 SIGN_PORT = int(os.environ.get('HG_SIGN_PORT', '9099'))
 WEB_PORT = int(os.environ.get('HG_PORT', '8000'))
@@ -68,6 +68,8 @@ def _find_java():
     cands = [
         os.path.join(ROOT_DIR, 'jre', 'bin', 'javaw.exe'),
         os.path.join(ROOT_DIR, 'jre', 'bin', 'java.exe'),
+        os.path.join(os.path.dirname(sys.executable), 'jre', 'bin', 'javaw.exe'),
+        os.path.join(os.path.dirname(sys.executable), 'jre', 'bin', 'java.exe'),
         shutil.which('javaw'),
         shutil.which('java')
     ]
@@ -338,11 +340,35 @@ def main():
             wait_port(SIGN_PORT, 20)
 
     # 2. Start FastAPI Server silently if not running
-    server_script = os.path.join(APP_DIR, 'server.py')
     if not port_open(WEB_PORT):
-        python_exe = _find_pythonw()
-        _spawn_hidden([python_exe, server_script], APP_DIR, env, logf)
-        wait_port(WEB_PORT, 25)
+        def _run_uvicorn():
+            try:
+                sys.path.insert(0, APP_DIR)
+                sys.path.insert(0, os.path.join(APP_DIR, 'frida'))
+                import uvicorn
+                import server
+                config = uvicorn.Config(server.app, host='0.0.0.0', port=WEB_PORT, log_level='warning')
+                srv = uvicorn.Server(config)
+                srv.run()
+            except Exception as e:
+                if logf:
+                    try:
+                        logf.write(f"Server thread error: {e}\n")
+                        logf.flush()
+                    except Exception:
+                        pass
+
+        # In frozen mode or when running self-contained, start server in background thread
+        if getattr(sys, 'frozen', False) or not os.path.isfile(os.path.join(ROOT_DIR, 'python', 'pythonw.exe')):
+            import threading
+            th = threading.Thread(target=_run_uvicorn, daemon=True)
+            th.start()
+            wait_port(WEB_PORT, 25)
+        else:
+            python_exe = _find_pythonw()
+            server_script = os.path.join(APP_DIR, 'server.py')
+            _spawn_hidden([python_exe, server_script], APP_DIR, env, logf)
+            wait_port(WEB_PORT, 25)
 
     main_url = f"http://127.0.0.1:{WEB_PORT}/"
     w, h, x, y = _calculate_screen_fit(1280, 850)

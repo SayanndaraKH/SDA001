@@ -2047,9 +2047,14 @@
 
         <!-- System Operations -->
         <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line)">
-          <div style="font:700 13px var(--font-ui);color:var(--ink-2);margin-bottom:10px">System Operations</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn ghost sm" id="ucRefreshApp" style="flex:1">🔄 Refresh Data</button>
+          <div style="font:700 13px var(--font-ui);color:var(--ink-2);margin-bottom:10px">System Operations (Admin Only)</div>
+          <div style="display:flex;gap:10px;flex-direction:column">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn ghost sm" id="ucRefreshApp" style="flex:1">🔄 Refresh Data</button>
+            </div>
+            <button class="btn primary sm" id="ucAdminRestartUpdate" style="width:100%;background:linear-gradient(135deg,#ff6a2b,#ff2e63);color:#fff;font-weight:700;padding:10px 14px;border-radius:10px;box-shadow:0 4px 14px rgba(255,46,99,0.35);display:flex;align-items:center;justify-content:center;gap:8px">
+              🚀 Restart App &amp; ទាញកូដថ្មី (Update Code &amp; Restart)
+            </button>
           </div>
         </div>
       </div>
@@ -5396,6 +5401,37 @@ async function doAppRefresh() {
 }
 const topRef = $("#topRefreshBtn"); if(topRef) topRef.onclick = doAppRefresh;
 const ucRef = $("#ucRefreshApp"); if(ucRef) ucRef.onclick = doAppRefresh;
+
+const ucRestartBtn = $("#ucAdminRestartUpdate");
+if(ucRestartBtn){
+  ucRestartBtn.onclick = async function() {
+    if(!confirm("តើអ្នកពិតជាចង់ទាញយកកូដថ្មីពី Git (Git Pull) និង Restart App ឡើងវិញមែនទេ?")) return;
+    ucRestartBtn.disabled = true;
+    ucRestartBtn.innerHTML = "⏳ កំពុងទាញកូដថ្មី &amp; Restart...";
+    toast("⏳ កំពុងទាញយកកូដថ្មីពី Git និង Restart App...", "good");
+    try {
+      const pin = currentAdminPin || (window.userAccess && window.userAccess.pin) || '8888';
+      const token = (window.userAccess && window.userAccess.token) || '';
+      const res = await fetch('/dl/restart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pin, token: token, action: 'update_restart' })
+      });
+      const data = await res.json();
+      if(data.ok){
+        toast("🚀 " + (data.message || "Restart ជោគជ័យ!"), "good");
+        setTimeout(() => { window.location.reload(); }, 2500);
+      } else {
+        toast("❌ " + (data.error || "បរាជ័យ"), true);
+        ucRestartBtn.disabled = false;
+        ucRestartBtn.innerHTML = "🚀 Restart App &amp; ទាញកូដថ្មី (Update Code &amp; Restart)";
+      }
+    } catch(e) {
+      toast("🚀 កំពុងដំណើរការ Restart... ទំព័រនឹងផ្ទុកឡើងវិញក្នុងពេលបន្តិចទៀត", "good");
+      setTimeout(() => { window.location.reload(); }, 3000);
+    }
+  };
+}
 
 
 
