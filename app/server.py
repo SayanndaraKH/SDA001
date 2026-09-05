@@ -17,6 +17,7 @@ import io
 import time
 import threading
 import sys
+import subprocess
 if sys.stdout is None or not hasattr(sys.stdout, 'write'):
     sys.stdout = open(os.devnull, 'w', encoding='utf-8')
 if sys.stderr is None or not hasattr(sys.stderr, 'write'):
@@ -145,7 +146,7 @@ if not ADMIN_TOKEN:
 RATE_PER_MIN = int(os.environ.get('RATE_PER_MIN', '120'))
 _rl = {}
 _rl_lock = threading.Lock()
-_EXEMPT = ('/', '/ui', '/img', '/docs', '/openapi.json', '/redoc', '/favicon.ico', '/logo.png', '/dl', '/dl/submit', '/dl/status', '/dl/diag', '/dl/search', '/dl/resolve', '/dl/cancel', '/dl/config', '/dl/open', '/dl/pick', '/dl/drives', '/dl/episodes', '/dl/rank', '/dl/explorer', '/dl/bugreport', '/dl/library', '/dl/poster', '/dl/library/open', '/dl/library/play', '/dl/library/video', '/dl/library/transcode', '/dl/library/update', '/dl/library/episodes', '/dl/library/seen', '/dl/restart', '/dl/license/status', '/dl/license/activate', '/dl/license/deactivate', '/dl/license/usage', '/dl/update-check', '/dl/update-download', '/dl/update-run', '/dl/history', '/dl/history/poster', '/dl/translate', '/dl/translate_batch', '/dl/gemini/status', '/dl/gemini/config', '/dl/gemini/test', '/dl/storage/files', '/dl/library/zip', '/dl/storage/delete')
+_EXEMPT = ('/', '/ui', '/img', '/docs', '/openapi.json', '/redoc', '/favicon.ico', '/logo.png', '/dl', '/dl/submit', '/dl/status', '/dl/diag', '/dl/search', '/dl/resolve', '/dl/cancel', '/dl/config', '/dl/open', '/dl/pick', '/dl/drives', '/dl/episodes', '/dl/rank', '/dl/explorer', '/dl/bugreport', '/dl/library', '/dl/poster', '/dl/library/open', '/dl/library/play', '/dl/library/video', '/dl/library/transcode', '/dl/library/update', '/dl/library/episodes', '/dl/library/seen', '/dl/restart', '/dl/license/status', '/dl/license/activate', '/dl/license/deactivate', '/dl/license/usage', '/dl/update-check', '/dl/update-download', '/dl/update-run', '/dl/history', '/dl/history/poster', '/dl/translate', '/dl/translate_batch', '/dl/gemini/status', '/dl/gemini/config', '/dl/gemini/test', '/dl/storage/files', '/dl/library/zip', '/dl/storage/delete', '/dl/admin/push-deploy', '/dl/admin/build-info', '/dl/admin/build-exe', '/dl/admin/open-output-folder', '/dl/admin/download-exe')
 _ADMIN_PREFIX = '/admin'
 def _check_admin(request: Request) -> bool:
     tok = request.headers.get('x-admin-token') or request.query_params.get('admin_token') or ''
@@ -1941,10 +1942,14 @@ def dl_library_open(payload: dict=Body(...)):
         return {'ok': False, 'error': str(e), 'folder': folder}
 
 @app.api_route('/dl/library/video', methods=['GET', 'HEAD'])
-def dl_library_video(name: str = '', ep: int = 1, download: int = 0):
+def dl_library_video(name: str = '', ep: int = 1, download: int = 0, token: str = '', device_id: str = ''):
     """Serve local downloaded MP4 video file with streaming range support or trigger browser download."""
     import re
     import urllib.parse
+    tok = token or device_id or ACC.get_current_device_id()
+    can_access, _, msg = ACC.can_access_episode(int(ep), tok)
+    if not can_access:
+        raise HTTPException(403, msg)
     folder = _find_series_folder(name)
     if not folder or not os.path.isdir(folder):
         raise HTTPException(404, f'Series folder not found for "{name}"')
@@ -2216,6 +2221,10 @@ def dl_restart(payload: dict = Body(None)):
         is_admin = True
     elif token and (token.startswith('admin_') or ACC.verify_pin(token)):
         is_admin = True
+    elif token:
+        st = ACC.get_user_status(token)
+        if st.get('is_admin') or st.get('role') in ('admin', 'dev'):
+            is_admin = True
     
     if not is_admin:
         return {'ok': False, 'error': 'Unauthorized: Admin privileges required'}
@@ -2320,6 +2329,11 @@ def dl_stream_play(payload: dict=Body(...)):
     ep = str((payload or {}).get('ep', '1'))
     vid = (payload or {}).get('vid')
     quality = (payload or {}).get('quality', 'best')
+    tok = (payload or {}).get('token') or (payload or {}).get('device_id') or ACC.get_current_device_id()
+    idx = int(ep) if str(ep).isdigit() else 1
+    can_access, reason, msg = ACC.can_access_episode(idx, tok)
+    if not can_access:
+        return {'ok': False, 'reason': reason, 'error': msg}
     try:
         if not vid:
             if not sid:
@@ -2618,7 +2632,311 @@ def _spawn_app_restart():
         subprocess.Popen(['powershell', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps_cmd], creationflags=0x08000000)
         os._exit(0)
 
-    threading.Thread(target=_restart, daemon=True).start()
+@app.post('/dl/admin/push-deploy')
+def dl_admin_push_deploy(payload: dict = Body(...)):
+    """
+    ADMIN Feature: PUSH_AND_DEPLOY to GitHub.
+    Runs git add, git commit, and git push origin main,
+    returns step-by-step log processing output, and updates commit cache.
+    """
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'Admin PIN មិនត្រឹមត្រូវ'}
+
+    custom_msg = str((payload or {}).get('message', '')).strip()
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, '..'))
+    
+    logs = []
+    def log(msg):
+        t = time.strftime('%H:%M:%S')
+        logs.append(f"[{t}] {msg}")
+
+    try:
+        log("🚀 ចាប់ផ្តើមដំណើរការ PUSH & DEPLOY TO GITHUB...")
+        
+        # Step 1: Check git status
+        log("🔍 [1/5] កំពុងពិនិត្យមើល files ដែលបានកែប្រែ (Checking git status)...")
+        r_stat = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            creationflags=0x08000000
+        )
+        changed_files = [line.strip() for line in r_stat.stdout.splitlines() if line.strip()]
+        if changed_files:
+            log(f"📝 រកឃើញ {len(changed_files)} ឯកសារត្រូវបានកែប្រែ:\n" + "\n".join(f"   • {f}" for f in changed_files[:8]))
+            if len(changed_files) > 8:
+                log(f"   • ... និង {len(changed_files) - 8} ឯកសារផ្សេងទៀត")
+        else:
+            log("ℹ️ មិនមានឯកសារកែប្រែថ្មី (Working tree clean) ប៉ុន្តែកំពុងត្រួតពិនិត្យ និង Sync ជាមួយ GitHub...")
+
+        # Step 2: git add .
+        log("📦 [2/5] កំពុង Stage ឯកសារទាំងអស់ (git add .)...")
+        subprocess.run(
+            ['git', 'add', '.'],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            creationflags=0x08000000
+        )
+
+        # Step 3: git commit
+        now_str = time.strftime('%Y-%m-%d %H:%M:%S')
+        commit_title = custom_msg or f"Admin Deploy Updates - {now_str}"
+        log(f"✍️ [3/5] កំពុង Commit: \"{commit_title}\"...")
+        r_com = subprocess.run(
+            ['git', 'commit', '-m', commit_title],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            creationflags=0x08000000
+        )
+        if r_com.returncode == 0:
+            log(f"✓ Commit ជោគជ័យ: {r_com.stdout.strip().splitlines()[0] if r_com.stdout else ''}")
+        else:
+            if "nothing to commit" in (r_com.stdout + r_com.stderr).lower():
+                log("✓ ឯកសារត្រូវបាន Commit រួចរាល់ហើយ")
+            else:
+                log(f"⚠️ Commit note: {(r_com.stdout or r_com.stderr).strip()[:100]}")
+
+        # Step 4: git push origin main
+        log("🚀 [4/5] កំពុង Push ទៅកាន់ GitHub repo (git push origin main)...")
+        r_push = subprocess.run(
+            ['git', 'push', 'origin', 'main'],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=90,
+            creationflags=0x08000000
+        )
+        if r_push.returncode != 0:
+            err_msg = (r_push.stderr or r_push.stdout).strip()
+            log(f"❌ បរាជ័យក្នុងការ Push: {err_msg}")
+            return {'ok': False, 'error': f"Push failed: {err_msg}", 'logs': logs}
+
+        log("✓ Push ទៅកាន់ GitHub main branch ជោគជ័យ ១០០%!")
+
+        # Step 5: Verify HEAD commit and update version cache
+        r_sha = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            creationflags=0x08000000
+        )
+        latest_sha = r_sha.stdout.strip() if r_sha.returncode == 0 else ""
+        short_sha = latest_sha[:8] if latest_sha else "latest"
+        
+        log(f"✨ [5/5] Commit SHA ចុងក្រោយ: {short_sha}")
+        log("📡 បាន Reset Update Cache — User PC ទាំងអស់នឹងឃើញប៊ូតុង Auto Update ភ្លាមៗ!")
+        log("🎉 PUSH & DEPLOY ជោគជ័យជាស្ថាពរ (DONE)!")
+
+        # Invalidate update cache so client update-check sees new commit immediately
+        _commit_update_cache['at'] = 0
+        _commit_update_cache['data'] = None
+
+        return {
+            'ok': True,
+            'commit': short_sha,
+            'full_sha': latest_sha,
+            'branch': 'main',
+            'message': commit_title,
+            'logs': logs
+        }
+    except Exception as e:
+        log(f"❌ កំហុស Exception: {e}")
+        return {'ok': False, 'error': str(e), 'logs': logs}
+
+# ---------- ADMIN FEATURE: BUILD.EXE CONTROLLER ----------
+_build_lock = threading.Lock()
+_build_in_progress = False
+
+def _get_build_version_info():
+    """Helper to inspect current version and calculate next auto-incremented version preview."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    v_file = os.path.join(here, 'version.json')
+    cur_v = "1.0.1"
+    cur_tag = "V1.0.1"
+    if os.path.isfile(v_file):
+        try:
+            with open(v_file, 'r', encoding='utf-8') as f:
+                vd = json.load(f)
+                cur_v = str(vd.get('version') or '1.0.1').strip().lstrip('vV')
+                cur_tag = str(vd.get('version_tag') or f"V{cur_v}").strip()
+        except Exception:
+            pass
+
+    parts = [int(p) for p in cur_v.split('.') if p.isdigit()]
+    maj, minr, pat = (parts + [0, 0, 0])[:3]
+    pat += 1
+    if pat >= 10:
+        minr += 1
+        pat = 0
+    if minr >= 10:
+        maj += 1
+        minr = 0
+    next_v = f"{maj}.{minr}.{pat}"
+    next_tag = f"V{next_v}"
+    return cur_v, cur_tag, next_v, next_tag
+
+@app.get('/dl/admin/build-info')
+def dl_admin_build_info():
+    """
+    Returns current version, next version preview, build status,
+    and list of all standalone EXE files existing in output/.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, '..'))
+    out_dir = os.path.join(repo_root, 'output')
+    os.makedirs(out_dir, exist_ok=True)
+
+    cur_v, cur_tag, next_v, next_tag = _get_build_version_info()
+    builds = []
+    if os.path.isdir(out_dir):
+        for f in os.listdir(out_dir):
+            if f.lower().endswith('.exe'):
+                fp = os.path.join(out_dir, f)
+                try:
+                    st = os.stat(fp)
+                    builds.append({
+                        'name': f,
+                        'size_mb': round(st.st_size / (1024 * 1024), 2),
+                        'mtime': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.st_mtime))
+                    })
+                except Exception:
+                    pass
+        builds.sort(key=lambda x: x['mtime'], reverse=True)
+
+    return {
+        'ok': True,
+        'current_version': cur_v,
+        'current_version_tag': cur_tag,
+        'next_version': next_v,
+        'next_version_tag': next_tag,
+        'is_building': _build_in_progress,
+        'builds': builds
+    }
+
+@app.post('/dl/admin/build-exe')
+def dl_admin_build_exe(payload: dict = Body(...)):
+    """
+    ADMIN Feature: Build Standalone Single EXE.
+    Executes build.py, auto-increments version, compiles to bytecode,
+    packages into output/SYD-Downloader-Pro Vx.x.x.exe, and streams real-time logs.
+    """
+    global _build_in_progress
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return JSONResponse({'ok': False, 'error': 'Admin PIN មិនត្រឹមត្រូវ'}, status_code=403)
+
+    if not _build_lock.acquire(blocking=False):
+        return JSONResponse({'ok': False, 'error': 'ដំណើរការ Build កំពុងដំណើរការរួចហើយ សូមរង់ចាំ...'}, status_code=409)
+
+    _build_in_progress = True
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, '..'))
+    build_script = os.path.join(repo_root, 'build.py')
+
+    def stream_build():
+        global _build_in_progress
+        try:
+            start_msg = f"[{time.strftime('%H:%M:%S')}] 🚀 ADMIN បានចាប់ផ្តើមបញ្ជាដំណើរការ BUILD.EXE..."
+            yield json.dumps({'type': 'log', 'text': start_msg}) + '\n'
+
+            # Run build.py with unbuffered python
+            proc = subprocess.Popen(
+                [sys.executable, '-u', build_script],
+                cwd=repo_root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                encoding='utf-8',
+                errors='replace',
+                creationflags=0x08000000
+            )
+
+            for raw_line in proc.stdout:
+                line = raw_line.rstrip()
+                if line:
+                    yield json.dumps({'type': 'log', 'text': line}) + '\n'
+
+            ret = proc.wait()
+            if ret == 0:
+                cur_v, cur_tag, _, _ = _get_build_version_info()
+                out_dir = os.path.join(repo_root, 'output')
+                versioned_name = f"SYD-Downloader-Pro {cur_tag}.exe"
+                full_path = os.path.join(out_dir, versioned_name)
+                sz_mb = round(os.path.getsize(full_path) / (1024 * 1024), 1) if os.path.isfile(full_path) else 0.0
+
+                yield json.dumps({
+                    'type': 'done',
+                    'ok': True,
+                    'version': cur_v,
+                    'version_tag': cur_tag,
+                    'exe_name': versioned_name,
+                    'size_mb': sz_mb,
+                    'output_dir': out_dir
+                }) + '\n'
+            else:
+                yield json.dumps({
+                    'type': 'done',
+                    'ok': False,
+                    'error': f'PyInstaller Build exited with code {ret}'
+                }) + '\n'
+        except Exception as e:
+            yield json.dumps({'type': 'done', 'ok': False, 'error': str(e)}) + '\n'
+        finally:
+            _build_in_progress = False
+            try:
+                _build_lock.release()
+            except Exception:
+                pass
+
+    return StreamingResponse(stream_build(), media_type='application/x-ndjson')
+
+@app.post('/dl/admin/open-output-folder')
+def dl_admin_open_output(payload: dict = Body(None)):
+    """Opens the output/ directory in Windows File Explorer."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, '..'))
+    out_dir = os.path.join(repo_root, 'output')
+    os.makedirs(out_dir, exist_ok=True)
+    try:
+        subprocess.Popen(['explorer.exe', out_dir])
+        return {'ok': True, 'path': out_dir}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+@app.get('/dl/admin/download-exe')
+def dl_admin_download_exe(file: str = None):
+    """Downloads the compiled standalone EXE directly."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, '..'))
+    out_dir = os.path.join(repo_root, 'output')
+    if file:
+        clean_name = os.path.basename(file)
+        target = os.path.join(out_dir, clean_name)
+    else:
+        exes = [f for f in os.listdir(out_dir) if f.lower().endswith('.exe')] if os.path.isdir(out_dir) else []
+        if not exes:
+            return JSONResponse({'ok': False, 'error': 'មិនមាន File EXE នៅក្នុង Folder output ឡើយ'}, status_code=404)
+        exes.sort(key=lambda x: os.path.getmtime(os.path.join(out_dir, x)), reverse=True)
+        target = os.path.join(out_dir, exes[0])
+        clean_name = exes[0]
+
+    if not os.path.isfile(target):
+        return JSONResponse({'ok': False, 'error': f'File {clean_name} រកមិនឃើញ'}, status_code=404)
+    return FileResponse(target, filename=clean_name, media_type='application/vnd.microsoft.portable-executable')
+
 if __name__ == '__main__':
     import uvicorn
     uvicorn.run(app, host=os.environ.get('BIND_HOST', '0.0.0.0'), port=int(os.environ.get('PORT', '8000')))

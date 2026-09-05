@@ -406,7 +406,7 @@ def get_user_status(token_or_device_id: str = ""):
         dev_check = (user.get("device_id") if user else ident) or get_current_device_id()
         if dev_check and (not user or not user.get("is_vip") or user.get("status") == "pending_vip"):
             now_t = time.time()
-            if now_t - _firebase_last_poll.get(dev_check, 0) > 20:
+            if now_t - _firebase_last_poll.get(dev_check, 0) > 8:
                 _firebase_last_poll[dev_check] = now_t
                 fb_data = firebase_fetch_license(dev_check)
                 if fb_data and fb_data.get("is_vip"):
@@ -499,7 +499,9 @@ def get_user_status(token_or_device_id: str = ""):
     }
 
 def request_vip(token_or_id: str, package: str = "1_year", note: str = "", name: str = "", contact: str = ""):
-    """Submit a VIP Package request to ADMIN & Firebase Realtime Database."""
+    """Submit a VIP Package request to ADMIN & Firebase Realtime Database.
+    STRICT RULE: Only an already registered regular user can submit a VIP request!
+    """
     ident = (token_or_id or "").strip()
     with _lock:
         d = _load_data()
@@ -511,32 +513,14 @@ def request_vip(token_or_id: str, package: str = "1_year", note: str = "", name:
                 break
 
         now = int(time.time())
-        if not target:
-            # Auto-create user record for this PC device ID
-            dev_id = ident if (ident and not ident.startswith('user_') and not ident.startswith('admin_')) else get_current_device_id()
-            uname = f"pc_{clean_firebase_key(dev_id)[-8:]}" if dev_id else f"user_{secrets.token_hex(4)}"
-            target = {
-                "username": uname,
-                "name": name or f"User PC ({dev_id[:8] if dev_id else 'Direct'})",
-                "contact": contact or "Direct",
-                "device_id": dev_id,
-                "role": "user",
-                "is_admin": False,
-                "is_vip": False,
-                "status": "pending_vip",
-                "max_free_episodes": 10,
-                "requested_package": package or "1_year",
-                "note": note or "",
-                "created_at": now,
-                "approved_at": 0,
-                "expires_at": 0
-            }
-            users[uname] = target
-        else:
-            if name:
-                target["name"] = name
-            if contact:
-                target["contact"] = contact
+        # STRICT RULE: Must be an authentically registered user first (with password_hash)!
+        if not target or not target.get("password_hash") or not target.get("username") or str(target.get("username")).lower().startswith("guest") or str(target.get("username")).lower().startswith("pc_") or target.get("role") == "guest":
+            return False, "សូមចុះឈ្មោះ User ធម្មតាជាមុនសិន មុននឹងស្នើសុំ VIP!"
+
+        if name:
+            target["name"] = name
+        if contact:
+            target["contact"] = contact
         
         target["requested_package"] = package or "1_year"
         target["note"] = note or target.get("note", "")
