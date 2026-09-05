@@ -275,6 +275,8 @@
     font:800 11px/1 var(--font-ui); padding:5px 8px; border-radius:20px; box-shadow:0 4px 12px rgba(57,181,126,.5);
     animation:freshPulse 1.8s ease-in-out infinite; }
   @keyframes freshPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(57,181,126,.0),0 4px 12px rgba(57,181,126,.45);} 50%{ box-shadow:0 0 0 5px rgba(57,181,126,.28),0 4px 12px rgba(57,181,126,.45);} }
+  @keyframes pulseAutoUpdate{ 0%,100%{ box-shadow:0 0 0 0 rgba(14,165,233,.7),0 4px 14px rgba(14,165,233,.45);} 50%{ box-shadow:0 0 0 6px rgba(14,165,233,.2),0 4px 20px rgba(14,165,233,.75);} }
+  @keyframes spinSlow{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
 
   /* ============ pill clusters (merged shapes) ============ */
   .pill-cluster{ display:inline-flex; align-items:center; background:var(--surface); border:1px solid var(--line);
@@ -909,6 +911,11 @@
         <span>👑 ស្នើសុំ VIP</span>
       </button>
       <button class="btn ghost sm" id="topRefreshBtn" title="Refresh library and queue">🔄 Refresh</button>
+      <!-- Auto Update Button: strictly hidden by default; appears only when GitHub has new commit/push -->
+      <button class="btn primary sm" id="topAutoUpdateBtn" style="display:none;border-radius:20px;font-weight:800;font-size:12px;align-items:center;gap:6px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#ffffff;box-shadow:0 0 14px rgba(14,165,233,0.6);animation:pulseAutoUpdate 2s infinite;cursor:pointer;padding:5px 14px" title="មានកូដកំណែថ្មីនៅលើ GitHub!">
+        <span style="display:inline-block;animation:spinSlow 3.5s linear infinite;font-size:13px">⚡</span>
+        <span id="topAutoUpdateText">Auto Update ថ្មី</span>
+      </button>
       <button class="btn ghost sm" id="topUserCtrlBtn" title="User Management & Control Panel (Admin)" style="display:none;font-weight:700;border-color:rgba(192,132,252,0.5);color:#c084fc">🛡️ User Control</button>
       <button class="btn ghost sm" id="topLogoutBtn" title="ចាកចេញពីគណនី" style="display:none;border-radius:20px;font-size:11.5px;color:var(--muted)">🚪 ចាកចេញ</button>
       <button class="iconbtn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">☾</button>
@@ -5407,7 +5414,7 @@ if(ucRestartBtn){
   ucRestartBtn.onclick = async function() {
     if(!confirm("តើអ្នកពិតជាចង់ទាញយកកូដថ្មីពី Git (Git Pull) និង Restart App ឡើងវិញមែនទេ?")) return;
     ucRestartBtn.disabled = true;
-    ucRestartBtn.innerHTML = "⏳ កំពុងទាញកូដថ្មី &amp; Restart...";
+    ucRestartBtn.innerHTML = "⏳ កំពុងទាញកូដថ្មី & Restart...";
     toast("⏳ កំពុងទាញយកកូដថ្មីពី Git និង Restart App...", "good");
     try {
       const pin = currentAdminPin || (window.userAccess && window.userAccess.pin) || '8888';
@@ -5424,7 +5431,7 @@ if(ucRestartBtn){
       } else {
         toast("❌ " + (data.error || "បរាជ័យ"), true);
         ucRestartBtn.disabled = false;
-        ucRestartBtn.innerHTML = "🚀 Restart App &amp; ទាញកូដថ្មី (Update Code &amp; Restart)";
+        ucRestartBtn.innerHTML = "🚀 Restart App & ទាញកូដថ្មី (Update Code & Restart)";
       }
     } catch(e) {
       toast("🚀 កំពុងដំណើរការ Restart... ទំព័រនឹងផ្ទុកឡើងវិញក្នុងពេលបន្តិចទៀត", "good");
@@ -5432,6 +5439,71 @@ if(ucRestartBtn){
     }
   };
 }
+
+/* ---------- Global GitHub Auto-Update Mechanism ---------- */
+let _lastUpdateData = null;
+async function checkAppAutoUpdate() {
+  try {
+    const res = await fetch('/dl/update-check');
+    if(!res.ok) return;
+    const d = await res.json();
+    _lastUpdateData = d;
+    const btn = $("#topAutoUpdateBtn");
+    const txt = $("#topAutoUpdateText");
+    if(!btn) return;
+    
+    if(d.has_update) {
+      btn.style.display = "inline-flex";
+      if(txt) txt.textContent = d.latest_commit ? `Auto Update (${d.latest_commit})` : 'Auto Update ថ្មី';
+      btn.title = `មានកំណែថ្មីនៅលើ GitHub!\nCommit: ${d.latest_commit}\nសារ: ${d.commit_message || 'New update'}\nកាលបរិច្ឆេទ: ${d.commit_date || ''}\nចុចដើម្បីទាញយក និង Replace កូដថ្មីដោយស្វ័យប្រវត្តិ`;
+    } else {
+      btn.style.display = "none";
+    }
+  } catch(e) {
+    // Ignore offline/network errors
+  }
+}
+
+const topAutoUpdateBtn = $("#topAutoUpdateBtn");
+if(topAutoUpdateBtn) {
+  topAutoUpdateBtn.onclick = async function() {
+    const info = _lastUpdateData || {};
+    const commitMsg = info.commit_message ? `\n\n📌 កំណែថ្មី: "${info.commit_message}" (${info.latest_commit || ''})` : '';
+    const dateStr = info.commit_date ? `\n📅 កាលបរិច្ឆេទ: ${info.commit_date}` : '';
+    const confirmMsg = `តើអ្នកពិតជាចង់ធ្វើបច្ចុប្បន្នភាព (Auto Update) កម្មវិធីឥឡូវនេះមែនទេ?${commitMsg}${dateStr}\n\n⚙️ ប្រព័ន្ធនឹងទាញយកកូដថ្មីពី GitHub Replace ឯកសារដោយស្វ័យប្រវត្តិ រួច Restart App ឡើងវិញ។`;
+    
+    if(!confirm(confirmMsg)) return;
+    
+    topAutoUpdateBtn.disabled = true;
+    topAutoUpdateBtn.innerHTML = `⏳ កំពុង Update...`;
+    toast("⏳ កំពុងទាញយកកូដថ្មីពី GitHub និង Replace Files...", "good");
+    
+    try {
+      const res = await fetch('/dl/update-apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'auto_update' })
+      });
+      const data = await res.json();
+      if(data.ok) {
+        toast("🚀 " + (data.message || "Update ជោគជ័យ! កំពុង Restart App..."), "good");
+        topAutoUpdateBtn.innerHTML = `✅ Update រួចរាល់`;
+        setTimeout(() => { window.location.reload(); }, 3500);
+      } else {
+        toast("❌ " + (data.error || "Update បរាជ័យ"), true);
+        topAutoUpdateBtn.disabled = false;
+        topAutoUpdateBtn.innerHTML = `⚡ Auto Update ថ្មី`;
+      }
+    } catch(err) {
+      toast("🚀 កំពុង Restart App... ទំព័រនឹងដំណើរការឡើងវិញក្នុងពេលបន្តិចទៀត", "good");
+      setTimeout(() => { window.location.reload(); }, 4000);
+    }
+  };
+}
+
+// Check for update on load and every 60 seconds
+checkAppAutoUpdate();
+setInterval(checkAppAutoUpdate, 60000);
 
 
 

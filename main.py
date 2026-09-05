@@ -29,6 +29,35 @@ import subprocess
 import atexit
 import shutil
 
+# Top-level imports so PyInstaller bundles all required backend packages and C-extensions
+try:
+    import uvicorn
+    import uvicorn.logging
+    import uvicorn.loops
+    import uvicorn.loops.auto
+    import uvicorn.protocols
+    import uvicorn.protocols.http
+    import uvicorn.protocols.http.auto
+    import uvicorn.protocols.websockets
+    import uvicorn.protocols.websockets.auto
+    import uvicorn.lifespans
+    import uvicorn.lifespans.auto
+    import fastapi
+    import starlette
+    import pydantic
+    import requests
+    import urllib3
+    import Crypto
+    import Crypto.Cipher
+    import Crypto.Cipher.AES
+    import Crypto.Util
+    import Crypto.Util.Counter
+    import Crypto.Hash
+    import Crypto.Hash.SHA256
+    import Crypto.Random
+except Exception:
+    pass
+
 # 1. HIDE ANY CMD CONSOLE WINDOW IMMEDIATELY
 try:
     import ctypes
@@ -49,13 +78,34 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
 
 # Determine Directories
 if getattr(sys, 'frozen', False):
-    ROOT_DIR = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+    base = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+    if os.path.isdir(os.path.join(base, '_internal', 'app')):
+        ROOT_DIR = os.path.join(base, '_internal')
+    else:
+        ROOT_DIR = base
 else:
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 APP_DIR = os.path.join(ROOT_DIR, 'app')
+if not os.path.isdir(APP_DIR):
+    for cand in [os.path.join(ROOT_DIR, '_internal', 'app'), os.path.join(os.path.dirname(sys.executable), 'app')]:
+        if os.path.isdir(cand):
+            APP_DIR = cand
+            break
+
 SIGN_DIR = os.path.join(APP_DIR, 'sign')
 SIGN_JAR = os.path.join(SIGN_DIR, 'unidbg-sign.jar')
+if not os.path.isfile(SIGN_JAR):
+    for cand in [
+        os.path.join(ROOT_DIR, 'app', 'sign', 'unidbg-sign.jar'),
+        os.path.join(ROOT_DIR, '_internal', 'app', 'sign', 'unidbg-sign.jar'),
+        os.path.join(os.path.dirname(sys.executable), 'app', 'sign', 'unidbg-sign.jar')
+    ]:
+        if os.path.isfile(cand):
+            SIGN_JAR = cand
+            SIGN_DIR = os.path.dirname(cand)
+            break
+
 DEFAULT_OUT = os.path.join(os.path.expanduser('~'), 'Videos', 'Hongguo')
 DATA_DIR = os.path.join(os.environ.get('LOCALAPPDATA', os.path.dirname(sys.executable)), 'HongguoDownloader')
 
@@ -68,8 +118,11 @@ def _find_java():
     cands = [
         os.path.join(ROOT_DIR, 'jre', 'bin', 'javaw.exe'),
         os.path.join(ROOT_DIR, 'jre', 'bin', 'java.exe'),
+        os.path.join(ROOT_DIR, '_internal', 'jre', 'bin', 'javaw.exe'),
+        os.path.join(ROOT_DIR, '_internal', 'jre', 'bin', 'java.exe'),
         os.path.join(os.path.dirname(sys.executable), 'jre', 'bin', 'javaw.exe'),
         os.path.join(os.path.dirname(sys.executable), 'jre', 'bin', 'java.exe'),
+        os.path.join(os.path.dirname(sys.executable), '_internal', 'jre', 'bin', 'javaw.exe'),
         shutil.which('javaw'),
         shutil.which('java')
     ]
@@ -98,9 +151,11 @@ def _find_browser():
     cands = [
         os.path.expandvars('%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe'),
         os.path.expandvars('%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe'),
+        os.path.expandvars('%LOCALAPPDATA%\\Microsoft\\Edge\\Application\\msedge.exe'),
         shutil.which('msedge'),
         os.path.expandvars('%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe'),
         os.path.expandvars('%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe'),
+        os.path.expandvars('%LOCALAPPDATA%\\Google\\Chrome\\Application\\chrome.exe'),
         shutil.which('chrome')
     ]
     for c in cands:
@@ -283,7 +338,7 @@ def _window_is_active():
                     buf = ctypes.create_unicode_buffer(ln + 1)
                     u.GetWindowTextW(hwnd, buf, ln + 1)
                     title = buf.value or ''
-                    if 'SYD DOWNLOADER' in title or 'Hongguo Downloader' in title or '127.0.0.1:8000' in title:
+                    if any(k in title for k in ['SYD DOWNLOADER', 'Hongguo Downloader', '127.0.0.1:8000', 'localhost:8000', 'SYD-Downloader', 'Hongguo', '8000']):
                         active[0] = True
                         return False
             return True
@@ -351,12 +406,19 @@ def main():
                 srv = uvicorn.Server(config)
                 srv.run()
             except Exception as e:
+                import traceback
+                err_str = traceback.format_exc()
                 if logf:
                     try:
-                        logf.write(f"Server thread error: {e}\n")
+                        logf.write(f"Server thread error:\n{err_str}\n")
                         logf.flush()
                     except Exception:
                         pass
+                try:
+                    import ctypes
+                    ctypes.windll.user32.MessageBoxW(0, f"Server Error on startup:\n{err_str[:400]}", "Hongguo Downloader", 16)
+                except Exception:
+                    pass
 
         # In frozen mode or when running self-contained, start server in background thread
         if getattr(sys, 'frozen', False) or not os.path.isfile(os.path.join(ROOT_DIR, 'python', 'pythonw.exe')):
@@ -388,28 +450,38 @@ def main():
             '--disable-features=Translate'
         ]
         bproc = subprocess.Popen(args, creationflags=CREATE_NO_WINDOW)
-        _assign_process(bproc.pid)
+        # Note: Do NOT assign bproc to Job Object, as Edge uses its own internal Chromium Job Objects.
 
-        # Monitor window lifecycle - exit when user closes the app window
-        time.sleep(2)
+        # Monitor window lifecycle - exit only after window has appeared and user closes it
+        window_appeared = False
+        t_init = time.time()
+        while time.time() - t_init < 35:
+            if _window_is_active():
+                window_appeared = True
+                break
+            time.sleep(0.5)
+
+        missing_count = 0
         while True:
             time.sleep(1)
-            # If browser process terminated, or window is closed
-            if bproc.poll() is not None:
-                # Extra check in case Edge ran via background singleton
+            # If server port is no longer open, break
+            if not port_open(WEB_PORT):
+                break
+            if window_appeared:
                 if not _window_is_active():
-                    break
-            else:
-                if not _window_is_active():
-                    # Give user 1 grace second in case of modal reload
-                    time.sleep(1)
-                    if not _window_is_active():
+                    missing_count += 1
+                    if missing_count >= 5:
                         break
+                else:
+                    missing_count = 0
+            else:
+                # If window title was not matched in 35s, keep server running while browser is alive or port open
+                time.sleep(1)
     else:
         import webbrowser
         webbrowser.open(main_url)
         while port_open(WEB_PORT):
-            time.sleep(1)
+            time.sleep(2)
 
     _cleanup_procs()
     return 0
@@ -417,9 +489,10 @@ def main():
 if __name__ == '__main__':
     try:
         sys.exit(main())
-    except Exception as e:
+    except Exception as exc:
         try:
-            ctypes.windll.user32.MessageBoxW(0, f"SYD Downloader Pro encountered an error:\n{e}", "SYD Downloader Pro", 16)
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, f"Hongguo Downloader Error:\n{exc}", "Hongguo Downloader", 16)
         except Exception:
             pass
         sys.exit(1)

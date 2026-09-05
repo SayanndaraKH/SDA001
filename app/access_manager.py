@@ -7,7 +7,23 @@ import threading
 import licensing as LIC
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(HERE, 'user_access.json')
+
+def _resolve_data_file():
+    # Persist user_access.json in %LOCALAPPDATA%\HongguoDownloader so it is never lost on restart
+    app_data_dir = os.path.join(os.environ.get('LOCALAPPDATA', HERE), 'HongguoDownloader')
+    os.makedirs(app_data_dir, exist_ok=True)
+    target = os.path.join(app_data_dir, 'user_access.json')
+    if not os.path.isfile(target):
+        bundled = os.path.join(HERE, 'user_access.json')
+        if os.path.isfile(bundled):
+            try:
+                import shutil
+                shutil.copy2(bundled, target)
+            except Exception:
+                return bundled
+    return target
+
+DATA_FILE = _resolve_data_file()
 
 _lock = threading.Lock()
 

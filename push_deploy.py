@@ -67,7 +67,21 @@ def main():
     if not user_msg:
         user_msg = default_msg
 
-    # 4. Git Add & Commit
+    # 4. Update Version Metadata for Auto-Update detection
+    try:
+        import json
+        v_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app', 'version.json')
+        with open(v_file, 'w', encoding='utf-8') as vf:
+            json.dump({
+                'version': '1.0.0.8',
+                'updated_at': now_str,
+                'message': user_msg
+            }, vf, indent=2, ensure_ascii=False)
+        print(f"[*] បានកត់ត្រា Version & Commit Info ចូលក្នុង app/version.json រួចរាល់")
+    except Exception as e:
+        print(f"[!] Warning updating version.json: {e}")
+
+    # 5. Git Add & Commit
     print()
     print("[*] កំពុងប្រមូលឯកសារ (git add -A)...")
     run_cmd("git add -A")

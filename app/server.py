@@ -2304,106 +2304,239 @@ def dl_license_deactivate():
 @app.get('/dl/license/usage')
 def dl_license_usage():
     return LIC.usage()
+def _get_local_commit():
+    """Get the current commit hash of the local installation."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, '..'))
+    if os.path.isdir(os.path.join(repo_root, '.git')):
+        try:
+            r = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=repo_root, capture_output=True, text=True, timeout=5, creationflags=0x08000000)
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout.strip()
+        except Exception:
+            pass
+    for cand in [os.path.join(here, 'version.json'), os.path.join(repo_root, 'app', 'version.json')]:
+        if os.path.isfile(cand):
+            try:
+                with open(cand, 'r', encoding='utf-8') as f:
+                    d = json.load(f)
+                    c = d.get('commit', '').strip()
+                    if c:
+                        return c
+            except Exception:
+                pass
+    return ""
+
+_commit_update_cache = {'at': 0, 'data': None}
+
 @app.get('/dl/update-check')
 def dl_update_check():
-    """Ask GitHub for the latest release and compare to this build. Cached ~30 min; never raises."""
+    """Check GitHub repository for new commits pushed to main branch."""
     now = time.time()
-    cur = APP_VERSION
-    m = _update_cache['data']
-    if not m or now - _update_cache['at'] >= 1800:
+    cur_commit = _get_local_commit()
+    
+    if _commit_update_cache['data'] and (now - _commit_update_cache['at'] < 60):
+        cdata = dict(_commit_update_cache['data'])
+        cdata['current_commit'] = cur_commit[:8] if cur_commit else 'local'
+        rem_sha = cdata.get('latest_commit_full', '')
+        if rem_sha and cur_commit:
+            cdata['has_update'] = (rem_sha[:8].lower() != cur_commit[:8].lower())
+            cdata['update'] = cdata['has_update']
+        return cdata
+
+    has_update = False
+    latest_sha = ""
+    commit_msg = ""
+    commit_date = ""
+    
+    try:
+        api_url = f"https://api.github.com/repos/{GITHUB_REPO}/commits/main"
+        hdr = {'Accept': 'application/vnd.github+json', 'User-Agent': 'SYD-Downloader-Pro'}
+        if GITHUB_TOKEN:
+            hdr['Authorization'] = f'Bearer {GITHUB_TOKEN}'
+        r = requests.get(api_url, headers=hdr, timeout=8)
+        if r.status_code == 200:
+            gh_data = r.json()
+            latest_sha = str(gh_data.get('sha') or '').strip()
+            commit_info = gh_data.get('commit') or {}
+            commit_msg = str(commit_info.get('message') or '').strip().split('\n')[0]
+            committer = commit_info.get('committer') or {}
+            commit_date = str(committer.get('date') or '').strip()
+            if cur_commit and latest_sha:
+                has_update = (latest_sha[:8].lower() != cur_commit[:8].lower())
+            elif latest_sha:
+                has_update = False
+    except Exception:
         try:
-            hdr = {'Accept': 'application/vnd.github+json', 'User-Agent': 'HongguoDownloader'}
-            if GITHUB_TOKEN:
-                hdr['Authorization'] = 'Bearer ' + GITHUB_TOKEN
-            r = requests.get(UPDATE_API_URL, timeout=6, headers=hdr)
-            r.raise_for_status()
-            m = r.json()
-            _update_cache.update(at=now, data=m)
-        except Exception:
-            m = _update_cache['data']
-    if not m:
-        return {'ok': False, 'current': cur, 'update': False}
-    else:
-        latest = str(m.get('tag_name') or m.get('version') or '').strip()
-        page = str(m.get('html_url') or m.get('url') or '').strip()
-        url = ''
-        for a in m.get('assets') or []:
-            if str(a.get('name') or '').lower().endswith('.exe'):
-                url = a.get('browser_download_url') or ''
-                break
-        if not url:
-            url = page
-        name = str(m.get('name') or '').strip()
-        notes = str(m.get('body') or m.get('notes') or '').replace('\r\n', '\n').strip()
-        if len(notes) > 800:
-            notes = notes[:797].rstrip() + '...'
-        update = bool(latest) and _ver_tuple(latest) > _ver_tuple(cur)
-        return {'ok': True, 'current': cur, 'latest': latest, 'update': update, 'url': url, 'page': page, 'name': name, 'notes': notes}
-@app.post('/dl/update-download')
-def dl_update_download():
-    """Download the latest release installer and verify its Authenticode signature, so the UI can\n    refuse (or clearly warn about) an unsigned / wrong-publisher build BEFORE the user runs it --\n    the defense against a compromised GitHub release. SSRF-guarded to github.com."""
-    import subprocess
-    import hashlib
-    from urllib.parse import urlparse
-    info = dl_update_check()
-    url = str(info.get('url') or '')
-    host = (urlparse(url).hostname or '').lower()
-    ok_host = url.startswith('https://') and (host == 'github.com' or host.endswith('.github.com') or host.endswith('githubusercontent.com'))
-    if not info.get('update') or not ok_host or (not url.lower().endswith('.exe')):
-        return {'ok': False, 'error': 'no verifiable installer to download'}
-    else:
-        ddir = os.path.join(_data_dir(), 'update')
-        try:
-            os.makedirs(ddir, exist_ok=True)
+            raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/app/version.json"
+            r_raw = requests.get(raw_url, timeout=6)
+            if r_raw.status_code == 200:
+                raw_json = r_raw.json()
+                latest_sha = str(raw_json.get('commit') or '').strip()
+                commit_msg = str(raw_json.get('message') or '').strip()
+                commit_date = str(raw_json.get('updated_at') or '').strip()
+                if cur_commit and latest_sha:
+                    has_update = (latest_sha[:8].lower() != cur_commit[:8].lower())
         except Exception:
             pass
-        name = os.path.basename(urlparse(url).path) or 'HongguoDownloader-Setup.exe'
-        dest = os.path.join(ddir, name)
+
+    res = {
+        'ok': True,
+        'has_update': has_update,
+        'update': has_update,
+        'current_commit': cur_commit[:8] if cur_commit else 'local',
+        'latest_commit': latest_sha[:8] if latest_sha else '',
+        'latest_commit_full': latest_sha,
+        'commit_message': commit_msg,
+        'commit_date': commit_date,
+        'repo': GITHUB_REPO
+    }
+    _commit_update_cache['at'] = now
+    _commit_update_cache['data'] = res
+    return res
+
+@app.post('/dl/update-apply')
+def dl_update_apply(payload: dict = Body(None)):
+    """Apply auto update: pull or download newest files from GitHub and replace modified files."""
+    import subprocess
+    import sys
+    import zipfile
+    import shutil
+    
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, '..'))
+    git_dir = os.path.join(repo_root, '.git')
+    
+    info = dl_update_check()
+    new_sha = info.get('latest_commit_full') or ''
+    
+    # 1. If local .git repository exists, perform git pull
+    if os.path.isdir(git_dir):
         try:
-            r = requests.get(url, timeout=180, stream=True)
-            r.raise_for_status()
-            h = hashlib.sha256()
-            with open(dest, 'wb') as f:
-                for chunk in r.iter_content(65536):
+            r = subprocess.run(
+                ['git', 'pull', 'origin', 'main'],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                timeout=45,
+                creationflags=0x08000000
+            )
+            pulled_ok = (r.returncode == 0)
+        except Exception:
+            pulled_ok = False
+            
+        if pulled_ok:
+            _commit_update_cache['at'] = 0
+            _spawn_app_restart()
+            return {'ok': True, 'message': 'កូដត្រូវបានទាញយក និង Update ដោយជោគជ័យ! កំពុង Restart App...'}
+            
+    # 2. If no .git (e.g. User PC installation), download zip from GitHub and replace files
+    zip_url = f"https://codeload.github.com/{GITHUB_REPO}/zip/refs/heads/main"
+    temp_zip = os.path.join(repo_root, '_update_payload.zip')
+    
+    try:
+        with requests.get(zip_url, stream=True, timeout=90, headers={'User-Agent': 'SYD-Downloader-Pro'}) as resp:
+            resp.raise_for_status()
+            with open(temp_zip, 'wb') as f:
+                for chunk in resp.iter_content(chunk_size=128 * 1024):
                     if chunk:
                         f.write(chunk)
-                        h.update(chunk)
-            sha = h.hexdigest()
-        except Exception as e:
-            return {'ok': False, 'error': 'download failed: %s' % e}
-        signed = valid = False
-        publisher = ''
+                        
+        extract_dir = os.path.join(repo_root, '_update_temp')
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir, ignore_errors=True)
+        os.makedirs(extract_dir, exist_ok=True)
+        
+        with zipfile.ZipFile(temp_zip, 'r') as zf:
+            zf.extractall(extract_dir)
+            
+        subfolders = [os.path.join(extract_dir, d) for d in os.listdir(extract_dir) if os.path.isdir(os.path.join(extract_dir, d))]
+        src_root = subfolders[0] if subfolders else extract_dir
+        
+        SKIP_ITEMS = {
+            'user_access.json',
+            'downloads',
+            'jre',
+            'python',
+            '.git',
+            'config.json',
+            'supabase.json',
+            '.stream_cache'
+        }
+        
+        replaced_count = 0
+        for root, dirs, files in os.walk(src_root):
+            rel_dir = os.path.relpath(root, src_root)
+            if rel_dir == '.':
+                rel_dir = ''
+            if any(part in SKIP_ITEMS for part in rel_dir.split(os.sep)):
+                continue
+            dest_dir = os.path.join(repo_root, rel_dir) if rel_dir else repo_root
+            os.makedirs(dest_dir, exist_ok=True)
+            for f in files:
+                if f in SKIP_ITEMS or f.endswith(('.tmp', '.log')):
+                    continue
+                src_file = os.path.join(root, f)
+                dest_file = os.path.join(dest_dir, f)
+                try:
+                    shutil.copy2(src_file, dest_file)
+                    replaced_count += 1
+                except Exception:
+                    pass
+                    
+        if new_sha:
+            try:
+                vfile = os.path.join(here, 'version.json')
+                with open(vfile, 'w', encoding='utf-8') as vf:
+                    json.dump({
+                        'version': APP_VERSION,
+                        'commit': new_sha,
+                        'updated_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'message': info.get('commit_message', '')
+                    }, vf, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+                
         try:
-            pth = dest.replace('\'', '\'\'')
-            ps = '$ErrorActionPreference=\'SilentlyContinue\'; $s=Get-AuthenticodeSignature -LiteralPath \'%s\'; Write-Output $s.Status; Write-Output $s.SignerCertificate.Subject' % pth
-            out = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', ps], capture_output=True, text=True, timeout=40, creationflags=134217728).stdout or ''
-            parts = [p.strip() for p in out.splitlines() if p.strip() != '']
-            status = parts[0] if parts else ''
-            publisher = parts[1] if len(parts) > 1 else ''
-            signed = bool(status) and status != 'NotSigned'
-            valid = status == 'Valid'
+            os.remove(temp_zip)
+            shutil.rmtree(extract_dir, ignore_errors=True)
         except Exception:
             pass
-        want = os.environ.get('HG_PUBLISHER', '').strip()
-        trusted = bool(valid and (not want or want.lower() in publisher.lower()))
-        return {'ok': True, 'path': dest, 'name': name, 'sha256': sha, 'signed': signed, 'valid': valid, 'publisher': publisher, 'expected_publisher': want, 'trusted': trusted}
-@app.post('/dl/update-run')
-def dl_update_run(payload: dict=Body(...)):
-    """Launch an installer we previously downloaded into our own update dir (path-guarded)."""
-    p = str((payload or {}).get('path') or '')
-    updir = os.path.abspath(os.path.join(_data_dir(), 'update'))
-    try:
-        full = os.path.abspath(p)
-    except Exception:
-        full = ''
-    if not full or (not (full == updir or full.startswith(updir + os.sep))) or (not os.path.exists(full)):
-        return {'ok': False, 'error': 'unknown download'}
-    else:
+            
+        _commit_update_cache['at'] = 0
+        _spawn_app_restart()
+        return {'ok': True, 'message': f'កូដត្រូវបានទាញយក និង Replace {replaced_count} files ដោយជោគជ័យ! កំពុង Restart App...'}
+    except Exception as e:
         try:
-            os.startfile(full)
-            return {'ok': True}
-        except Exception as e:
-            return {'ok': False, 'error': str(e)}
+            if os.path.isfile(temp_zip):
+                os.remove(temp_zip)
+            shutil.rmtree(os.path.join(repo_root, '_update_temp'), ignore_errors=True)
+        except Exception:
+            pass
+        return {'ok': False, 'error': f'Update failed: {e}'}
+
+def _spawn_app_restart():
+    """Gracefully restart application after update."""
+    def _restart():
+        time.sleep(1.0)
+        here = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.abspath(os.path.join(here, '..'))
+        if getattr(sys, 'frozen', False):
+            target_exe = sys.executable
+            ps_cmd = f"Start-Sleep -Milliseconds 800; Start-Process -FilePath '{target_exe}'"
+        else:
+            py_dir = os.path.dirname(sys.executable)
+            pyw = os.path.join(py_dir, 'pythonw.exe')
+            target_py = pyw if os.path.exists(pyw) else sys.executable
+            main_py = os.path.join(repo_root, 'main.py')
+            run_script = main_py if os.path.exists(main_py) else os.path.join(here, 'server.py')
+            run_cwd = repo_root if os.path.exists(main_py) else here
+            ps_cmd = f"$env:BIND_HOST='0.0.0.0'; $env:SIGN_SERVER='http://127.0.0.1:9099'; $env:HG_LICENSE_DISABLED='1'; $env:PYTHONUTF8='1'; $env:PYTHONIOENCODING='utf-8'; Start-Sleep -Milliseconds 800; Start-Process -FilePath '{target_py}' -ArgumentList '\"{run_script}\"' -WorkingDirectory '{run_cwd}'"
+
+        subprocess.Popen(['powershell', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps_cmd], creationflags=0x08000000)
+        os._exit(0)
+
+    threading.Thread(target=_restart, daemon=True).start()
 if __name__ == '__main__':
     import uvicorn
     uvicorn.run(app, host=os.environ.get('BIND_HOST', '0.0.0.0'), port=int(os.environ.get('PORT', '8000')))
