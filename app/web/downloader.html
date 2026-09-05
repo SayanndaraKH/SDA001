@@ -4789,10 +4789,6 @@ function applyLiveToLibrary(status){
   });
 }
 async function openSeries(name){
-  if(IS_CLOUD){
-    openLibEpisodes(name);
-    return;
-  }
   try{
     const j=await (await fetch("/dl/library/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})})).json();
     if(!j.ok) openLibEpisodes(name);
@@ -5134,8 +5130,7 @@ async function syncSqFolder(){
   try{
     const res = await (await fetch("/dl/config")).json();
     if(res){
-      if(res.is_cloud) IS_CLOUD = true;
-      if(res.default_cloud_dir) CLOUD_DIR = res.default_cloud_dir;
+      IS_CLOUD = false;
       if(!localStorage.getItem("syd_user_pc_path") && res.output_dir && !res.output_dir.startsWith('/app')){
         localStorage.setItem("syd_user_pc_path", res.output_dir);
         if(el) el.textContent = res.output_dir;
@@ -6866,8 +6861,7 @@ async function openFolderPickerModal(){
       fetch("/dl/drives").then(r => r.json()).catch(()=>({}))
     ]);
     if(cfg){
-      if(cfg.is_cloud) IS_CLOUD = true;
-      if(cfg.default_cloud_dir) CLOUD_DIR = cfg.default_cloud_dir;
+      IS_CLOUD = false;
     }
     
     // Pre-fill user's PC local path (matching screenshot, e.g. F:\Hongguo)
