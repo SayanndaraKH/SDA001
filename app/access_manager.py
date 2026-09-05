@@ -1,9 +1,11 @@
 import os
+import re
 import json
 import time
 import secrets
 import hashlib
 import threading
+import requests
 import licensing as LIC
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +25,23 @@ def _resolve_data_file():
                 return bundled
     return target
 
+def _resolve_firebase_file():
+    # Persist firebase.json in %LOCALAPPDATA%\HongguoDownloader so settings survive updates
+    app_data_dir = os.path.join(os.environ.get('LOCALAPPDATA', HERE), 'HongguoDownloader')
+    os.makedirs(app_data_dir, exist_ok=True)
+    target = os.path.join(app_data_dir, 'firebase.json')
+    if not os.path.isfile(target):
+        bundled = os.path.join(HERE, 'firebase.json')
+        if os.path.isfile(bundled):
+            try:
+                import shutil
+                shutil.copy2(bundled, target)
+            except Exception:
+                return bundled
+    return target
+
 DATA_FILE = _resolve_data_file()
+FIREBASE_FILE = _resolve_firebase_file()
 
 _lock = threading.Lock()
 
@@ -356,6 +374,9 @@ def register_user(username: str, name: str, contact: str, password: str, note: s
         if dev:
             _sessions[dev] = user_record
 
+        # Async sync to Firebase Realtime Database
+        threading.Thread(target=firebase_sync_license, args=(user_record,), daemon=True).start()
+
         return True, user_record
 
 def get_user_status(token_or_device_id: str = ""):
@@ -379,6 +400,24 @@ def get_user_status(token_or_device_id: str = ""):
                     break
 
     settings = get_settings()
+
+    # Auto-sync with Firebase Realtime Database for current device
+    try:
+        dev_check = (user.get("device_id") if user else ident) or get_current_device_id()
+        if dev_check and (not user or not user.get("is_vip") or user.get("status") == "pending_vip"):
+            now_t = time.time()
+            if now_t - _firebase_last_poll.get(dev_check, 0) > 20:
+                _firebase_last_poll[dev_check] = now_t
+                fb_data = firebase_fetch_license(dev_check)
+                if fb_data and fb_data.get("is_vip"):
+                    if user:
+                        user["is_vip"] = True
+                        user["status"] = "approved"
+                        user["expires_at"] = fb_data.get("expires_at", 0)
+                        user["expires_date"] = fb_data.get("expires_date", "")
+                        user["approved_package"] = fb_data.get("approved_package", "")
+    except Exception:
+        pass
 
     if user:
         if user.get("status") == "banned":
@@ -459,8 +498,8 @@ def get_user_status(token_or_device_id: str = ""):
         "packages_available": list(VIP_PACKAGES.values())
     }
 
-def request_vip(token_or_id: str, package: str = "1_year", note: str = ""):
-    """Submit a VIP Package request to ADMIN."""
+def request_vip(token_or_id: str, package: str = "1_year", note: str = "", name: str = "", contact: str = ""):
+    """Submit a VIP Package request to ADMIN & Firebase Realtime Database."""
     ident = (token_or_id or "").strip()
     with _lock:
         d = _load_data()
@@ -470,14 +509,40 @@ def request_vip(token_or_id: str, package: str = "1_year", note: str = ""):
             if k == ident or u.get("device_id") == ident or u.get("token") == ident or u.get("username") == ident:
                 target = u
                 break
+
+        now = int(time.time())
         if not target:
-            return False, "រកមិនឃើញគណនីអ្នកប្រើប្រាស់ (សូម Login ជាមុនសិន)"
+            # Auto-create user record for this PC device ID
+            dev_id = ident if (ident and not ident.startswith('user_') and not ident.startswith('admin_')) else get_current_device_id()
+            uname = f"pc_{clean_firebase_key(dev_id)[-8:]}" if dev_id else f"user_{secrets.token_hex(4)}"
+            target = {
+                "username": uname,
+                "name": name or f"User PC ({dev_id[:8] if dev_id else 'Direct'})",
+                "contact": contact or "Direct",
+                "device_id": dev_id,
+                "role": "user",
+                "is_admin": False,
+                "is_vip": False,
+                "status": "pending_vip",
+                "max_free_episodes": 10,
+                "requested_package": package or "1_year",
+                "note": note or "",
+                "created_at": now,
+                "approved_at": 0,
+                "expires_at": 0
+            }
+            users[uname] = target
+        else:
+            if name:
+                target["name"] = name
+            if contact:
+                target["contact"] = contact
         
         target["requested_package"] = package or "1_year"
         target["note"] = note or target.get("note", "")
         target["status"] = "pending_vip"
         target["is_vip"] = False
-        target["updated_at"] = int(time.time())
+        target["updated_at"] = now
         _save_data(d)
 
         # Update active sessions in memory
@@ -486,6 +551,9 @@ def request_vip(token_or_id: str, package: str = "1_year", note: str = ""):
                 su["status"] = "pending_vip"
                 su["is_vip"] = False
                 su["requested_package"] = target["requested_package"]
+
+        # Push to Firebase Realtime Database
+        threading.Thread(target=firebase_sync_license, args=(target,), daemon=True).start()
 
         return True, target
 
@@ -500,12 +568,29 @@ def approve_user_vip(target_id: str, package: str = None, custom_days: int = Non
         users = d.get("users", {})
         target = None
         for k, u in users.items():
-            if k == ident or u.get("device_id") == ident or u.get("username") == ident or u.get("contact") == ident or u.get("key") == ident:
+            if k == ident or u.get("device_id") == ident or u.get("username") == ident or u.get("contact") == ident or u.get("key") == ident or clean_firebase_key(u.get("device_id", "")) == clean_firebase_key(ident):
                 target = u
                 break
 
         if not target:
-            return False, "រកមិនឃើញអ្នកប្រើប្រាស់នេះទេ"
+            # Auto-create if not present in local store
+            uname = f"pc_{clean_firebase_key(ident)[-8:]}"
+            target = {
+                "username": uname,
+                "name": f"User ({ident[:8]})",
+                "contact": "Firebase Admin",
+                "device_id": ident,
+                "role": "vip",
+                "is_admin": False,
+                "is_vip": True,
+                "status": "approved",
+                "max_free_episodes": 999999,
+                "requested_package": package or "1_year",
+                "created_at": now,
+                "approved_at": now,
+                "expires_at": 0
+            }
+            users[uname] = target
 
         target_pkg = package or target.get("requested_package") or "1_year"
         if custom_days is not None and int(custom_days) > 0:
@@ -542,6 +627,9 @@ def approve_user_vip(target_id: str, package: str = None, custom_days: int = Non
                 s_user["max_free_episodes"] = 999999
                 s_user["expires_at"] = expires_at
                 s_user["package_name"] = pkg_name
+
+        # Sync approval to Firebase Realtime Database
+        threading.Thread(target=firebase_sync_license, args=(target,), daemon=True).start()
 
         return True, target
 
@@ -749,3 +837,323 @@ def is_dev(device_id=None):
 def is_vip(device_id=None):
     st = get_user_status(device_id)
     return st.get("is_vip", False)
+
+# ----------------- Firebase Realtime Database Integration ----------------- #
+
+_firebase_last_poll = {}
+_fb_lock = threading.Lock()
+
+def get_firebase_config():
+    """Retrieve current Firebase Realtime Database configuration."""
+    cfg = {
+        "enabled": True,
+        "database_url": "https://syd-drama-default-rtdb.firebaseio.com",
+        "auth_secret": "",
+        "sync_interval_seconds": 25
+    }
+    if os.path.isfile(FIREBASE_FILE):
+        try:
+            with open(FIREBASE_FILE, 'r', encoding='utf-8') as f:
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    cfg.update(loaded)
+        except Exception:
+            pass
+    env_url = os.environ.get("HG_FIREBASE_URL")
+    if env_url:
+        cfg["database_url"] = env_url
+    env_sec = os.environ.get("HG_FIREBASE_SECRET")
+    if env_sec:
+        cfg["auth_secret"] = env_sec
+    return cfg
+
+def save_firebase_config(new_config: dict):
+    """Save Firebase Realtime Database configuration."""
+    cfg = get_firebase_config()
+    for k in ("enabled", "database_url", "auth_secret", "sync_interval_seconds"):
+        if k in new_config:
+            cfg[k] = new_config[k]
+    if isinstance(cfg.get("database_url"), str):
+        cfg["database_url"] = cfg["database_url"].strip().rstrip("/")
+    if isinstance(cfg.get("auth_secret"), str):
+        cfg["auth_secret"] = cfg["auth_secret"].strip()
+    try:
+        with open(FIREBASE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[firebase] Error saving config: {e}")
+    return cfg
+
+def clean_firebase_key(key: str) -> str:
+    """Sanitize key for Firebase Realtime Database (cannot contain . $ # [ ] / :)."""
+    s = str(key or "").strip()
+    return re.sub(r'[\.\$\[\]\#\/:]', '_', s)
+
+def _firebase_url(path: str = ""):
+    cfg = get_firebase_config()
+    if not cfg.get("enabled"):
+        return "", {}
+    base = str(cfg.get("database_url") or "").strip().rstrip("/")
+    if not base:
+        return "", {}
+    if not base.startswith("http"):
+        base = "https://" + base
+    p = path.strip("/")
+    url = f"{base}/{p}.json" if p else f"{base}/.json"
+    params = {}
+    sec = str(cfg.get("auth_secret") or "").strip()
+    if sec:
+        params["auth"] = sec
+    return url, params
+
+def firebase_test_connection(custom_url: str = None, custom_secret: str = None):
+    """Test connection to Firebase Realtime Database."""
+    cfg = get_firebase_config()
+    base = (custom_url or cfg.get("database_url") or "").strip().rstrip("/")
+    if not base:
+        return False, "សូមបញ្ចូល Firebase Database URL"
+    if not base.startswith("http"):
+        base = "https://" + base
+    sec = custom_secret if custom_secret is not None else cfg.get("auth_secret")
+    url = f"{base}/.json"
+    params = {"shallow": "true"}
+    if sec:
+        params["auth"] = sec
+    try:
+        r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if r.status_code == 200:
+            return True, "ភ្ជាប់ទៅកាន់ Firebase Realtime Database ជោគជ័យ ១០០%!"
+        elif r.status_code == 401 or r.status_code == 403:
+            return False, f"Permission Denied ({r.status_code}): សូមពិនិត្យមើល Database Rules ឬ Auth Secret"
+        else:
+            return False, f"Firebase HTTP {r.status_code}: {r.text[:120]}"
+    except Exception as e:
+        return False, f"Connection Failed: {e}"
+
+def firebase_sync_license(user_or_dict: dict):
+    """
+    Push User PC License / VIP Request to Firebase Realtime Database.
+    Target path: /licenses/{clean_device_id}.json
+    """
+    try:
+        dev_id = user_or_dict.get("device_id") or get_current_device_id()
+        if not dev_id:
+            return False
+        clean_id = clean_firebase_key(dev_id)
+        url, params = _firebase_url(f"licenses/{clean_id}")
+        if not url:
+            return False
+
+        payload = {
+            "device_id": dev_id,
+            "key": clean_id,
+            "username": user_or_dict.get("username", "User"),
+            "name": user_or_dict.get("name", ""),
+            "contact": user_or_dict.get("contact", ""),
+            "requested_package": user_or_dict.get("requested_package", "1_year"),
+            "approved_package": user_or_dict.get("approved_package", ""),
+            "status": user_or_dict.get("status", "pending_vip"),
+            "is_vip": bool(user_or_dict.get("is_vip", False)),
+            "role": user_or_dict.get("role", "user"),
+            "max_free_episodes": user_or_dict.get("max_free_episodes", 10),
+            "note": user_or_dict.get("note", ""),
+            "created_at": user_or_dict.get("created_at") or int(time.time()),
+            "updated_at": int(time.time()),
+            "expires_at": user_or_dict.get("expires_at", 0),
+            "expires_date": user_or_dict.get("expires_date", "")
+        }
+
+        r = requests.patch(url, params=params, json=payload, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        return r.status_code == 200
+    except Exception as e:
+        print(f"[firebase] sync error: {e}")
+        return False
+
+def firebase_fetch_license(device_id: str):
+    """
+    Fetch license status from Firebase Realtime Database and apply updates to local user if approved.
+    """
+    try:
+        clean_id = clean_firebase_key(device_id)
+        url, params = _firebase_url(f"licenses/{clean_id}")
+        if not url:
+            return None
+        r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if r.status_code != 200 or not r.text:
+            return None
+        fb_data = r.json()
+        if not isinstance(fb_data, dict) or not fb_data:
+            return None
+
+        # Apply Firebase license state to local user cache
+        fb_vip = bool(fb_data.get("is_vip", False))
+        fb_status = fb_data.get("status", "user")
+        fb_exp = fb_data.get("expires_at", 0)
+
+        now = int(time.time())
+        if fb_vip and fb_exp > 0 and fb_exp < now:
+            fb_vip = False
+            fb_status = "expired"
+
+        with _lock:
+            d = _load_data()
+            users = d.get("users", {})
+            updated = False
+            for k, u in users.items():
+                if u.get("device_id") == device_id or clean_firebase_key(u.get("device_id", "")) == clean_id or u.get("username") == fb_data.get("username"):
+                    u["is_vip"] = fb_vip
+                    u["status"] = fb_status
+                    u["expires_at"] = fb_exp
+                    u["approved_package"] = fb_data.get("approved_package", u.get("approved_package", ""))
+                    u["max_free_episodes"] = 999999 if fb_vip else 10
+                    if fb_exp > 0:
+                        import datetime
+                        u["expires_date"] = datetime.datetime.fromtimestamp(fb_exp).strftime("%d/%m/%Y")
+                        u["days_left"] = max(0, int((fb_exp - now) / 86400))
+                    elif fb_vip and fb_exp == 0:
+                        u["expires_date"] = "Lifetime VIP"
+                        u["days_left"] = -1
+                    updated = True
+                    # Update sessions
+                    for tok, su in _sessions.items():
+                        if su.get("device_id") == device_id or su.get("username") == u.get("username"):
+                            su.update(u)
+                    break
+            if updated:
+                _save_data(d)
+
+        return fb_data
+    except Exception as e:
+        print(f"[firebase] fetch error: {e}")
+        return None
+
+def firebase_admin_get_all_licenses():
+    """Admin: retrieve all licenses from Firebase Realtime Database."""
+    try:
+        url, params = _firebase_url("licenses")
+        if not url:
+            return []
+        r = requests.get(url, params=params, timeout=7, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if r.status_code != 200 or not r.text:
+            return []
+        data = r.json()
+        if not isinstance(data, dict):
+            return []
+
+        out = []
+        now = int(time.time())
+        for k, item in data.items():
+            if not isinstance(item, dict):
+                continue
+            item["key"] = k
+            exp = item.get("expires_at", 0)
+            is_vip = bool(item.get("is_vip", False))
+            if is_vip and exp > 0 and exp < now:
+                item["is_vip"] = False
+                item["status"] = "expired"
+
+            if exp > 0:
+                import datetime
+                item["expires_date"] = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
+                item["days_left"] = max(0, int((exp - now) / 86400))
+            elif is_vip and exp == 0:
+                item["expires_date"] = "Lifetime VIP"
+                item["days_left"] = -1
+            else:
+                item["expires_date"] = "Free Tier (ភាគ 1-10)"
+                item["days_left"] = 0
+            out.append(item)
+
+        # Sort: pending_vip first, then by updated_at descending
+        def _sort_key(x):
+            is_pending = 1 if x.get("status") == "pending_vip" else 0
+            return (is_pending, x.get("updated_at", 0))
+
+        out.sort(key=_sort_key, reverse=True)
+        return out
+    except Exception as e:
+        print(f"[firebase] admin get all error: {e}")
+        return []
+
+def firebase_admin_approve_license(device_id: str, package: str = "1_year", custom_days: int = None):
+    """Admin: approve or update a license directly in Firebase Realtime Database."""
+    try:
+        clean_id = clean_firebase_key(device_id)
+        url, params = _firebase_url(f"licenses/{clean_id}")
+        if not url:
+            return False, "Firebase is not configured"
+
+        now = int(time.time())
+        if custom_days is not None and int(custom_days) > 0:
+            days = int(custom_days)
+            expires_at = now + days * 86400
+            pkg_name = f"VIP {days} ថ្ងៃ"
+        elif package == "lifetime" or (custom_days is not None and int(custom_days) == -1):
+            expires_at = 0
+            pkg_name = "VIP មួយជីវិត"
+        elif package in VIP_PACKAGES:
+            days = VIP_PACKAGES[package]["days"]
+            expires_at = (now + days * 86400) if days > 0 else 0
+            pkg_name = VIP_PACKAGES[package]["name"]
+        else:
+            expires_at = now + 365 * 86400
+            pkg_name = "VIP 1 ឆ្នាំ"
+
+        import datetime
+        exp_date_str = datetime.datetime.fromtimestamp(expires_at).strftime("%d/%m/%Y") if expires_at > 0 else "Lifetime VIP"
+
+        patch_data = {
+            "status": "approved",
+            "is_vip": True,
+            "approved_package": package or "1_year",
+            "package_name": pkg_name,
+            "max_free_episodes": 999999,
+            "approved_at": now,
+            "updated_at": now,
+            "expires_at": expires_at,
+            "expires_date": exp_date_str
+        }
+
+        r = requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if r.status_code == 200:
+            # Also approve locally if device matches
+            approve_user_vip(device_id, package=package, custom_days=custom_days)
+            return True, patch_data
+        else:
+            return False, f"Firebase HTTP {r.status_code}: {r.text[:100]}"
+    except Exception as e:
+        return False, str(e)
+
+def firebase_admin_ban_license(device_id: str):
+    """Admin: ban a user license in Firebase Realtime Database."""
+    try:
+        clean_id = clean_firebase_key(device_id)
+        url, params = _firebase_url(f"licenses/{clean_id}")
+        if not url:
+            return False
+        patch_data = {
+            "status": "banned",
+            "is_vip": False,
+            "max_free_episodes": 0,
+            "updated_at": int(time.time())
+        }
+        r = requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if r.status_code == 200:
+            ban_user(device_id)
+            return True
+        return False
+    except Exception:
+        return False
+
+def firebase_admin_delete_license(device_id: str):
+    """Admin: delete a user license from Firebase Realtime Database."""
+    try:
+        clean_id = clean_firebase_key(device_id)
+        url, params = _firebase_url(f"licenses/{clean_id}")
+        if not url:
+            return False
+        r = requests.delete(url, params=params, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        return r.status_code == 200
+    except Exception:
+        return False
+

@@ -1898,6 +1898,9 @@
         <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnSys" onclick="switchUcTab('system')" style="flex:1;font-weight:700;font-size:12px;border-radius:8px;padding:7px 6px">
           🎬 Download &amp; Storage
         </button>
+        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnFirebase" onclick="switchUcTab('firebase')" style="flex:1;font-weight:700;font-size:12px;border-radius:8px;padding:7px 6px;color:#ff6a2b">
+          🔥 Firebase Cloud
+        </button>
       </div>
 
       <!-- TAB 1: USER MANAGEMENT -->
@@ -2062,6 +2065,68 @@
             <button class="btn primary sm" id="ucAdminRestartUpdate" style="width:100%;background:linear-gradient(135deg,#ff6a2b,#ff2e63);color:#fff;font-weight:700;padding:10px 14px;border-radius:10px;box-shadow:0 4px 14px rgba(255,46,99,0.35);display:flex;align-items:center;justify-content:center;gap:8px">
               🚀 Restart App &amp; ទាញកូដថ្មី (Update Code &amp; Restart)
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: FIREBASE REALTIME DATABASE LICENSING & CONTROL -->
+      <div id="ucTabFirebaseSec" class="modal-scroll" style="display:none;flex-direction:column;gap:12px;padding-right:2px">
+        <!-- Firebase Status & Connection Settings Card -->
+        <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div style="font:700 13px var(--font-ui);color:#ff6a2b;display:flex;align-items:center;gap:6px">
+              <span>🔥</span> <span>Firebase Realtime Database Cloud Sync</span>
+            </div>
+            <span id="fbLiveStatusBadge" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:rgba(46,204,113,0.15);color:var(--good);border:1px solid rgba(46,204,113,0.3)">
+              🟢 Connected
+            </span>
+          </div>
+
+          <div style="font-size:11.5px;color:var(--muted);line-height:1.4">
+            គ្រប់គ្រង និងបើកសិទ្ធិ VIP ដល់ User PC តាមរយៈ Firebase Realtime Database ពីទីកន្លែងណាក៏បាន។ User PC នឹងដោះសោរ VIP ភ្លាមៗដោយស្វ័យប្រវត្តិ។
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <label style="font:600 11.5px var(--font-ui);color:var(--ink-2);display:block;margin-bottom:4px">Firebase Database URL:</label>
+              <input type="text" id="fbDbUrlInput" placeholder="https://your-project-default-rtdb.firebaseio.com" value="https://syd-drama-default-rtdb.firebaseio.com" style="width:100%;height:34px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:0 10px;color:var(--ink);font:600 12px var(--font-mono)">
+            </div>
+            <div>
+              <label style="font:600 11.5px var(--font-ui);color:var(--ink-2);display:block;margin-bottom:4px">Database Secret / Token (Optional):</label>
+              <input type="password" id="fbAuthSecretInput" placeholder="ទុកទំនេរ ប្រសិនបើបើក Read/Write Public" style="width:100%;height:34px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:0 10px;color:var(--ink);font:600 12px var(--font-mono)">
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:2px;flex-wrap:wrap">
+            <button type="button" class="btn primary sm" id="fbTestConnBtn" style="font-weight:700;font-size:12px;padding:0 14px;background:linear-gradient(135deg,#ff6a2b,#ff8e53)">
+              🔌 តេស្តភ្ជាប់ (Test Connection)
+            </button>
+            <button type="button" class="btn ghost sm" id="fbSaveConfigBtn" style="font-weight:700;font-size:12px;padding:0 14px">
+              💾 រក្សាទុក Config
+            </button>
+            <button type="button" class="btn ghost sm" id="fbRefreshLicensesBtn" style="font-weight:700;font-size:12px;padding:0 12px" title="Refresh Live Cloud Requests">
+              🔄 ផ្ទុកឡើងវិញ
+            </button>
+            <a href="https://console.firebase.google.com/project/syd-drama/database/syd-drama-default-rtdb/data" target="_blank" rel="noopener noreferrer" style="margin-left:auto;font-size:11.5px;color:#ff6a2b;text-decoration:underline;display:flex;align-items:center;gap:4px">
+              <span>↗️ បើក Firebase Console</span>
+            </a>
+          </div>
+          <div id="fbTestMsg" style="font-size:11.5px;display:none;padding:6px 10px;border-radius:6px"></div>
+        </div>
+
+        <!-- Live License Requests List -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font:700 12.5px var(--font-ui);color:var(--ink)">
+              📋 សំណើសុំ Key License &amp; អ្នកប្រើប្រាស់លើ Cloud (<span id="fbLicensesCount">0</span>)
+            </div>
+            <div style="font-size:11px;color:var(--muted)">
+              រាល់សំណើថ្មីពី User PC នឹងបង្ហាញនៅទីនេះភ្លាមៗ
+            </div>
+          </div>
+
+          <div id="fbLicensesContainer" style="display:flex;flex-direction:column;gap:10px;min-height:120px">
+            <div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">កំពុងផ្ទុកទិន្នន័យពី Firebase...</div>
           </div>
         </div>
       </div>
@@ -6207,14 +6272,21 @@ async function checkAndUnlockAdmin(pin){
 
 /* ---------- Tab Switcher for Admin Dashboard ---------- */
 window.switchUcTab = function(tab){
-  const bUsers = $("#ucTabBtnUsers"), bSet = $("#ucTabBtnSettings"), bSys = $("#ucTabBtnSys");
-  const sUsers = $("#ucTabUsersSec"), sSet = $("#ucTabSettingsSec"), sSys = $("#ucTabSysSec");
+  const bUsers = $("#ucTabBtnUsers"), bSet = $("#ucTabBtnSettings"), bSys = $("#ucTabBtnSys"), bFb = $("#ucTabBtnFirebase");
+  const sUsers = $("#ucTabUsersSec"), sSet = $("#ucTabSettingsSec"), sSys = $("#ucTabSysSec"), sFb = $("#ucTabFirebaseSec");
   if(bUsers) bUsers.classList.toggle('on', tab === 'users');
   if(bSet) bSet.classList.toggle('on', tab === 'settings');
   if(bSys) bSys.classList.toggle('on', tab === 'system');
+  if(bFb) bFb.classList.toggle('on', tab === 'firebase');
   if(sUsers) sUsers.style.display = (tab === 'users') ? 'flex' : 'none';
   if(sSet) sSet.style.display = (tab === 'settings') ? 'flex' : 'none';
   if(sSys) sSys.style.display = (tab === 'system') ? 'flex' : 'none';
+  if(sFb) sFb.style.display = (tab === 'firebase') ? 'flex' : 'none';
+
+  if(tab === 'firebase'){
+    loadFirebaseConfig();
+    refreshFirebaseLicenses();
+  }
 };
 
 let cachedAdminUsers = [];
@@ -6671,6 +6743,332 @@ if(adminPinBtn){
 
 const adminRefUsersBtn = $("#adminRefreshUsersBtn");
 if(adminRefUsersBtn) adminRefUsersBtn.onclick = refreshAdminUsersList;
+
+/* ---------- Firebase Realtime Database Handlers ---------- */
+let cachedFirebaseLicenses = [];
+
+async function loadFirebaseConfig(){
+  try {
+    const pin = currentAdminPin || '8888';
+    const tok = localStorage.getItem('syd_auth_token') || '';
+    const res = await fetch(`/dl/firebase/config?pin=${encodeURIComponent(pin)}&token=${encodeURIComponent(tok)}`);
+    const j = await res.json();
+    if(j.ok && j.config){
+      if($("#fbDbUrlInput")) $("#fbDbUrlInput").value = j.config.database_url || '';
+      if($("#fbAuthSecretInput")) $("#fbAuthSecretInput").value = j.config.auth_secret || '';
+    }
+  } catch(e){}
+}
+
+async function testFirebaseConnection(){
+  const url = ($("#fbDbUrlInput") && $("#fbDbUrlInput").value.trim()) || '';
+  const secret = ($("#fbAuthSecretInput") && $("#fbAuthSecretInput").value.trim()) || '';
+  const btn = $("#fbTestConnBtn");
+  const msgEl = $("#fbTestMsg");
+  const badge = $("#fbLiveStatusBadge");
+  if(btn){ btn.disabled = true; btn.textContent = "⏳ កំពុងតេស្ត..."; }
+  if(msgEl){ msgEl.style.display = "none"; }
+  try {
+    const res = await fetch("/dl/firebase/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ database_url: url, auth_secret: secret })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast("✅ " + j.message);
+      if(badge){
+        badge.textContent = "🟢 Connected";
+        badge.style.color = "var(--good)";
+        badge.style.background = "rgba(46,204,113,0.15)";
+      }
+      if(msgEl){
+        msgEl.textContent = "✅ " + j.message;
+        msgEl.style.display = "block";
+        msgEl.style.background = "rgba(46,204,113,0.15)";
+        msgEl.style.color = "var(--good)";
+      }
+      refreshFirebaseLicenses();
+    } else {
+      toast("❌ " + (j.message || "ភ្ជាប់មិនបាន"), true);
+      if(badge){
+        badge.textContent = "🔴 Error";
+        badge.style.color = "var(--bad)";
+        badge.style.background = "rgba(255,46,99,0.15)";
+      }
+      if(msgEl){
+        msgEl.textContent = "❌ " + j.message;
+        msgEl.style.display = "block";
+        msgEl.style.background = "rgba(255,46,99,0.15)";
+        msgEl.style.color = "var(--bad)";
+      }
+    }
+  } catch(e){
+    toast("❌ " + e, true);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = "🔌 តេស្តភ្ជាប់ (Test Connection)"; }
+  }
+}
+
+async function saveFirebaseConfig(){
+  const url = ($("#fbDbUrlInput") && $("#fbDbUrlInput").value.trim()) || '';
+  const secret = ($("#fbAuthSecretInput") && $("#fbAuthSecretInput").value.trim()) || '';
+  const pin = currentAdminPin || '8888';
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  const btn = $("#fbSaveConfigBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "⏳ កំពុងរក្សាទុក..."; }
+  try {
+    const res = await fetch("/dl/firebase/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pin,
+        token: tok,
+        config: {
+          enabled: true,
+          database_url: url,
+          auth_secret: secret,
+          sync_interval_seconds: 25
+        }
+      })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast("✅ បានរក្សាទុកការកំណត់ Firebase Realtime Database ជោគជ័យ!");
+      refreshFirebaseLicenses();
+    } else {
+      toast("⚠️ " + (j.error || "បរាជ័យក្នុងការរក្សាទុក"), true);
+    }
+  } catch(e){
+    toast("⚠️ " + e, true);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = "💾 រក្សាទុក Config"; }
+  }
+}
+
+async function refreshFirebaseLicenses(){
+  const cont = $("#fbLicensesContainer");
+  const countEl = $("#fbLicensesCount");
+  const pin = currentAdminPin || '8888';
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  try {
+    const res = await fetch(`/dl/firebase/admin/licenses?pin=${encodeURIComponent(pin)}&token=${encodeURIComponent(tok)}`);
+    const j = await res.json();
+    if(j.ok){
+      cachedFirebaseLicenses = j.licenses || [];
+      if(countEl) countEl.textContent = cachedFirebaseLicenses.length;
+      renderFirebaseLicensesList(cachedFirebaseLicenses);
+    }
+  } catch(e){
+    if(cont) cont.innerHTML = `<div style="text-align:center;padding:16px;color:var(--bad)">⚠️ បរាជ័យក្នុងការទាញយកបញ្ជីពី Firebase: ${esc(e)}</div>`;
+  }
+}
+
+function renderFirebaseLicensesList(licenses){
+  const cont = $("#fbLicensesContainer");
+  if(!cont) return;
+  if(!licenses || !licenses.length){
+    cont.innerHTML = `
+      <div style="text-align:center;padding:32px 16px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;color:var(--muted)">
+        <div style="font-size:24px;margin-bottom:6px">☁️</div>
+        <div style="font-weight:700;color:var(--ink-2)">មិនទាន់មានសំណើលើ Firebase Realtime នៅឡើយទេ</div>
+        <div style="font-size:11.5px;margin-top:4px">នៅពេល User PC ចុច &quot;ស្នើសុំ VIP&quot; សំណើនឹងធ្លាក់ចូលទីនេះភ្លាមៗ!</div>
+      </div>
+    `;
+    return;
+  }
+
+  let html = "";
+  licenses.forEach(item => {
+    const isVip = Boolean(item.is_vip);
+    const isPending = (item.status === 'pending_vip');
+    const isBanned = (item.status === 'banned');
+    const isExpired = (item.status === 'expired');
+
+    let badgeBg = "rgba(255,255,255,0.06)", badgeColor = "var(--muted)", statusText = "User ធម្មតា";
+    if(isPending){
+      badgeBg = "rgba(241,196,15,0.2)"; badgeColor = "var(--gold)"; statusText = "⏳ ស្នើសុំ VIP (Pending)";
+    } else if(isBanned){
+      badgeBg = "rgba(255,46,99,0.2)"; badgeColor = "var(--bad)"; statusText = "🚫 BANNED";
+    } else if(isExpired){
+      badgeBg = "rgba(230,126,34,0.2)"; badgeColor = "#e67e22"; statusText = "⌛ EXPIRED";
+    } else if(isVip){
+      badgeBg = "rgba(46,204,113,0.2)"; badgeColor = "var(--good)"; statusText = `👑 VIP (${item.package_name || item.approved_package || 'Active'})`;
+    }
+
+    const devId = item.device_id || item.key || '';
+    const displayName = item.name || item.username || 'User PC';
+    const contact = item.contact || 'គ្មានទំនាក់ទំនង';
+    const note = item.note ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-style:italic">📝 ចំណាំ៖ ${esc(item.note)}</div>` : '';
+    const expText = item.expires_date ? `ផុតកំណត់៖ ${item.expires_date} (${item.days_left >= 0 ? item.days_left + ' ថ្ងៃទៀត' : 'Lifetime'})` : '';
+
+    html += `
+      <div style="background:var(--surface);border:1px solid ${isPending ? 'rgba(241,196,15,0.4)' : 'var(--line)'};padding:12px 14px;border-radius:12px;display:flex;flex-direction:column;gap:8px;box-shadow:${isPending ? '0 0 12px rgba(241,196,15,0.1)' : 'none'}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-weight:800;font-size:13.5px;color:var(--ink)">${esc(displayName)}</span>
+              <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:${badgeBg};color:${badgeColor}">${statusText}</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:2px">
+              📞 ទំនាក់ទំនង: <b style="color:var(--ink-2)">${esc(contact)}</b>
+              ${item.requested_package ? ` | កញ្ចប់ស្នើសុំ: <b style="color:var(--accent)">${esc(item.requested_package)}</b>` : ''}
+            </div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:2px">
+              💻 Device ID: <span style="color:var(--ink-2);user-select:all">${esc(devId)}</span>
+            </div>
+            ${note}
+            ${expText ? `<div style="font-size:11px;color:var(--good);margin-top:3px;font-weight:600">⏳ ${expText}</div>` : ''}
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <button class="btn primary sm" onclick="firebaseApproveLicense('${esc(devId)}', '1_year')" style="font-size:11px;font-weight:700;padding:4px 10px;background:linear-gradient(135deg,#ff6a2b,#ff2e63)">
+              ✅ Approve 1 ឆ្នាំ
+            </button>
+            <button class="btn ghost sm" onclick="firebaseApproveLicense('${esc(devId)}', '1_month')" style="font-size:11px;padding:4px 8px">
+              1 ខែ
+            </button>
+            <button class="btn ghost sm" onclick="firebaseApproveLicense('${esc(devId)}', 'lifetime')" style="font-size:11px;padding:4px 8px;color:var(--gold)">
+              👑 Lifetime
+            </button>
+            <button class="btn ghost sm" onclick="firebaseCustomDaysApprove('${esc(devId)}')" style="font-size:11px;padding:4px 8px">
+              ⏳ ថ្ងៃផ្ទាល់
+            </button>
+            <button class="btn ghost sm" onclick="firebaseBanLicense('${esc(devId)}')" style="font-size:11px;padding:4px 8px;color:var(--bad)">
+              🚫 Ban
+            </button>
+            <button class="btn ghost sm" onclick="firebaseDeleteLicense('${esc(devId)}')" style="font-size:11px;padding:4px 8px;color:var(--muted)" title="Delete from Firebase">
+              🗑️
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  cont.innerHTML = html;
+}
+
+window.firebaseApproveLicense = async function(devId, pkg, customDays = null){
+  if(!devId) return;
+  const pin = currentAdminPin || '8888';
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  try {
+    const res = await fetch("/dl/firebase/admin/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin, token: tok, device_id: devId, package: pkg, custom_days: customDays })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast(`✅ បានបើកសិទ្ធិ VIP ជូន ${devId.substring(0,8)}... ក្នុង Firebase ដោយជោគជ័យ!`);
+      refreshFirebaseLicenses();
+      refreshAdminUsersList();
+    } else {
+      toast("⚠️ " + (j.error || "Approval Failed"), true);
+    }
+  } catch(e){
+    toast("⚠️ " + e, true);
+  }
+};
+
+window.firebaseCustomDaysApprove = function(devId){
+  const daysStr = prompt("សូមបញ្ចូលចំនួនថ្ងៃ VIP (ឧ. 30, 60, 180 ឬ -1 សម្រាប់ Lifetime):", "30");
+  if(daysStr === null) return;
+  const d = parseInt(daysStr);
+  if(isNaN(d) || (d <= 0 && d !== -1)){
+    alert("សូមបញ្ចូលចំនួនថ្ងៃត្រឹមត្រូវ");
+    return;
+  }
+  firebaseApproveLicense(devId, 'custom', d);
+};
+
+window.firebaseBanLicense = async function(devId){
+  if(!confirm(`តើអ្នកពិតជាចង់ Ban ឧបករណ៍ ${devId.substring(0,8)}... នេះមែនទេ?`)) return;
+  const pin = currentAdminPin || '8888';
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  try {
+    const res = await fetch("/dl/firebase/admin/ban", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin, token: tok, device_id: devId })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast("🚫 ឧបករណ៍ត្រូវបាន Ban លើ Firebase រួចរាល់");
+      refreshFirebaseLicenses();
+      refreshAdminUsersList();
+    }
+  } catch(e){
+    toast("⚠️ " + e, true);
+  }
+};
+
+window.firebaseDeleteLicense = async function(devId){
+  if(!confirm(`តើអ្នកពិតជាចង់លុបទិន្នន័យ ${devId.substring(0,8)}... ចេញពី Firebase Realtime Database នេះមែនទេ?`)) return;
+  const pin = currentAdminPin || '8888';
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  try {
+    const res = await fetch("/dl/firebase/admin/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin, token: tok, device_id: devId })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast("🗑️ បានលុបទិន្នន័យពី Firebase រួចរាល់");
+      refreshFirebaseLicenses();
+    }
+  } catch(e){
+    toast("⚠️ " + e, true);
+  }
+};
+
+// Bind Firebase Buttons
+const fbTestBtn = $("#fbTestConnBtn");
+if(fbTestBtn) fbTestBtn.onclick = testFirebaseConnection;
+const fbSaveBtn = $("#fbSaveConfigBtn");
+if(fbSaveBtn) fbSaveBtn.onclick = saveFirebaseConfig;
+const fbRefLicBtn = $("#fbRefreshLicensesBtn");
+if(fbRefLicBtn) fbRefLicBtn.onclick = refreshFirebaseLicenses;
+
+// Background Firebase Sync Loop (Every 25 seconds for User PC Auto-Unlock)
+let lastKnownVipState = null;
+async function backgroundFirebaseSync(){
+  try {
+    const tok = localStorage.getItem('syd_auth_token') || '';
+    const devId = (window.userAccess && window.userAccess.device_id) || '';
+    if(!tok && !devId) return;
+    
+    // Only poll if not already confirmed admin
+    if(window.userAccess && window.userAccess.is_admin) return;
+
+    const res = await fetch("/dl/firebase/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: tok, device_id: devId })
+    });
+    const j = await res.json();
+    if(j.ok && j.user){
+      const wasVip = (lastKnownVipState === true || (window.userAccess && window.userAccess.is_vip === true));
+      const isNowVip = (j.user.is_vip === true);
+      lastKnownVipState = isNowVip;
+
+      if(!wasVip && isNowVip){
+        // INSTANT VIP UNLOCK CELEBRATION!
+        window.userAccess = j.user;
+        renderUserStatusBanner(j.user);
+        toast(`🎉 អបអរសាទរ! Admin បានបើកសិទ្ធិ ${j.user.package_name || 'VIP'} ជូនលោកអ្នករួចរាល់តាមរយៈ Firebase Cloud!`);
+        // Refresh episode buttons to unlock 11-N
+        if(typeof renderEpisodes === 'function' && window.currentDrama){
+          renderEpisodes(window.currentDrama);
+        }
+      }
+    }
+  } catch(e){}
+}
+setInterval(backgroundFirebaseSync, 25000);
+setTimeout(backgroundFirebaseSync, 4000);
 
 function openUserControl() {
   const m = $("#userCtrlModal");

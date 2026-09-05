@@ -902,7 +902,9 @@ def dl_access_request_vip(payload: dict=Body(...)):
     tok = (payload or {}).get('token') or (payload or {}).get('device_id', '')
     package = (payload or {}).get('package', '1_year')
     note = (payload or {}).get('note', '')
-    ok, res = ACC.request_vip(tok, package, note)
+    name = (payload or {}).get('name', '')
+    contact = (payload or {}).get('contact', '')
+    ok, res = ACC.request_vip(tok, package, note, name, contact)
     if not ok:
         return {'ok': False, 'error': res}
     return {'ok': True, 'user': res}
@@ -1013,6 +1015,85 @@ def dl_access_admin_ban(payload: dict=Body(...)):
     if not ok:
         return {'ok': False, 'error': str(res)}
     return {'ok': True, 'user': res}
+
+# ==================== Firebase Realtime Database Endpoints ==================== #
+
+@app.get('/dl/firebase/config')
+def dl_firebase_get_config(pin: str='', token: str=''):
+    is_valid_pin = ACC.verify_pin(pin)
+    is_admin_token = token and ACC.get_user_status(token).get('is_admin')
+    if not is_valid_pin and not is_admin_token:
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    return {'ok': True, 'config': ACC.get_firebase_config()}
+
+@app.post('/dl/firebase/config')
+def dl_firebase_save_config(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    cfg = (payload or {}).get('config', {})
+    res = ACC.save_firebase_config(cfg)
+    return {'ok': True, 'config': res}
+
+@app.post('/dl/firebase/test')
+def dl_firebase_test(payload: dict=Body(...)):
+    url = (payload or {}).get('database_url')
+    secret = (payload or {}).get('auth_secret')
+    ok, msg = ACC.firebase_test_connection(url, secret)
+    return {'ok': ok, 'message': msg}
+
+@app.post('/dl/firebase/sync')
+def dl_firebase_sync(payload: dict=Body(...)):
+    tok = (payload or {}).get('token') or (payload or {}).get('device_id', '')
+    status = ACC.get_user_status(tok)
+    dev_id = status.get('device_id') or tok
+    ACC.firebase_fetch_license(dev_id)
+    latest = ACC.get_user_status(tok)
+    return {'ok': True, 'user': latest}
+
+@app.get('/dl/firebase/admin/licenses')
+def dl_firebase_admin_licenses(pin: str='', token: str=''):
+    is_valid_pin = ACC.verify_pin(pin)
+    is_admin_token = token and ACC.get_user_status(token).get('is_admin')
+    if not is_valid_pin and not is_admin_token:
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    licenses = ACC.firebase_admin_get_all_licenses()
+    return {'ok': True, 'licenses': licenses, 'total': len(licenses)}
+
+@app.post('/dl/firebase/admin/approve')
+def dl_firebase_admin_approve(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    dev_id = (payload or {}).get('device_id', '')
+    pkg = (payload or {}).get('package', '1_year')
+    custom_days = (payload or {}).get('custom_days', None)
+    ok, res = ACC.firebase_admin_approve_license(dev_id, pkg, custom_days)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+    return {'ok': True, 'result': res}
+
+@app.post('/dl/firebase/admin/ban')
+def dl_firebase_admin_ban(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    dev_id = (payload or {}).get('device_id', '')
+    ok = ACC.firebase_admin_ban_license(dev_id)
+    return {'ok': ok}
+
+@app.post('/dl/firebase/admin/delete')
+def dl_firebase_admin_delete(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    dev_id = (payload or {}).get('device_id', '')
+    ok = ACC.firebase_admin_delete_license(dev_id)
+    return {'ok': ok}
 
 @app.get('/dl/system/network')
 def dl_system_network():
@@ -2455,6 +2536,7 @@ def dl_update_apply(payload: dict = Body(None)):
         
         SKIP_ITEMS = {
             'user_access.json',
+            'firebase.json',
             'downloads',
             'jre',
             'python',
