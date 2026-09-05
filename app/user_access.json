@@ -19,7 +19,6 @@
   },
   "dev_key": "DEV8888",
   "settings": {
-    "khqr_image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
     "telegram_admin": "https://t.me/syd_admin_support",
     "telegram_group": "https://t.me/syd_drama_community"
   }

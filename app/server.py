@@ -205,7 +205,7 @@ def parse_range(ep, total):
 _stats = {'start': time.time(), 'requests': 0, 'errors': 0, 'risk': 0, 'auth_fail': 0}
 @app.get('/')
 def index():
-    return FileResponse(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web', 'downloader.html'), headers={'Cache-Control': 'no-store, must-revalidate'})
+    return FileResponse(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web', 'downloader.html'), headers={'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache', 'Expires': '0'})
 
 @app.get('/api')
 def api_index():
@@ -508,10 +508,9 @@ def api_stream(series_id: str=None, ep: str='1', vid: str=None, quality: str='be
     注: <video> 标签无法带请求头, 用 ?api_key= 传密钥。"""
     try:
         idx = int(ep) if str(ep).isdigit() else 1
-        if idx > 10:
-            ok, _, msg = ACC.can_access_episode(idx, token or device_id)
-            if not ok:
-                raise HTTPException(403, msg)
+        ok, _, msg = ACC.can_access_episode(idx, token or device_id)
+        if not ok:
+            raise HTTPException(403, msg)
         fname = None
         if not vid:
             if not series_id:
@@ -1083,8 +1082,9 @@ def dl_firebase_admin_ban(payload: dict=Body(...)):
     if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     dev_id = (payload or {}).get('device_id', '')
-    ok = ACC.firebase_admin_ban_license(dev_id)
-    return {'ok': ok}
+    banned = bool((payload or {}).get('banned', True))
+    ok = ACC.firebase_admin_ban_license(dev_id, banned=banned)
+    return {'ok': ok, 'banned': banned}
 
 @app.post('/dl/firebase/admin/delete')
 def dl_firebase_admin_delete(payload: dict=Body(...)):
@@ -2386,7 +2386,7 @@ def dl_cancel():
     return {'ok': True}
 @app.get('/dl')
 def dl_page():
-    return FileResponse(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web', 'downloader.html'), headers={'Cache-Control': 'no-store, must-revalidate'})
+    return FileResponse(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web', 'downloader.html'), headers={'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache', 'Expires': '0'})
 @app.get('/dl/license/status')
 def dl_license_status():
     return LIC.status()

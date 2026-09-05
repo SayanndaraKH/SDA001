@@ -25,7 +25,10 @@ def device_id():
     if g:
         import hashlib
         return 'd1:' + hashlib.sha256(g.encode('utf-8')).hexdigest()[:32]
-    return 'direct_device_unlocked'
+    import uuid
+    import hashlib
+    node_str = f"{uuid.getnode()}:{socket.gethostname()}"
+    return 'd1:' + hashlib.sha256(node_str.encode('utf-8')).hexdigest()[:32]
 
 def device_label():
     host = ''

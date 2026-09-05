@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
   <title>SYD DOWNLOADER PRO (កម្មវិធីដោនឡូតរឿងកម្រិតខ្ពស់)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -474,6 +477,14 @@
   /* the [hidden] attribute must always beat class display rules -- otherwise elements with
      display:flex/grid (e.g. .updatebar update row, .acct-row) show even when marked hidden. */
   [hidden]{ display:none !important; }
+  #ddPlayPosterOverlay.hidden-play,
+  #ddPlayPosterOverlay[hidden],
+  .hidden-play {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
   /* scrollable modal body: tall panels (e.g. Account at browser zoom >100%) scroll their
      content instead of clipping the header/footer, so nothing gets cut off. */
   .modal-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
@@ -907,6 +918,10 @@
       <button class="btn ghost sm" id="userAccessBadge" style="border-radius:20px;font-weight:800;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-color:rgba(255,106,43,0.4);color:var(--ink)" title="ស្ថានភាពគណនី / ចូលគណនី">
         <span id="uabIcon">👤</span> <span id="uabText">ចូលគណនី / ចុះឈ្មោះ</span>
       </button>
+      <!-- Days Remaining Badge (Admin / VIP / User) -->
+      <div id="topDaysLeftBadge" style="display:none;border-radius:20px;font-weight:800;font-size:11.5px;padding:4px 12px;align-items:center;gap:6px;cursor:pointer;box-shadow:var(--shadow-sm);transition:all .2s ease" onclick="openUserRegisterModal('info')" title="ចុចដើម្បីមើលព័ត៌មានលម្អិតគណនី">
+        <span id="topDaysLeftIcon">⏳</span> <span id="topDaysLeftText">នៅសល់ 7 ថ្ងៃ</span>
+      </div>
       <button class="btn primary sm" id="topReqVipBtn" onclick="openUserRegisterModal('vip')" style="border-radius:20px;font-weight:800;font-size:12px;display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 10px rgba(255,106,43,0.35);cursor:pointer;padding:5px 14px" title="ស្នើសុំកញ្ចប់ VIP ដើម្បីទស្សនាគ្រប់ភាគ">
         <span style="font-size:13px">👑</span> <span id="topReqVipText">ស្នើសុំ VIP</span>
       </button>
@@ -1222,7 +1237,7 @@
         <div id="ddVipEpisodeBanner" style="display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,rgba(255,106,43,0.12),rgba(255,46,99,0.08));border:1px solid rgba(255,106,43,0.35);border-radius:10px;padding:8px 14px;margin-bottom:10px;flex-wrap:wrap;gap:8px">
           <div style="font-size:12px;color:var(--ink);display:flex;align-items:center;gap:8px">
             <span style="font-size:16px">👑</span>
-            <span><b>គណនីធម្មតា:</b> ទស្សនា &amp; ដោនឡូតបានត្រឹមភាគ <b>1 ដល់ 10</b> (ភាគ 11+ ត្រូវបានចាក់សោរ)</span>
+            <span><b>គណនីធម្មតា:</b> ទស្សនា &amp; ដោនឡូតបានត្រឹមភាគ <b>1 ដល់ 10</b> (ភាគ 11+ ត្រូវបានចាក់សោរ) <span id="ddVipDaysHint" style="font-weight:700;color:var(--accent)"></span></span>
           </div>
           <button type="button" class="btn primary sm" onclick="promptVipModal(11)" style="font-size:11.5px;font-weight:800;padding:5px 14px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 2px 8px rgba(255,106,43,0.35);white-space:nowrap">
             ⚡ ស្នើសុំ VIP ដោះសោរគ្រប់ភាគ
@@ -1770,6 +1785,20 @@
               <button type="button" class="btn ghost sm" id="regCopyDevId" style="font-weight:700;font-size:11.5px;height:32px;border-radius:8px">📋 ចម្លង</button>
             </div>
           </div>
+
+          <!-- Days Remaining Row (Admin, VIP, User) -->
+          <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);padding:10px 12px;border-radius:10px;border:1px solid var(--line)">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span id="modalDaysIcon" style="font-size:16px">⏳</span>
+              <span style="font-size:12px;font-weight:700;color:var(--ink-2)">ចំនួនថ្ងៃដែលនៅសល់ (Days Remaining)៖</span>
+            </div>
+            <span id="modalDaysRemainingBadge" style="font-size:12.5px;font-weight:800;padding:4px 12px;border-radius:12px;background:rgba(255,106,43,0.15);color:var(--accent)">...</span>
+          </div>
+
+          <!-- 7-Day Trial Strict Rule Notice for Regular Users -->
+          <div id="modalTrialRuleNotice" style="display:none;font-size:11.5px;color:#ef4444;background:rgba(239,68,68,0.1);padding:8px 12px;border-radius:8px;border:1px dashed rgba(239,68,68,0.4);line-height:1.5">
+            ⚠️ <b>ច្បាប់ User ធម្មតា៖</b> លោកអ្នកមានរយៈពេល 7 ថ្ងៃដើម្បីស្នើសុំ VIP។ ប្រសិនបើហួស 7 ថ្ងៃដោយមិនបានស្នើសុំ VIP ទេ គណនីនឹងត្រូវលុបចោលចេញពីប្រព័ន្ធដាច់ខាត!
+          </div>
         </div>
 
         <!-- Pending Notice (Shown only when status is pending_vip) -->
@@ -1855,39 +1884,29 @@
           </div>
         </div>
 
-        <!-- Step 2: Scan KHQR Payment & Step 3: Telegram Contact -->
-        <div id="vipKhqrSection" style="background:var(--surface-2);padding:14px;border-radius:14px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
-          <div style="font:800 13px var(--font-ui);color:var(--ink)">📲 ជំហានទី ២៖ ស្កេន KHQR ដើម្បីបង់ប្រាក់</div>
-          
-          <!-- KHQR Image Card -->
-          <div id="vipKhqrCard" style="display:none;flex-direction:column;align-items:center;text-align:center;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:12px">
-            <div style="font-weight:700;font-size:12px;color:var(--muted);margin-bottom:8px">ស្កេនតាម Bakong ឬ App គ្រប់ធនាគារក្នុងប្រទេសកម្ពុជា</div>
-            <img id="vipKhqrImg" src="" alt="KHQR Payment" style="max-width:220px;width:100%;border-radius:10px;border:2px solid var(--accent);box-shadow:0 8px 24px rgba(0,0,0,0.6)">
-            <div style="font-size:11px;color:var(--accent);margin-top:8px;font-weight:600">✓ បន្ទាប់ពីស្កេនរួច សូមផ្ញើ ID Device ទៅ Admin តាម Telegram ខាងក្រោម</div>
-          </div>
-
-          <!-- Empty Notice if Admin hasn't uploaded KHQR -->
-          <div id="vipKhqrEmpty" style="display:block;padding:12px;background:var(--surface);border:1px dashed var(--line);border-radius:10px;text-align:center;font-size:12px;color:var(--muted)">
-            📷 Admin មិនទាន់បាន Upload KHQR នៅឡើយទេ។<br>សូមទាក់ទង Admin តាម Telegram ខាងក្រោមដើម្បីទូទាត់ប្រាក់។
-          </div>
-
-          <!-- Step 3: Telegram Contact & Direct Send ID -->
-          <div style="margin-top:4px">
-            <div style="font:800 13px var(--font-ui);color:var(--ink);margin-bottom:8px">💬 ជំហានទី ៣៖ ផ្ញើ ID Device &amp; ទំនាក់ទំនង Admin</div>
-            <div id="vipTgLinksRow" style="display:flex;gap:8px;flex-wrap:wrap">
-              <a id="vipTgAdminLink" href="#" target="_blank" class="btn primary sm" style="flex:1 1 200px;height:40px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#0088cc,#00a8e8);font-weight:800;font-size:12.5px;border-radius:10px;box-shadow:0 4px 14px rgba(0,136,204,0.35)">
-                <span>✈️ ផ្ញើ Device ID ទៅ Telegram Admin</span>
-              </a>
-              <a id="vipTgGroupLink" href="#" target="_blank" class="btn ghost sm" style="flex:1 1 170px;height:40px;text-decoration:none;display:none;align-items:center;justify-content:center;gap:6px;border-color:#0088cc;color:#29b6f6;font-weight:700;font-size:12px;border-radius:10px">
-                <span>👥 ចូលរួម Group Telegram</span>
-              </a>
+        <!-- Step 2: Telegram Contact & Direct Send ID -->
+        <div id="vipTgContactSection" style="background:var(--surface-2);padding:14px;border-radius:14px;border:1px solid var(--line);display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:18px">💬</span>
+            <div>
+              <div style="font:800 13px var(--font-ui);color:var(--ink)">ជំហានទី ២៖ ទំនាក់ទំនង Admin តាម Telegram</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-top:2px">ចុចប៊ូតុងខាងក្រោមដើម្បីផ្ញើ Device ID ទៅកាន់ Admin និងចូលរួម Group Telegram</div>
             </div>
+          </div>
+          
+          <div id="vipTgLinksRow" style="display:flex;gap:10px;flex-wrap:wrap">
+            <a id="vipTgAdminLink" href="#" target="_blank" class="btn primary sm" style="flex:1 1 200px;height:42px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#0088cc,#00a8e8);font-weight:800;font-size:12.5px;border-radius:10px;box-shadow:0 4px 14px rgba(0,136,204,0.35)">
+              <span>✈️ ផ្ញើ Device ID ទៅ Telegram Admin</span>
+            </a>
+            <a id="vipTgGroupLink" href="#" target="_blank" class="btn ghost sm" style="flex:1 1 170px;height:42px;text-decoration:none;display:none;align-items:center;justify-content:center;gap:6px;border-color:#0088cc;color:#29b6f6;font-weight:700;font-size:12px;border-radius:10px">
+              <span>👥 ចូលរួម Group Telegram</span>
+            </a>
           </div>
         </div>
 
-        <!-- Step 4: Submit VIP Request to System (optional form) -->
+        <!-- Step 3: Submit VIP Request to System (optional form) -->
         <div id="vipSubmitFormCard" style="background:var(--surface-2);padding:14px;border-radius:14px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
-          <div style="font:800 13px var(--font-ui);color:var(--ink)">🚀 ជំហានទី ៤៖ ផ្ញើសំណើសុំតាមប្រព័ន្ធ (System Request)</div>
+          <div style="font:800 13px var(--font-ui);color:var(--ink)">🚀 ជំហានទី ៣៖ ផ្ញើសំណើសុំតាមប្រព័ន្ធ (System Request)</div>
           <div>
             <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ឈ្មោះអ្នកប្រើប្រាស់ (Name) <span style="color:var(--accent)">*</span></label>
             <input type="text" id="regNameInput" placeholder="ឧ. សុខ ដារ៉ា / Sok Dara" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
@@ -1908,6 +1927,26 @@
           </div>
         </div>
       </div>
+
+      <!-- TAB 4: BANNED NOTICE -->
+      <div id="authTabBannedSec" style="display:none;flex-direction:column;gap:14px;padding:12px 6px;text-align:center">
+        <div style="width:72px;height:72px;border-radius:50%;background:rgba(239,68,68,0.12);border:2px solid #ef4444;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:36px">🚫</div>
+        <div>
+          <div style="font-size:18px;font-weight:800;color:#ef4444;font-family:var(--font-km);margin-bottom:6px">គណនីត្រូវបាន ADMIN បិទដំណើរការ (Banned)</div>
+          <div style="font-size:13px;color:var(--ink-2);line-height:1.6;max-width:440px;margin:0 auto;font-family:var(--font-km)">
+            គណនីរបស់អ្នកត្រូវបាន Admin បិទមិនឱ្យប្រើប្រាស់បណ្ដោះអាសន្ន។ មិនអាចទស្សនា ឬដោនឡូតរឿងភាគបានឡើយ លុះត្រាតែ Admin បើកអោយវិញ ឬអ្នកស្នើសុំម្តងទៀត។
+          </div>
+        </div>
+        
+        <div style="display:flex;flex-direction:column;gap:10px;max-width:380px;margin:10px auto 0;width:100%">
+          <button type="button" class="btn primary" onclick="openReRequestVipForm()" style="height:42px;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);border-radius:10px">
+            <span>🔄 ស្នើសុំបើកគណនីឡើងវិញ (Request Again)</span>
+          </button>
+          <a id="bannedTgAdminLink" href="https://t.me/" target="_blank" class="btn ghost" style="height:38px;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;color:var(--accent);border-color:rgba(255,106,43,0.4)">
+            <span>✈️ ទាក់ទង Admin តាម Telegram</span>
+          </a>
+        </div>
+      </div>
     </div>
     <div class="modal-foot" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:center">
       <div id="authFootUserLabel" style="font-size:11.5px;color:var(--muted)"></div>
@@ -1924,7 +1963,7 @@
         <div class="modal-title" style="font-size:18px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px">
           <span>🛡️ SYD ADMIN DASHBOARD</span>
         </div>
-        <div class="modal-sub" style="color:var(--accent);font-weight:600;margin-top:3px">គ្រប់គ្រងគណនីអ្នកប្រើប្រាស់, សិទ្ធិ VIP, KHQR &amp; Telegram</div>
+        <div class="modal-sub" style="color:var(--accent);font-weight:600;margin-top:3px">គ្រប់គ្រងគណនីអ្នកប្រើប្រាស់, សិទ្ធិ VIP &amp; Telegram Settings</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <span id="adminLockBadge" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;background:rgba(255,255,255,0.08);color:var(--muted)">🔒 LOCKED</span>
@@ -1946,7 +1985,7 @@
           👥 គ្រប់គ្រងអ្នកប្រើប្រាស់ &amp; VIP
         </button>
         <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnSettings" onclick="switchUcTab('settings')" style="flex:1;font-weight:700;font-size:12px;border-radius:8px;padding:7px 6px">
-          ⚙️ KHQR &amp; Telegram
+          💬 Telegram Settings
         </button>
         <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnSys" onclick="switchUcTab('system')" style="flex:1;font-weight:700;font-size:12px;border-radius:8px;padding:7px 6px">
           🎬 Download &amp; Storage
@@ -2007,32 +2046,9 @@
         </div>
       </div>
 
-      <!-- TAB 2: KHQR & TELEGRAM SETTINGS -->
+      <!-- TAB 2: TELEGRAM SETTINGS -->
       <div id="ucTabSettingsSec" class="modal-scroll" style="display:none;flex-direction:column;gap:14px;padding-right:2px">
-        <!-- Card 1: KHQR Payment Image Upload -->
-        <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
-          <div style="font:700 13px var(--font-ui);color:var(--accent);display:flex;align-items:center;gap:6px">
-            <span>📲</span> <span>រូបភាព KHQR សម្រាប់ទូទាត់ប្រាក់ (Payment QR Code)</span>
-          </div>
-          <div style="font-size:12px;color:var(--muted);line-height:1.4">
-            Upload រូបភាព QR Code (Bakong / ABA / ACLEDA KHQR)។ រូបភាពនេះនឹងបង្ហាញនៅលើទំព័រ VIP សម្រាប់ User ស្កេនទូទាត់ប្រាក់។
-          </div>
-          
-          <div style="display:flex;gap:16px;align-items:center;margin-top:4px;flex-wrap:wrap">
-            <div id="adminKhqrPreviewWrap" style="width:140px;height:140px;border-radius:12px;border:2px dashed var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative">
-              <img id="adminKhqrPreview" src="" alt="KHQR Preview" style="width:100%;height:100%;object-fit:contain;display:none">
-              <div id="adminKhqrPlaceholder" style="font-size:11px;color:var(--muted);text-align:center;padding:10px">គ្មានរូបភាព KHQR</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:8px">
-              <input type="file" id="adminKhqrFileInput" accept="image/*" style="display:none">
-              <button type="button" class="btn primary sm" id="adminKhqrUploadBtn" style="font-weight:700;font-size:12px">📁 ជ្រើសរើសរូបភាព QR</button>
-              <button type="button" class="btn ghost sm" id="adminKhqrRemoveBtn" style="font-size:11.5px;color:var(--bad);border-color:rgba(255,46,99,0.3)">🗑️ លុបរូប QR</button>
-              <div style="font-size:11px;color:var(--muted)">ទម្រង់ PNG, JPG ឬ WebP (ទំហំ &lt; 3MB)</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 2: Personal Telegram & Group Telegram Links -->
+        <!-- Card 1: Personal Telegram & Group Telegram Links -->
         <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
           <div style="font:700 13px var(--font-ui);color:var(--accent);display:flex;align-items:center;gap:6px">
             <span>💬</span> <span>Link Telegram ទំនាក់ទំនង &amp; Link Group Telegram</span>
@@ -4170,8 +4186,7 @@ function renderDramaDetailUI(item){
       vid.src = `/dl/stream?series_id=${encodeURIComponent(item.id)}&ep=1`;
     }
   }
-  const playOverlay = $("#ddPlayPosterOverlay");
-  if(playOverlay) playOverlay.hidden = false;
+  showPlayPosterOverlay();
   const loading = $("#ddInlineLoading");
   if(loading) loading.hidden = true;
   
@@ -4466,74 +4481,87 @@ async function translateDramaIntro(item){
 async function loadRelatedDramas(item){
   const box = $("#ddRelatedGrid");
   const headEl = $("#ddRelatedTitle");
-  if(headEl) headEl.textContent = "🎬 រឿងពាក់ព័ន្ធ ឬស្រដៀងគ្នា (Related Dramas)";
-  box.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:25px;color:var(--muted);font-family:var(--font-km)">⏳ កំពុងទាញយករឿងស្រដៀងគ្នា...</div>';
+  if(headEl) headEl.textContent = "🎬 រឿងពាក់ព័ន្ធ ឬស្រដៀងគ្នា (ប្រភេទដូចគ្នា - យ៉ាងច្រើន 10 រឿង)";
+  box.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:25px;color:var(--muted);font-family:var(--font-km)">⏳ កំពុងស្វែងរករឿងប្រភេទស្រដៀងគ្នា...</div>';
   
   let relatedItems = [];
-  const seenIds = new Set([String(item.id)]);
+  const seenIds = new Set([String(item.id || item.series_id || '')]);
+
+  // Extract categories & tags of current drama
+  const rawCats = [
+    ...((item.category && item.category.length) ? item.category : []),
+    ...(item.theme ? [item.theme] : []),
+    ...(item.genre ? [item.genre] : []),
+    ...((item.tags && item.tags.length) ? item.tags : [])
+  ];
+  const kmCats = (item.category_km && item.category_km.length) ? item.category_km : [];
+  const catSet = new Set([
+    ...rawCats.map(c => String(c).trim().toLowerCase()),
+    ...kmCats.map(c => String(c).trim().toLowerCase())
+  ]);
+
+  const matchesCategory = (it) => {
+    if(!it) return false;
+    const itCats = [
+      ...((it.category && it.category.length) ? it.category : []),
+      ...((it.category_km && it.category_km.length) ? it.category_km : []),
+      ...(it.theme ? [it.theme] : []),
+      ...(it.genre ? [it.genre] : []),
+      ...((it.tags && it.tags.length) ? it.tags : [])
+    ].map(c => String(c).trim().toLowerCase());
+    
+    // STRICT RULE: Must share at least one category or genre tag!
+    if(catSet.size > 0){
+      return itCats.some(c => catSet.has(c));
+    }
+    return false;
+  };
 
   const addItems = (items) => {
     if(!items || !items.length) return;
     for(const it of items){
+      if(relatedItems.length >= 10) break;
       const sid = String(it.series_id || it.id || '');
       if(sid && !seenIds.has(sid)){
-        seenIds.add(sid);
-        relatedItems.push(it);
+        if(matchesCategory(it)){
+          seenIds.add(sid);
+          relatedItems.push(it);
+        }
       }
     }
   };
 
-  // 1. Fetch from Explorer for the drama's genres (up to 60 per genre)
-  const cats = (item.category && item.category.length) ? item.category : [];
-  if(!DEMO && cats.length){
-    for(const c of cats.slice(0, 3)){
+  // 1. Fetch specifically from Explorer for this drama's genres
+  if(!DEMO && rawCats.length){
+    for(const c of rawCats.slice(0, 3)){
+      if(relatedItems.length >= 10) break;
       try {
-        const j = await (await fetch(EXPLORER_API + "/explorer?size=60&genre=" + encodeURIComponent(c), {cache:"no-store"})).json();
+        const j = await (await fetch(EXPLORER_API + "/explorer?size=15&genre=" + encodeURIComponent(c), {cache:"no-store"})).json();
         if(j && j.items) addItems(j.items);
       } catch(e){}
     }
   }
 
-  // 2. Fetch recommendations and hot rank from backend (up to 60 each)
-  try {
-    const [recRes, hotRes] = await Promise.allSettled([
-      fetch("/dl/rank?board=recommend&size=60").then(r => r.json()),
-      fetch("/dl/rank?board=hot&size=60").then(r => r.json())
-    ]);
-    if(recRes.status === "fulfilled" && recRes.value && recRes.value.results){
-      addItems(recRes.value.results);
-    }
-    if(hotRes.status === "fulfilled" && hotRes.value && hotRes.value.results){
-      addItems(hotRes.value.results);
-    }
-  } catch(e){}
-
-  // 3. Merge trendData and cards from memory/DOM
-  if(trendData && trendData.length){
+  // 2. If fewer than 10, check trendData for items strictly matching the same category
+  if(relatedItems.length < 10 && trendData && trendData.length){
     addItems(trendData);
   }
-  document.querySelectorAll("#results .poster").forEach(el => {
-    const sid = el.dataset.id;
-    if(sid && !seenIds.has(sid)){
-      addItems([{
-        series_id: sid,
-        title: el.dataset.t || sid,
-        title_km: el.dataset.tkm || '',
-        cover: el.dataset.cov || '',
-        episode_cnt: Number(el.dataset.n) || 0,
-        score: el.dataset.sc || '',
-        created_at: el.dataset.dt || ''
-      }]);
-    }
-  });
+
+  // 3. If still fewer than 10, check in-memory catalog for strictly matching category
+  if(relatedItems.length < 10 && window.dramaCatalogCache){
+    addItems(window.dramaCatalogCache);
+  }
+
+  // STRICT RULE: Exactly maximum 10 posters of similar category only
+  relatedItems = relatedItems.slice(0, 10);
 
   if(!relatedItems.length){
-    box.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:15px;color:var(--muted);font-family:var(--font-km)">មិនមានរឿងស្រដៀងគ្នាផ្សេងទៀតនៅឡើយទេ</div>';
+    box.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:15px;color:var(--muted);font-family:var(--font-km)">មិនមានរឿងប្រភេទស្រដៀងគ្នាផ្សេងទៀតនៅឡើយទេ</div>';
+    if(headEl) headEl.textContent = "🎬 រឿងពាក់ព័ន្ធ ឬស្រដៀងគ្នា (0 រឿង)";
     return;
   }
 
-  // Update header count to show maximum capacity of items!
-  if(headEl) headEl.textContent = `🎬 រឿងពាក់ព័ន្ធ ឬស្រដៀងគ្នា (${relatedItems.length} រឿង)`;
+  if(headEl) headEl.textContent = `🎬 រឿងពាក់ព័ន្ធ ឬស្រដៀងគ្នា (ប្រភេទដូចគ្នា - ${relatedItems.length} រឿង)`;
   box.innerHTML = resultCards(relatedItems, true);
   syncResultButtons();
   autoTranslateCatalog(relatedItems);
@@ -4647,6 +4675,37 @@ $("#ddEpDlSelected").onclick = () => {
 
 let ddInlinePlayingEp = 1;
 
+function hidePlayPosterOverlay(){
+  const po = $("#ddPlayPosterOverlay");
+  if(po){
+    po.hidden = true;
+    po.classList.add('hidden-play');
+    po.style.setProperty('display', 'none', 'important');
+    po.style.setProperty('visibility', 'hidden', 'important');
+    po.style.setProperty('opacity', '0', 'important');
+    po.style.pointerEvents = 'none';
+  }
+}
+
+function showPlayPosterOverlay(){
+  const video = $("#ddInlineVideo");
+  // STRICT RULE: If video is playing or has playback progress (currentTime > 0), NEVER show overlay!
+  if(video && (!video.paused || video.currentTime > 0)){
+    hidePlayPosterOverlay();
+    return;
+  }
+  const po = $("#ddPlayPosterOverlay");
+  if(po){
+    po.hidden = false;
+    po.classList.remove('hidden-play');
+    po.style.removeProperty('display');
+    po.style.removeProperty('visibility');
+    po.style.removeProperty('opacity');
+    po.style.display = 'flex';
+    po.style.pointerEvents = 'auto';
+  }
+}
+
 function openInlineLivePlayer(epNum, autoPlay = true){
   if(!ddCurrentDrama) return;
   const drama = ddCurrentDrama;
@@ -4669,13 +4728,12 @@ function openInlineLivePlayer(epNum, autoPlay = true){
 
   // Video element & overlays
   const video = $("#ddInlineVideo");
-  const playOverlay = $("#ddPlayPosterOverlay");
   const loading = $("#ddInlineLoading");
   const loadText = $("#ddInlineLoadText");
 
   if(loadText) loadText.textContent = `📺 កំពុងរៀបចំ និងផ្សាយបន្តផ្ទាល់ភាគទី ${num}...`;
   if(loading) loading.hidden = false;
-  if(playOverlay) playOverlay.hidden = true;
+  hidePlayPosterOverlay();
 
   if(video){
     const tok = localStorage.getItem('syd_auth_token') || '';
@@ -4689,7 +4747,12 @@ function openInlineLivePlayer(epNum, autoPlay = true){
         p.catch(err => {
           console.log("Autoplay notice:", err);
           if(loading) loading.hidden = true;
-          if(playOverlay) playOverlay.hidden = false;
+          // STRICT RULE: If video is playing or currentTime > 0, NEVER show overlay!
+          if(video.paused && video.currentTime === 0){
+            showPlayPosterOverlay();
+          } else {
+            hidePlayPosterOverlay();
+          }
         });
       }
     }
@@ -4728,8 +4791,7 @@ function closeInlinePlayer(){
   }
   const loading = $("#ddInlineLoading");
   if(loading) loading.hidden = true;
-  const playOverlay = $("#ddPlayPosterOverlay");
-  if(playOverlay) playOverlay.hidden = false;
+  showPlayPosterOverlay();
 }
 
 // Episode Grid Click Handler
@@ -4786,17 +4848,27 @@ if(mSelectBtn) mSelectBtn.onclick = () => {
 // Video Controls & Events
 const inlineVid = $("#ddInlineVideo");
 if(inlineVid){
-  inlineVid.addEventListener('canplay', () => {
-    const l = $("#ddInlineLoading");
-    if(l) l.hidden = true;
-    const po = $("#ddPlayPosterOverlay");
-    if(po) po.hidden = true;
+  const eventsToHide = ['play', 'playing', 'timeupdate', 'progress', 'canplay', 'canplaythrough', 'loadeddata', 'seeking', 'seeked'];
+  eventsToHide.forEach(ev => {
+    inlineVid.addEventListener(ev, () => {
+      const l = $("#ddInlineLoading");
+      if(l && (ev === 'playing' || ev === 'play' || (ev === 'timeupdate' && inlineVid.currentTime > 0.1))){
+        l.hidden = true;
+      }
+      if(!inlineVid.paused || inlineVid.currentTime > 0){
+        hidePlayPosterOverlay();
+      }
+    });
   });
-  inlineVid.addEventListener('playing', () => {
+  inlineVid.addEventListener('pause', () => {
+    // When paused mid-video, keep overlay hidden so actor/subtitles aren't blocked!
     const l = $("#ddInlineLoading");
     if(l) l.hidden = true;
-    const po = $("#ddPlayPosterOverlay");
-    if(po) po.hidden = true;
+    if(inlineVid.currentTime === 0 && !inlineVid.src){
+      showPlayPosterOverlay();
+    } else {
+      hidePlayPosterOverlay();
+    }
   });
   inlineVid.addEventListener('error', () => {
     const l = $("#ddInlineLoading");
@@ -4814,8 +4886,18 @@ if(inlineVid){
 
 // Poster Click to Play
 const playPoster = $("#ddPlayPosterOverlay");
-if(playPoster) playPoster.onclick = () => {
-  openInlineLivePlayer(ddInlinePlayingEp || 1, true);
+if(playPoster) playPoster.onclick = (e) => {
+  e.stopPropagation();
+  hidePlayPosterOverlay();
+  const video = $("#ddInlineVideo");
+  if(video && video.src){
+    const p = video.play();
+    if(p !== undefined){
+      p.catch(err => console.log("Play error:", err));
+    }
+  } else {
+    openInlineLivePlayer(ddInlinePlayingEp || 1, true);
+  }
 };
 
 // Video Close / Reset Button
@@ -6156,15 +6238,17 @@ function isEpisodeLocked(epNum){
 function switchAuthTab(tab){
   const isAuth = !!(window.userAccess && window.userAccess.authenticated);
   const isPendingVip = !!(window.userAccess && window.userAccess.status === 'pending_vip');
+  const isBanned = !!(window.userAccess && (window.userAccess.status === 'banned' || window.userAccess.is_banned));
 
   const btnL = $("#tabBtnLogin"), btnR = $("#tabBtnRegister"), btnV = $("#tabBtnVip");
-  const secL = $("#authTabLoginSec"), secR = $("#authTabRegisterSec"), secV = $("#authTabVipSec");
+  const secL = $("#authTabLoginSec"), secR = $("#authTabRegisterSec"), secV = $("#authTabVipSec"), secB = $("#authTabBannedSec");
   if(btnL) btnL.classList.toggle('on', tab === 'login');
   if(btnR) btnR.classList.toggle('on', tab === 'register');
   if(btnV) btnV.classList.toggle('on', tab === 'vip');
   if(secL) secL.style.display = (tab === 'login') ? 'flex' : 'none';
   if(secR) secR.style.display = (tab === 'register') ? 'flex' : 'none';
   if(secV) secV.style.display = (tab === 'vip') ? 'flex' : 'none';
+  if(secB) secB.style.display = (tab === 'banned') ? 'flex' : 'none';
 
   if(tab === 'vip'){
     const guestWarn = $("#vipGuestWarningBanner");
@@ -6173,7 +6257,7 @@ function switchAuthTab(tab){
     const pkgCard = $("#tabPanelVip");
     const submitCard = $("#vipSubmitFormCard");
 
-    if(!isAuth){
+    if(!isAuth && !isBanned){
       if(guestWarn) guestWarn.style.display = 'flex';
       if(pendBanner) pendBanner.style.display = 'none';
       if(pkgCard) pkgCard.style.display = 'flex';
@@ -6193,12 +6277,23 @@ function switchAuthTab(tab){
         if(pkgCard) pkgCard.style.display = 'flex';
         if(submitCard) submitCard.style.display = 'flex';
         if(regSubBtn) {
-          regSubBtn.innerHTML = "<span>🚀 ផ្ញើសំណើសុំកញ្ចប់ VIP ទៅកាន់ Admin</span>";
+          regSubBtn.innerHTML = isBanned 
+            ? "<span>🔄 ផ្ញើសំណើសុំ ADMIN បើកគណនីឡើងវិញ</span>"
+            : "<span>🚀 ផ្ញើសំណើសុំកញ្ចប់ VIP ទៅកាន់ Admin</span>";
           regSubBtn.onclick = doSubmitVipRequest;
         }
       }
     }
   }
+}
+
+function openReRequestVipForm(){
+  switchAuthTab('vip');
+  const noteInput = $("#regNoteInput");
+  if(noteInput){
+    noteInput.value = "[ស្នើសុំ ADMIN មេត្តាជួយបើកដំណើរការគណនីឡើងវិញ]";
+  }
+  toast("💡 សូមជ្រើសរើសកញ្ចប់ VIP និងចុច 'ផ្ញើសំណើ' ដើម្បីស្នើសុំ Admin បើកគណនីឡើងវិញ!", false);
 }
 
 let isMandatoryAuth = false;
@@ -6217,7 +6312,8 @@ function openUserRegisterModal(preferTab = 'register', isMandatory = false){
   const m = $("#userRegisterModal");
   if(!m) return;
   const isAuth = !!(window.userAccess && window.userAccess.authenticated);
-  isMandatoryAuth = !isAuth && !!isMandatory;
+  const isBanned = !!(window.userAccess && (window.userAccess.status === 'banned' || window.userAccess.is_banned));
+  isMandatoryAuth = (!isAuth || isBanned) && !!isMandatory;
   const closeBtn1 = $("#regCloseBtn");
   const closeBtn2 = $("#regCloseBtn2");
   if(closeBtn1) closeBtn1.style.display = isMandatoryAuth ? 'none' : 'block';
@@ -6239,7 +6335,10 @@ function openUserRegisterModal(preferTab = 'register', isMandatory = false){
 
   const sub = $("#regModalSub");
   if(sub){
-    if(!isAuth){
+    if(isBanned){
+      sub.textContent = "🚫 គណនីត្រូវបាន ADMIN បិទ (Banned) · សូមស្នើសុំបើកឡើងវិញ ឬទាក់ទង ADMIN";
+      sub.style.color = "var(--bad)";
+    } else if(!isAuth){
       sub.textContent = "សូមចូលគណនី ឬចុះឈ្មោះគណនីធម្មតាដើម្បីទស្សនាភាគ 1-10 និងស្នើសុំ VIP";
       sub.style.color = "var(--accent)";
     } else if(isPendingVip){
@@ -6254,10 +6353,19 @@ function openUserRegisterModal(preferTab = 'register', isMandatory = false){
     }
   }
 
+  // Update Telegram admin link on banned card
+  const bannedTg = $("#bannedTgAdminLink");
+  if(bannedTg && window.userAccess && window.userAccess.settings && window.userAccess.settings.telegram_admin){
+    const tg = window.userAccess.settings.telegram_admin.replace(/^@/, '');
+    bannedTg.href = `https://t.me/${tg}`;
+  }
+
   m.hidden = false;
   
   let targetTab = preferTab;
-  if(isAdmin || isVip){
+  if(isBanned && targetTab !== 'vip'){
+    targetTab = 'banned';
+  } else if(isAdmin || isVip){
     if(targetTab === 'vip') targetTab = 'login';
   }
   switchAuthTab(targetTab);
@@ -6325,7 +6433,7 @@ function prepareAdminTgHref(){
   const msg = `សួស្តី Admin! ខ្ញុំចង់ស្នើសុំកញ្ចប់ ${pkgName}
 - គណនី: ${uname}
 - Device ID: ${devId}
-ខ្ញុំបានស្កេនបង់ប្រាក់តាម KHQR រួចរាល់ហើយ សូម Admin ជួយពិនិត្យ និងអនុញ្ញាត VIP ជូនខ្ញុំផង។ អរគុណ!`;
+សូម Admin ជួយពិនិត្យ និងបើកសិទ្ធិ VIP ជូនខ្ញុំផង។ អរគុណ!`;
 
   link.href = `https://t.me/${username}?text=${encodeURIComponent(msg)}`;
   link.onclick = () => {
@@ -6338,19 +6446,6 @@ function prepareAdminTgHref(){
 
 function updateVipPortalSettings(settings, userAccess){
   if(!settings) return;
-  const khqrCard = $("#vipKhqrCard");
-  const khqrImg = $("#vipKhqrImg");
-  const khqrEmpty = $("#vipKhqrEmpty");
-  if(settings.khqr_image){
-    if(khqrImg) khqrImg.src = settings.khqr_image;
-    if(khqrCard) khqrCard.style.display = "flex";
-    if(khqrEmpty) khqrEmpty.style.display = "none";
-  } else {
-    if(khqrImg) khqrImg.src = "";
-    if(khqrCard) khqrCard.style.display = "none";
-    if(khqrEmpty) khqrEmpty.style.display = "block";
-  }
-
   prepareAdminTgHref();
 
   const tgGroupLink = $("#vipTgGroupLink");
@@ -6399,8 +6494,21 @@ async function fetchAccessStatus(){
       window.userAccess = data;
       updateAccessUI(data);
 
-      // Enforce mandatory Register on startup if no account in Firebase Realtime Database
-      if(!data.authenticated || data.must_register || !data.has_firebase_account){
+      // DEV & ADMIN check: Completely exempt from registration, login, and all modals
+      const isDevOrAdmin = !!(data.is_dev || data.role === 'dev' || data.is_admin || data.role === 'admin');
+      if(isDevOrAdmin){
+        isMandatoryAuth = false;
+        closeUserRegisterModal();
+      } else if(data.is_banned || data.status === 'banned' || data.status === 'machine_mismatch'){
+        isMandatoryAuth = true;
+        openUserRegisterModal('banned', true);
+        if(data.status === 'machine_mismatch'){
+          const bTitle = $("#authBannedTitle");
+          const bDesc = $("#authBannedDesc");
+          if(bTitle) bTitle.textContent = "🚫 Machine ID មិនត្រូវគ្នា (1 PC = 1 User ប៉ុណ្ណោះ)";
+          if(bDesc) bDesc.innerHTML = `<span style="color:#f87171;font-weight:bold">គណនីនេះត្រូវបានភ្ជាប់ជាមួយកុំព្យូទ័រ (PC) ផ្សេងរួចហើយ!</span><br>ប្រព័ន្ធកំណត់ដាច់ខាត 1 Machine ID ប្រើប្រាស់បានតែលើ 1 PC ប៉ុណ្ណោះ មិនអាចប្រើលើកុំព្យូទ័រនេះបានឡើយ។`;
+        }
+      } else if(!data.authenticated || data.must_register || !data.has_firebase_account){
         openUserRegisterModal('register', true);
       } else {
         isMandatoryAuth = false;
@@ -6490,31 +6598,44 @@ function updateAccessUI(data){
   }
 
   if(isAdmin){
-    if(icon) icon.textContent = "🛡️";
-    if(txt) txt.textContent = "ADMIN (Full Control)";
+    const isDevRole = !!(data.is_dev || data.role === 'dev');
+    if(icon) icon.textContent = isDevRole ? "⚡" : "🛡️";
+    if(txt) txt.textContent = isDevRole ? "DEV (Dara - សេរី)" : "ADMIN (Full Control)";
     if(badge){
-      badge.style.borderColor = "#c084fc";
-      badge.style.color = "#c084fc";
-      badge.style.background = "rgba(192,132,252,0.14)";
-      badge.style.boxShadow = "0 0 12px rgba(192,132,252,0.3)";
+      badge.style.borderColor = isDevRole ? "#38bdf8" : "#c084fc";
+      badge.style.color = isDevRole ? "#38bdf8" : "#c084fc";
+      badge.style.background = isDevRole ? "rgba(56,189,248,0.16)" : "rgba(192,132,252,0.14)";
+      badge.style.boxShadow = isDevRole ? "0 0 14px rgba(56,189,248,0.4)" : "0 0 12px rgba(192,132,252,0.3)";
     }
     if(topUc) topUc.style.display = "inline-flex";
     const topRestart = $("#topAdminRestartBtn");
     if(topRestart) topRestart.style.display = "inline-flex";
     if(topLogout) topLogout.style.display = "inline-flex";
-    if(footUser) footUser.innerHTML = `<span style="color:#c084fc;font-weight:700">🛡️ ចូលជា: ${data.role === 'dev' ? 'DEV' : 'ADMIN'} (Full Control)</span>`;
+    if(footUser) footUser.innerHTML = `<span style="color:${isDevRole ? '#38bdf8' : '#c084fc'};font-weight:700">⚡ ចូលជា: ${isDevRole ? 'DEV MASTER (សេរី គ្មានដែនកំណត់)' : 'ADMIN (Full Control)'}</span>`;
     currentAdminPin = localStorage.getItem('syd_auth_token') || '8888';
     sessionStorage.setItem('hg_admin_pin', '8888');
     const pinBox = $("#adminPinBox"); if(pinBox) pinBox.hidden = true;
     const unPanel = $("#adminUnlockedPanel"); if(unPanel) unPanel.hidden = false;
     const lockBadge = $("#adminLockBadge");
     if(lockBadge){
-      lockBadge.textContent = "🔓 UNLOCKED (ADMIN)";
-      lockBadge.style.color = "var(--good)";
-      lockBadge.style.background = "rgba(46,204,113,0.15)";
+      lockBadge.textContent = isDevRole ? "⚡ DEV MASTER (UNLOCKED)" : "🔓 UNLOCKED (ADMIN)";
+      lockBadge.style.color = isDevRole ? "#38bdf8" : "var(--good)";
+      lockBadge.style.background = isDevRole ? "rgba(56,189,248,0.18)" : "rgba(46,204,113,0.15)";
     }
     refreshAdminUsersList();
 
+  } else if(isBanned || data.status === 'machine_mismatch'){
+    if(icon) icon.textContent = "🚫";
+    if(txt) txt.textContent = data.status === 'machine_mismatch' ? "Machine Lock (1 PC)" : "Banned (បិទគណនី)";
+    if(badge){
+      badge.style.borderColor = "var(--bad)";
+      badge.style.color = "var(--bad)";
+      badge.style.background = "rgba(255,46,99,0.18)";
+      badge.style.boxShadow = "0 0 10px rgba(255,46,99,0.3)";
+    }
+    if(topUc) topUc.style.display = "none";
+    if(topLogout) topLogout.style.display = "inline-flex";
+    if(footUser) footUser.innerHTML = `<span style="color:var(--bad);font-weight:700">🚫 ${data.status === 'machine_mismatch' ? 'Machine ID មិនត្រូវគ្នា (1 PC Only)' : 'គណនីត្រូវបាន ADMIN បិទ (Banned)'}</span>`;
   } else if(isVip){
     if(icon) icon.textContent = "👑";
     if(txt) txt.textContent = `VIP: ${data.username || data.name || 'សមាជិក'}`;
@@ -6607,6 +6728,114 @@ function updateAccessUI(data){
       regStBadge.style.color = "var(--muted)";
       regStBadge.style.background = "rgba(255,255,255,0.08)";
       if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-10";
+    }
+  }
+
+  // Update Top Navigation Bar Days Remaining Badge
+  const topDlBadge = $("#topDaysLeftBadge");
+  const topDlIcon = $("#topDaysLeftIcon");
+  const topDlText = $("#topDaysLeftText");
+  if(topDlBadge){
+    if(isAdmin){
+      const isDevRole = !!(data.is_dev || data.role === 'dev');
+      topDlBadge.style.display = "inline-flex";
+      topDlBadge.style.background = isDevRole ? "rgba(56,189,248,0.18)" : "rgba(192,132,252,0.18)";
+      topDlBadge.style.border = isDevRole ? "1.5px solid rgba(56,189,248,0.55)" : "1.5px solid rgba(192,132,252,0.55)";
+      topDlBadge.style.color = isDevRole ? "#38bdf8" : "#c084fc";
+      topDlBadge.style.boxShadow = isDevRole ? "0 0 12px rgba(56,189,248,0.35)" : "0 0 10px rgba(192,132,252,0.25)";
+      if(topDlIcon) topDlIcon.textContent = isDevRole ? "⚡" : "♾️";
+      if(topDlText) topDlText.textContent = isDevRole ? "DEV MASTER (សេរី)" : "គ្មានដែនកំណត់ (ADMIN)";
+      topDlBadge.title = isDevRole ? "Developer Machine (ប្រើប្រាស់បានដោយសេរី គ្មានដែនកំណត់ មិនបាច់ Login)" : "គណនី Super Admin (Full Control - គ្មានដែនកំណត់)";
+    } else if(isBanned || data.status === 'machine_mismatch'){
+      topDlBadge.style.display = "inline-flex";
+      topDlBadge.style.background = "rgba(255,46,99,0.22)";
+      topDlBadge.style.border = "1.5px solid rgba(255,46,99,0.7)";
+      topDlBadge.style.color = "var(--bad)";
+      topDlBadge.style.boxShadow = "0 0 12px rgba(255,46,99,0.4)";
+      if(topDlIcon) topDlIcon.textContent = "🚫";
+      if(topDlText) topDlText.textContent = data.status === 'machine_mismatch' ? "Machine Lock (1 PC)" : "គណនីត្រូវបានបិទ (Banned)";
+      topDlBadge.title = data.status === 'machine_mismatch' ? "គណនីខុសកុំព្យូទ័រ (1 Machine ID / 1 PC Only)" : "គណនីត្រូវបាន ADMIN បិទដំណើរការ";
+    } else if(isVip){
+      topDlBadge.style.display = "inline-flex";
+      topDlBadge.style.background = "rgba(46,204,113,0.18)";
+      topDlBadge.style.border = "1.5px solid rgba(46,204,113,0.55)";
+      topDlBadge.style.color = "var(--good)";
+      topDlBadge.style.boxShadow = "0 0 10px rgba(46,204,113,0.25)";
+      if(topDlIcon) topDlIcon.textContent = "👑";
+      const vipDays = data.days_left < 0 ? "គ្មានដែនកំណត់" : `${data.days_left} ថ្ងៃ`;
+      if(topDlText) topDlText.textContent = `VIP: នៅសល់ ${vipDays}`;
+      topDlBadge.title = `គណនី VIP Member (នៅសល់ ${vipDays}) កាលបរិច្ឆេទផុតកំណត់៖ ${data.expires_date || ''}`;
+    } else if(isPendingVip){
+      topDlBadge.style.display = "inline-flex";
+      topDlBadge.style.background = "rgba(245,158,11,0.18)";
+      topDlBadge.style.border = "1.5px solid rgba(245,158,11,0.55)";
+      topDlBadge.style.color = "#f59e0b";
+      topDlBadge.style.boxShadow = "0 0 10px rgba(245,158,11,0.25)";
+      if(topDlIcon) topDlIcon.textContent = "⏳";
+      if(topDlText) topDlText.textContent = `រង់ចាំ VIP (${data.days_left !== undefined ? data.days_left : 7} ថ្ងៃ)`;
+      topDlBadge.title = "សំណើ VIP កំពុងរង់ចាំ Admin អនុម័ត";
+    } else if(isUser){
+      topDlBadge.style.display = "inline-flex";
+      const uDays = (data.days_left !== undefined && data.days_left !== null) ? data.days_left : 7;
+      if(uDays <= 2){
+        topDlBadge.style.background = "rgba(239,68,68,0.22)";
+        topDlBadge.style.border = "1.5px solid rgba(239,68,68,0.7)";
+        topDlBadge.style.color = "#ef4444";
+        topDlBadge.style.boxShadow = "0 0 12px rgba(239,68,68,0.4)";
+        if(topDlIcon) topDlIcon.textContent = "⚠️";
+        if(topDlText) topDlText.textContent = `នៅសល់តែ ${uDays} ថ្ងៃ (ប្រញាប់ស្នើ VIP!)`;
+      } else {
+        topDlBadge.style.background = "rgba(255,106,43,0.16)";
+        topDlBadge.style.border = "1.5px solid rgba(255,106,43,0.5)";
+        topDlBadge.style.color = "var(--accent)";
+        topDlBadge.style.boxShadow = "0 0 10px rgba(255,106,43,0.2)";
+        if(topDlIcon) topDlIcon.textContent = "⏳";
+        if(topDlText) topDlText.textContent = `User: នៅសល់ ${uDays} ថ្ងៃ (សាកល្បង)`;
+      }
+      topDlBadge.title = `User ធម្មតាមានរយៈពេល 7 ថ្ងៃសាកល្បង (នៅសល់ ${uDays} ថ្ងៃ)។ បើមិនស្នើសុំ VIP ទេ គណនីនឹងត្រូវលុបចោលចេញពីប្រព័ន្ធដាច់ខាត!`;
+    } else {
+      topDlBadge.style.display = "none";
+    }
+  }
+
+  // Update Modal Days Remaining Badge & 7-Day Trial Notice
+  const mDaysBadge = $("#modalDaysRemainingBadge");
+  const mDaysIcon = $("#modalDaysIcon");
+  const mNotice = $("#modalTrialRuleNotice");
+  if(mDaysBadge){
+    if(isAdmin){
+      mDaysBadge.textContent = "♾️ គ្មានដែនកំណត់ (ADMIN Full Control)";
+      mDaysBadge.style.background = "rgba(192,132,252,0.2)";
+      mDaysBadge.style.color = "#c084fc";
+      if(mDaysIcon) mDaysIcon.textContent = "♾️";
+      if(mNotice) mNotice.style.display = "none";
+    } else if(isVip){
+      const vDays = data.days_left < 0 ? "គ្មានដែនកំណត់" : `${data.days_left} ថ្ងៃ`;
+      mDaysBadge.textContent = `👑 នៅសល់ ${vDays} (ផុតកំណត់: ${data.expires_date || ''})`;
+      mDaysBadge.style.background = "rgba(46,204,113,0.18)";
+      mDaysBadge.style.color = "var(--good)";
+      if(mDaysIcon) mDaysIcon.textContent = "👑";
+      if(mNotice) mNotice.style.display = "none";
+    } else if(isPendingVip){
+      const pDays = data.days_left !== undefined ? data.days_left : 7;
+      mDaysBadge.textContent = `⏳ សំណើ VIP កំពុងរង់ចាំ Admin (នៅសល់ ${pDays} ថ្ងៃ)`;
+      mDaysBadge.style.background = "rgba(245,158,11,0.18)";
+      mDaysBadge.style.color = "#f59e0b";
+      if(mDaysIcon) mDaysIcon.textContent = "⏳";
+      if(mNotice) mNotice.style.display = "none";
+    } else if(isUser){
+      const uDays = (data.days_left !== undefined && data.days_left !== null) ? data.days_left : 7;
+      mDaysBadge.textContent = `⏳ នៅសល់ ${uDays} ថ្ងៃ (ផុតកំណត់: ${data.expires_date || ''})`;
+      mDaysBadge.style.background = uDays <= 2 ? "rgba(239,68,68,0.2)" : "rgba(255,106,43,0.15)";
+      mDaysBadge.style.color = uDays <= 2 ? "#ef4444" : "var(--accent)";
+      if(mDaysIcon) mDaysIcon.textContent = uDays <= 2 ? "⚠️" : "⏳";
+      if(mNotice) mNotice.style.display = "block";
+    } else {
+      mDaysBadge.textContent = "មិនទាន់ចុះឈ្មោះ (Guest)";
+      mDaysBadge.style.background = "rgba(255,255,255,0.08)";
+      mDaysBadge.style.color = "var(--muted)";
+      if(mDaysIcon) mDaysIcon.textContent = "👤";
+      if(mNotice) mNotice.style.display = "none";
     }
   }
 
@@ -6954,7 +7183,6 @@ window.switchUcTab = function(tab){
 let cachedAdminUsers = [];
 let currentAdminFilter = 'all';
 let currentAdminSearch = '';
-let currentKhqrBase64 = '';
 
 function renderAdminMode(mode){
   const radios = document.querySelectorAll('input[name="adminModeRadio"]');
@@ -6965,17 +7193,6 @@ function renderAdminMode(mode){
 
 function renderAdminSettings(settings){
   if(!settings) return;
-  currentKhqrBase64 = settings.khqr_image || '';
-  const preview = $("#adminKhqrPreview");
-  const placeholder = $("#adminKhqrPlaceholder");
-  if(currentKhqrBase64){
-    if(preview){ preview.src = currentKhqrBase64; preview.style.display = "block"; }
-    if(placeholder) placeholder.style.display = "none";
-  } else {
-    if(preview){ preview.src = ""; preview.style.display = "none"; }
-    if(placeholder) placeholder.style.display = "block";
-  }
-
   if($("#adminTgAdminInput")) $("#adminTgAdminInput").value = settings.telegram_admin || '';
   if($("#adminTgGroupInput")) $("#adminTgGroupInput").value = settings.telegram_group || '';
   
@@ -7300,50 +7517,6 @@ if(adminManAppBtn){
   };
 }
 
-// KHQR File Upload Handlers
-const khqrUploadBtn = $("#adminKhqrUploadBtn");
-const khqrFileInput = $("#adminKhqrFileInput");
-if(khqrUploadBtn && khqrFileInput){
-  khqrUploadBtn.onclick = () => khqrFileInput.click();
-  khqrFileInput.onchange = e => {
-    const file = e.target.files && e.target.files[0];
-    if(!file) return;
-    if(file.size > 3 * 1024 * 1024){
-      toast("⚠️ រូបភាព KHQR ធំពេក (សូមជ្រើសរើសទំហំក្រោម 3MB)", true);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = ev => {
-      currentKhqrBase64 = ev.target.result;
-      const preview = $("#adminKhqrPreview");
-      const ph = $("#adminKhqrPlaceholder");
-      if(preview){
-        preview.src = currentKhqrBase64;
-        preview.style.display = "block";
-      }
-      if(ph) ph.style.display = "none";
-      toast("📷 បានជ្រើសរើសរូបភាព KHQR! សូមចុច 'រក្សាទុកការកំណត់ទាំងអស់'");
-    };
-    reader.readAsDataURL(file);
-  };
-}
-
-const khqrRemoveBtn = $("#adminKhqrRemoveBtn");
-if(khqrRemoveBtn){
-  khqrRemoveBtn.onclick = () => {
-    currentKhqrBase64 = '';
-    const preview = $("#adminKhqrPreview");
-    const ph = $("#adminKhqrPlaceholder");
-    if(preview){
-      preview.src = "";
-      preview.style.display = "none";
-    }
-    if(ph) ph.style.display = "block";
-    if(khqrFileInput) khqrFileInput.value = '';
-    toast("🗑️ បានលុបរូបភាព KHQR ចេញ! សូមចុច 'រក្សាទុកការកំណត់ទាំងអស់'");
-  };
-}
-
 // Save All Admin Settings
 const adminSaveAllSettingsBtn = $("#adminSaveAllSettingsBtn");
 if(adminSaveAllSettingsBtn){
@@ -7359,7 +7532,6 @@ if(adminSaveAllSettingsBtn){
     const mode = checkedMode ? checkedMode.value : 'vip_required';
 
     const settingsPayload = {
-      khqr_image: currentKhqrBase64 || '',
       telegram_admin: tgAdmin,
       telegram_group: tgGroup
     };
@@ -7377,7 +7549,7 @@ if(adminSaveAllSettingsBtn){
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ pin, token: tok, mode })
         });
-        toast("✅ បានរក្សាទុកការកំណត់ KHQR, Telegram & System Mode ដោយជោគជ័យ!");
+        toast("✅ បានរក្សាទុកការកំណត់ Telegram & System Mode ដោយជោគជ័យ!");
         await fetchAccessStatus();
       } else {
         toast("⚠️ " + (j.error || "បរាជ័យក្នុងការរក្សាទុក"), true);
@@ -7597,9 +7769,15 @@ function renderFirebaseLicensesList(licenses){
             <button class="btn ghost sm" onclick="firebaseCustomDaysApprove('${esc(devId)}')" style="font-size:11px;padding:4px 8px">
               ⏳ ថ្ងៃផ្ទាល់
             </button>
-            <button class="btn ghost sm" onclick="firebaseBanLicense('${esc(devId)}')" style="font-size:11px;padding:4px 8px;color:var(--bad)">
-              🚫 Ban
-            </button>
+            ${isBanned ? `
+              <button class="btn ghost sm" onclick="firebaseUnbanLicense('${esc(devId)}')" style="font-size:11px;padding:4px 8px;color:var(--good);border:1px solid rgba(46,204,113,0.4)">
+                🟢 Unban
+              </button>
+            ` : `
+              <button class="btn ghost sm" onclick="firebaseBanLicense('${esc(devId)}')" style="font-size:11px;padding:4px 8px;color:var(--bad)">
+                🚫 Ban
+              </button>
+            `}
             <button class="btn ghost sm" onclick="firebaseDeleteLicense('${esc(devId)}')" style="font-size:11px;padding:4px 8px;color:var(--muted)" title="Delete from Firebase">
               🗑️
             </button>
@@ -7653,11 +7831,32 @@ window.firebaseBanLicense = async function(devId){
     const res = await fetch("/dl/firebase/admin/ban", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin, token: tok, device_id: devId })
+      body: JSON.stringify({ pin, token: tok, device_id: devId, banned: true })
     });
     const j = await res.json();
     if(j.ok){
       toast("🚫 ឧបករណ៍ត្រូវបាន Ban លើ Firebase រួចរាល់");
+      refreshFirebaseLicenses();
+      refreshAdminUsersList();
+    }
+  } catch(e){
+    toast("⚠️ " + e, true);
+  }
+};
+
+window.firebaseUnbanLicense = async function(devId){
+  if(!confirm(`តើអ្នកពិតជាចង់បើកសិទ្ធិ (Unban) ឧបករណ៍ ${devId.substring(0,8)}... នេះឡើងវិញមែនទេ?`)) return;
+  const pin = currentAdminPin || '8888';
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  try {
+    const res = await fetch("/dl/firebase/admin/ban", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin, token: tok, device_id: devId, banned: false })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast("🟢 បានបើកដំណើរការឧបករណ៍ឡើងវិញ (Unbanned)");
       refreshFirebaseLicenses();
       refreshAdminUsersList();
     }
