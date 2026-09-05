@@ -1,15 +1,16 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title SYD DOWNLOADER PRO - WEBSITE MODE
+title SYD DOWNLOADER PRO - DESKTOP APP
 
-if exist "python\python.exe" (
-    ".\python\python.exe" run_website.py
+set HG_LICENSE_DISABLED=1
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
+
+if exist "python\pythonw.exe" (
+    start "" ".\python\pythonw.exe" main.py
+) else if exist "python\python.exe" (
+    start "" ".\python\python.exe" main.py
 ) else (
-    python run_website.py
-)
-
-if errorlevel 1 (
-    echo.
-    pause
+    start "" python main.py
 )

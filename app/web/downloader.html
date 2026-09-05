@@ -4539,25 +4539,12 @@ async function setDir(){
 }
 async function openDir(){
   if(DEMO){ toast("Preview mode — on the live app this opens the folder in your file browser"); return; }
-  const pcPath = localStorage.getItem("syd_user_pc_path") || "F:\\Hongguo";
-  if(IS_CLOUD){
-    if(activePcDirHandle){
-      toast(`📁 ទីតាំង PC Local: [${pcPath}] (${activePcDirHandle.name})\n\nវីដេអូត្រូវបានរក្សាទុកចូលក្នុង Folder នេះលើកុំព្យូទ័ររបស់អ្នក!`, false);
-    } else {
-      toast(`📁 ទីតាំង PC Local: [${pcPath}]\n\nវីដេអូត្រូវបានរក្សាទុកចូលក្នុង Folder នេះលើកុំព្យូទ័ររបស់អ្នក!`, false);
-    }
-    openStorageExplorerModal();
-    return;
-  }
   try{
     const j = await (await fetch("/dl/open",{method:"POST"})).json();
-    if(j && (j.is_cloud || j.action === 'web_explorer')){
-      openStorageExplorerModal();
-      return;
-    }
-    if(!j.ok) toast(j.error||"Couldn't open folder", true);
+    if(j && j.ok) toast("📁 បានបើកថតវីដេអូលើកុំព្យូទ័រ (PC) រួចរាល់!");
+    else toast((j && j.error) || "Couldn't open folder", true);
   }catch(e){
-    openStorageExplorerModal();
+    toast("Couldn't open folder: " + e, true);
   }
 }
 async function pickDir(){

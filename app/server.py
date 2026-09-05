@@ -1269,13 +1269,8 @@ def _data_dir():
         d = os.path.dirname(os.path.abspath(__file__))
     return d
 def is_cloud_env():
-    """Detect if running on Railway, Docker, or Linux cloud deployment."""
-    return bool(
-        os.environ.get('RAILWAY_ENVIRONMENT') or
-        os.environ.get('RAILWAY_SERVICE_ID') or
-        os.path.exists('/.dockerenv') or
-        not sys.platform.startswith('win')
-    )
+    """Desktop Application Mode: Always False."""
+    return False
 
 def _fmt_size(sz):
     """Format bytes to human-readable size."""
