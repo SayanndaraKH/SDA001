@@ -2031,7 +2031,7 @@
         <!-- Storage Folder -->
         <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line)">
           <div style="font:700 13px var(--font-ui);color:var(--ink-2);margin-bottom:10px">Storage &amp; Folders</div>
-          <div style="font:11.5px/1.4 var(--font-mono);color:var(--muted);word-break:break-all;margin-bottom:10px" id="ucFolderPath">C:\Users\Administrator\Videos\Hongguo</div>
+          <div style="font:11.5px/1.4 var(--font-mono);color:var(--muted);word-break:break-all;margin-bottom:10px" id="ucFolderPath">...</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn ghost sm" id="ucOpenFolder" style="flex:1">📂 Open Folder</button>
             <button class="btn ghost sm" id="ucChangeFolder" style="flex:1">📁 Change Folder</button>
@@ -2065,6 +2065,16 @@
       <button class="x" id="fpClose" title="Close">✕</button>
     </div>
     <div class="modal-scroll" style="display:flex;flex-direction:column;gap:14px;overflow-y:auto;padding-right:4px">
+      <!-- Cloud Server Notice Banner (Shown dynamically when is_cloud is true) -->
+      <div id="fpCloudBanner" hidden style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start">
+        <span style="font-size:22px;line-height:1">☁️</span>
+        <div style="font-size:12.5px;line-height:1.5;color:var(--ink)">
+          <div style="font-weight:700;color:#60a5fa;margin-bottom:2px">🌐 កំពុងដំណើរការលើ Cloud Server (Railway)</div>
+          <div>វីដេអូដែលទាញយកនឹងត្រូវបានរក្សាទុកនៅលើ Server Storage (Cloud) ដោយស្វ័យប្រវត្តិ។</div>
+          <div style="margin-top:4px;color:var(--muted)">💡 លើ Cloud Server មិនអាចសរសេរចូល Drive C: ឬ F: នៃ PC របស់អ្នកដោយផ្ទាល់ទេ។ អ្នកអាចទស្សនាវីដេអូ ឬទាញយក (Download) ឯកសារ MP4 មកកាន់កុំព្យូទ័រតាមរយៈ Browser បានគ្រប់ពេល!</div>
+        </div>
+      </div>
+
       <!-- Path Input -->
       <div>
         <label style="font:700 12.5px var(--font-ui);color:var(--ink);display:block;margin-bottom:6px">Folder Path (Type, paste or browse):</label>
@@ -2076,7 +2086,7 @@
 
       <!-- Quick Drive Selector -->
       <div>
-        <label style="font:700 12.5px var(--font-ui);color:var(--ink-2);display:block;margin-bottom:6px">Available Drives (1-Click Switch):</label>
+        <label id="fpDrivesLabel" style="font:700 12.5px var(--font-ui);color:var(--ink-2);display:block;margin-bottom:6px">Available Drives (1-Click Switch):</label>
         <div id="fpDrivesGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
           <!-- Populated dynamically from /dl/drives -->
         </div>
@@ -2085,7 +2095,7 @@
       <!-- Common Presets -->
       <div>
         <label style="font:700 12.5px var(--font-ui);color:var(--ink-2);display:block;margin-bottom:6px">Quick Shortcuts:</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div id="fpPresetsContainer" style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn ghost sm" id="fpPresetVideos">🎬 Videos\Hongguo</button>
           <button class="btn ghost sm" id="fpPresetDownloads">📥 Downloads\Hongguo</button>
         </div>
@@ -2102,6 +2112,52 @@
         <button class="btn ghost sm" id="fpCancel">Cancel</button>
         <button class="btn primary sm" id="fpSave" style="padding:0 18px">💾 Save Location</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Web Storage Explorer Modal (Cloud File Browser & Downloader) -->
+<div class="modal" id="storageExplorerModal" hidden style="z-index:125;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px)">
+  <div class="modal-card" style="max-width:780px;width:95vw;padding:22px;background:var(--surface,#18110b);border:1px solid var(--line,#3a2c20);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.85);max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-head" style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div class="modal-title" style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px">
+          <span>📁</span> ថតផ្ទុកឯកសារវីដេអូ (Storage Explorer)
+        </div>
+        <div class="modal-sub" id="seSubTitle" style="color:var(--muted);font-size:12px;margin-top:3px">
+          ទីតាំងលើ Server: <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;color:var(--accent)" id="seCurrentPath">/app/data/downloads</code>
+          · ទំនេរ: <b style="color:var(--good)" id="seDiskFree">—</b>
+        </div>
+      </div>
+      <button class="x" id="seClose" title="Close">✕</button>
+    </div>
+
+    <!-- Storage Notice Box -->
+    <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-size:12px;color:var(--ink-2);line-height:1.4;flex:1;min-width:260px">
+        💡 <b>វីដេអូដែលដោនឡូតរួច</b> ត្រូវបានរក្សាទុកនៅលើ Server។ អ្នកអាចចុច <b>"⬇️ ទាញយក MP4"</b> ដើម្បីរក្សាទុកក្នុងកុំព្យូទ័ររបស់អ្នក ឬចុច <b>"🎬 ទស្សនា"</b> ដើម្បីមើលភ្លាមៗ។
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="chip" style="font-size:11.5px;padding:4px 8px;background:rgba(255,255,255,0.06)" id="seStatsChip">0 រឿង · 0 ភាគ</span>
+        <button class="btn ghost sm" id="seRefreshBtn" style="padding:4px 10px;font-size:12px">🔄 ពិនិត្យឡើងវិញ</button>
+      </div>
+    </div>
+
+    <!-- Search & Filter Bar -->
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="seSearchInput" placeholder="🔍 ស្វែងរករឿងដែលបានទាញយក..." style="flex:1;height:36px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font-size:13px">
+    </div>
+
+    <!-- Files Container -->
+    <div class="modal-scroll" id="seSeriesContainer" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px;min-height:220px">
+      <div style="text-align:center;color:var(--muted);padding:40px 20px;font-size:13px">⏳ កំពុងទាញយកបញ្ជីឯកសារវីដេអូ...</div>
+    </div>
+
+    <div class="modal-foot" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:12px;color:var(--muted)">
+        ទំហំសរុប: <b style="color:var(--ink)" id="seTotalStorage">0 MB</b>
+      </div>
+      <button class="btn primary sm" id="seDoneBtn" style="padding:0 18px">រួចរាល់ (Done)</button>
     </div>
   </div>
 </div>
@@ -4484,9 +4540,16 @@ async function setDir(){
 }
 async function openDir(){
   if(DEMO){ toast("Preview mode — on the live app this opens the folder in your file browser"); return; }
-  try{ const j=await (await fetch("/dl/open",{method:"POST"})).json();
+  try{
+    const j = await (await fetch("/dl/open",{method:"POST"})).json();
+    if(j && (j.is_cloud || j.action === 'web_explorer' || IS_CLOUD)){
+      openStorageExplorerModal();
+      return;
+    }
     if(!j.ok) toast(j.error||"Couldn't open folder", true);
-  }catch(e){ toast("Open failed: "+e, true); }
+  }catch(e){
+    openStorageExplorerModal();
+  }
 }
 async function pickDir(){
   openFolderPickerModal();
@@ -4632,7 +4695,8 @@ function renderLibEpisodeGrid(j, name){
   const freshSet = new Set((j.episodes || []).filter(e => e.fresh).map(e => e.index));
   const max = total || (j.downloaded && j.downloaded.length ? Math.max.apply(null, j.downloaded) : 0);
   const dlCount = (j.downloaded || []).length;
-  $("#libEpSub").innerHTML = `<b>${dlCount}</b> of <b>${total || max || '?'}</b> downloaded ${j.fresh ? (' · <span style="color:var(--good);font-weight:700">+' + j.fresh + ' new</span>') : ''} · <span style="color:var(--accent)">Click episode to play</span>`;
+  const zipBtnHtml = dlCount > 0 ? `<a href="/dl/library/zip?name=${encodeURIComponent(name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:8px">📦 ទាញយកទាំងអស់ (.ZIP)</a>` : '';
+  $("#libEpSub").innerHTML = `<b>${dlCount}</b> of <b>${total || max || '?'}</b> downloaded ${j.fresh ? (' · <span style="color:var(--good);font-weight:700">+' + j.fresh + ' new</span>') : ''} · <span style="color:var(--accent)">Click episode to play</span> ${zipBtnHtml}`;
   
   let html = '';
   for(let i = 1; i <= max; i++){
@@ -4725,9 +4789,16 @@ function applyLiveToLibrary(status){
   });
 }
 async function openSeries(name){
-  try{ const j=await (await fetch("/dl/library/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})})).json();
-    if(!j.ok) toast(j.error||"Couldn't open the folder", true);
-  }catch(e){ toast("Open failed: "+e, true); }
+  if(IS_CLOUD){
+    openLibEpisodes(name);
+    return;
+  }
+  try{
+    const j=await (await fetch("/dl/library/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})})).json();
+    if(!j.ok) openLibEpisodes(name);
+  }catch(e){
+    openLibEpisodes(name);
+  }
 }
 async function playSeriesExternal(name, ep){
   try{
@@ -4820,9 +4891,16 @@ function updateVpControls(){
     if(fixPicBtn) fixPicBtn.hidden = true;
     epList = (currentVpAllEps && currentVpAllEps.length) ? currentVpAllEps : (currentVpTotal ? Array.from({length: currentVpTotal}, (_, i) => i + 1) : [currentVpEp]);
   } else {
-    $("#vpSub").textContent = `💾 Local 1080p Playback · Episode ${currentVpEp}`;
+    $("#vpSub").textContent = `💾 1080p Playback · Episode ${currentVpEp}`;
     if(dlAllBtn) dlAllBtn.hidden = true;
-    if(dlCurBtn) dlCurBtn.hidden = true;
+    if(dlCurBtn){
+      dlCurBtn.hidden = false;
+      dlCurBtn.textContent = `⬇️ ទាញយកភាគ ${currentVpEp} ទៅ PC`;
+      dlCurBtn.title = "ទាញយកឯកសារ MP4 មកកាន់កុំព្យូទ័ររបស់អ្នក";
+      dlCurBtn.onclick = () => {
+        window.open(`/dl/library/video?name=${encodeURIComponent(currentVpSeries)}&ep=${currentVpEp}&download=1`, '_blank');
+      };
+    }
     if(queueBtn) queueBtn.hidden = true;
     if(fixPicBtn) fixPicBtn.hidden = false;
     epList = currentVpDownloaded || [];
@@ -5022,11 +5100,24 @@ const sqOpenF = $("#sqOpenFolderBtn"); if(sqOpenF) sqOpenF.onclick = openDir;
 async function syncSqFolder(){
   try{
     const res = await (await fetch("/dl/config")).json();
-    if(res && res.output_dir){
-      const el = $("#sqFolderPath");
-      if(el){ el.textContent = res.output_dir; el.title = res.output_dir; }
-      if($("#dirPath")) $("#dirPath").textContent = res.output_dir;
-      if($("#ucFolderPath")) $("#ucFolderPath").textContent = res.output_dir;
+    if(res){
+      if(res.is_cloud) IS_CLOUD = true;
+      if(res.default_cloud_dir) CLOUD_DIR = res.default_cloud_dir;
+      const pathText = res.output_dir || (IS_CLOUD ? CLOUD_DIR : "");
+      if(pathText){
+        const el = $("#sqFolderPath");
+        if(el){
+          if(res.is_cloud){
+            el.innerHTML = `☁️ <span style="color:#60a5fa;font-weight:600">Cloud Storage</span> <small style="opacity:0.75">(${esc(pathText)})</small>`;
+            el.title = `វីដេអូត្រូវបានរក្សាទុកលើ Server Storage: ${pathText}\nចុច "បើកថត" ដើម្បីទាញយកមកកុំព្យូទ័រ`;
+          } else {
+            el.textContent = pathText;
+            el.title = pathText;
+          }
+        }
+        if($("#dirPath")) $("#dirPath").textContent = pathText;
+        if($("#ucFolderPath")) $("#ucFolderPath").textContent = pathText;
+      }
     }
   }catch(e){}
 }
@@ -6423,7 +6514,7 @@ function openUserControl() {
   const q = $("#ubQuality"), s = $("#ubSeries");
   if(q && $("#ucQuality")) $("#ucQuality").value = q.value;
   if(s && $("#ucSeries")) $("#ucSeries").value = s.value;
-  if($("#dirPath") && $("#ucFolderPath")) $("#ucFolderPath").textContent = $("#dirPath").textContent || "C:\\Users\\Administrator\\Videos\\Hongguo";
+  if($("#dirPath") && $("#ucFolderPath")) $("#ucFolderPath").textContent = $("#dirPath").textContent || (IS_CLOUD ? CLOUD_DIR : "Downloads/Hongguo");
   
   // If user is ADMIN, auto unlock control panel immediately!
   if(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin')){
@@ -6468,6 +6559,9 @@ const ucOpenF = $("#ucOpenFolder"); if(ucOpenF) ucOpenF.onclick = openDir;
 const ucChF = $("#ucChangeFolder"); if(ucChF) ucChF.onclick = pickDir;
 
 /* ---------- Folder Picker Modal & Drive Selection Logic ---------- */
+let IS_CLOUD = false;
+let CLOUD_DIR = '/app/data/downloads';
+
 async function openFolderPickerModal(){
   const m = $("#folderPickerModal");
   if(!m) return;
@@ -6477,22 +6571,91 @@ async function openFolderPickerModal(){
       fetch("/dl/config").then(r => r.json()).catch(()=>({})),
       fetch("/dl/drives").then(r => r.json()).catch(()=>({}))
     ]);
-    if(cfg && cfg.output_dir){
-      $("#fpPathInput").value = cfg.output_dir;
-    } else if($("#dirPath")) {
-      $("#fpPathInput").value = $("#dirPath").textContent || "C:\\Users\\Administrator\\Videos\\Hongguo";
+    if(cfg){
+      IS_CLOUD = !!cfg.is_cloud;
+      if(cfg.default_cloud_dir) CLOUD_DIR = cfg.default_cloud_dir;
+      if(cfg.output_dir){
+        $("#fpPathInput").value = cfg.output_dir;
+      }
     }
+    
+    // Adapt for Cloud Server vs Local Windows PC:
+    const cloudBanner = $("#fpCloudBanner");
+    const natBtn = $("#fpNativeBrowse");
+    const drvLbl = $("#fpDrivesLabel");
+    const preContainer = $("#fpPresetsContainer");
+    const openCurrBtn = $("#fpOpenCurrent");
+    
+    if(IS_CLOUD){
+      if(cloudBanner) cloudBanner.hidden = false;
+      if(natBtn){
+        natBtn.textContent = "📂 មើលឯកសារលើ Server";
+        natBtn.title = "បើកផ្ទាំងមើល និងទាញយកឯកសារវីដេអូលើ Cloud";
+        natBtn.onclick = () => { closeFolderPickerModal(); openStorageExplorerModal(); };
+      }
+      if(drvLbl) drvLbl.textContent = "Server Storage (Cloud):";
+      if(openCurrBtn){
+        openCurrBtn.textContent = "📂 មើលឯកសារលើ Server (Web Explorer)";
+        openCurrBtn.title = "បើកផ្ទាំងមើល និងទាញយកវីដេអូលើ Cloud";
+      }
+      if(preContainer){
+        preContainer.innerHTML = `
+          <button type="button" class="btn ghost sm" id="fpPresetCloud" style="color:var(--accent)">☁️ Default Storage (${esc(CLOUD_DIR)})</button>
+        `;
+        const preCloud = $("#fpPresetCloud");
+        if(preCloud) preCloud.onclick = () => { $("#fpPathInput").value = CLOUD_DIR; };
+      }
+    } else {
+      if(cloudBanner) cloudBanner.hidden = true;
+      if(natBtn){
+        natBtn.textContent = "📂 Browse on PC...";
+        natBtn.title = "";
+        natBtn.onclick = handleNativeBrowse;
+      }
+      if(drvLbl) drvLbl.textContent = "Available Drives (1-Click Switch):";
+      if(openCurrBtn){
+        openCurrBtn.textContent = "📂 Open in Explorer";
+        openCurrBtn.title = "Open this folder in Windows File Explorer";
+      }
+      if(preContainer){
+        preContainer.innerHTML = `
+          <button type="button" class="btn ghost sm" id="fpPresetVideos">🎬 Videos\\Hongguo</button>
+          <button type="button" class="btn ghost sm" id="fpPresetDownloads">📥 Downloads\\Hongguo</button>
+        `;
+        const fpPreVid = $("#fpPresetVideos");
+        if(fpPreVid) fpPreVid.onclick = () => { $("#fpPathInput").value = "C:\\Users\\Administrator\\Videos\\Hongguo"; };
+        const fpPreDl = $("#fpPresetDownloads");
+        if(fpPreDl) fpPreDl.onclick = () => { $("#fpPathInput").value = "C:\\Users\\Administrator\\Downloads\\Hongguo"; };
+      }
+    }
+
     if(drv && drv.drives){
       renderFpDrives(drv.drives);
     }
   } catch(e){
-    if($("#dirPath")) $("#fpPathInput").value = $("#dirPath").textContent || "C:\\Users\\Administrator\\Videos\\Hongguo";
+    console.error("Folder picker error:", e);
   }
 }
 
 function renderFpDrives(drives){
   const grid = $("#fpDrivesGrid");
   if(!grid) return;
+  if(IS_CLOUD){
+    const d = (drives && drives[0]) || { drive: CLOUD_DIR, free_gb: '—', total_gb: '—' };
+    grid.innerHTML = `
+      <div style="grid-column:1/-1;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-weight:700;color:var(--accent);font-size:13px">☁️ Server Storage (Cloud)</div>
+          <div style="font-size:11.5px;color:var(--muted);margin-top:2px"><code style="color:var(--ink)">${esc(d.drive || CLOUD_DIR)}</code></div>
+        </div>
+        <div style="text-align:right">
+          <span style="font-size:12px;font-weight:700;color:var(--good)">${d.free_gb || '—'} GB Free</span>
+          <div style="font-size:10px;color:var(--muted)">Total: ${d.total_gb || '—'} GB</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
   grid.innerHTML = (drives || []).map(d => {
     return `<button type="button" class="btn ghost sm fp-drv-btn" data-path="${d.drive}Hongguo" style="display:flex;flex-direction:column;align-items:center;padding:7px 4px;text-align:center;border-radius:8px">
       <b style="font-size:13.5px;color:var(--accent)">${d.letter}:</b>
@@ -6521,36 +6684,41 @@ if(fpDGrid){
   });
 }
 
-const fpPreVid = $("#fpPresetVideos");
-if(fpPreVid) fpPreVid.onclick = () => { $("#fpPathInput").value = "C:\\Users\\Administrator\\Videos\\Hongguo"; };
-const fpPreDl = $("#fpPresetDownloads");
-if(fpPreDl) fpPreDl.onclick = () => { $("#fpPathInput").value = "C:\\Users\\Administrator\\Downloads\\Hongguo"; };
-
 const fpOpenCurr = $("#fpOpenCurrent");
 if(fpOpenCurr) fpOpenCurr.onclick = () => { openDir(); };
 
-const fpNat = $("#fpNativeBrowse");
-if(fpNat){
-  fpNat.onclick = async () => {
-    fpNat.disabled = true;
-    fpNat.textContent = "⏳ Browsing...";
-    toast("Opening Windows folder browser on PC…");
-    try {
-      const j = await (await fetch("/dl/pick", { method: "POST" })).json();
-      if(j.ok && j.path){
-        $("#fpPathInput").value = j.path;
-        toast("Folder chosen: " + j.path);
-      } else if(j && j.error){
-        toast(j.error, true);
-      }
-    } catch(e){
-      toast("Browse failed: " + e, true);
-    } finally {
-      fpNat.disabled = false;
-      fpNat.textContent = "📂 Browse on PC...";
+async function handleNativeBrowse(){
+  const fpNat = $("#fpNativeBrowse");
+  if(!fpNat) return;
+  if(IS_CLOUD){
+    closeFolderPickerModal();
+    openStorageExplorerModal();
+    return;
+  }
+  fpNat.disabled = true;
+  fpNat.textContent = "⏳ Browsing...";
+  toast("Opening Windows folder browser on PC…");
+  try {
+    const j = await (await fetch("/dl/pick", { method: "POST" })).json();
+    if(j.ok && j.path){
+      $("#fpPathInput").value = j.path;
+      toast("Folder chosen: " + j.path);
+    } else if(j && j.is_cloud){
+      closeFolderPickerModal();
+      openStorageExplorerModal();
+    } else if(j && j.error){
+      toast(j.error, true);
     }
-  };
+  } catch(e){
+    toast("Browse failed: " + e, true);
+  } finally {
+    fpNat.disabled = false;
+    fpNat.textContent = "📂 Browse on PC...";
+  }
 }
+
+const fpNat = $("#fpNativeBrowse");
+if(fpNat) fpNat.onclick = handleNativeBrowse;
 
 const fpSave = $("#fpSave");
 if(fpSave){
@@ -6567,13 +6735,15 @@ if(fpSave){
       })).json();
       if(res.ok){
         const saved = res.output_dir || newPath;
+        if(res.is_cloud) IS_CLOUD = true;
         if($("#dirPath")) $("#dirPath").textContent = saved;
         if($("#ucFolderPath")) $("#ucFolderPath").textContent = saved;
-        if($("#sqFolderPath")){
-          $("#sqFolderPath").textContent = saved;
-          $("#sqFolderPath").title = saved;
+        syncSqFolder();
+        if(res.warning){
+          toast(res.warning, false);
+        } else {
+          toast("✅ Folder saved: " + saved);
         }
-        toast("✅ Folder saved: " + saved);
         closeFolderPickerModal();
       } else {
         toast("Error saving folder: " + (res.error || "Unknown"), true);
@@ -6585,6 +6755,166 @@ if(fpSave){
       fpSave.textContent = "💾 Save Location";
     }
   };
+}
+
+/* ---------- Web Storage Explorer Logic ---------- */
+let seCachedData = null;
+
+async function openStorageExplorerModal(){
+  const m = $("#storageExplorerModal");
+  if(!m) return;
+  m.hidden = false;
+  await refreshStorageExplorer();
+}
+
+function closeStorageExplorerModal(){
+  const m = $("#storageExplorerModal");
+  if(m) m.hidden = true;
+}
+
+const seCl = $("#seClose"); if(seCl) seCl.onclick = closeStorageExplorerModal;
+const seDn = $("#seDoneBtn"); if(seDn) seDn.onclick = closeStorageExplorerModal;
+const seMod = $("#storageExplorerModal"); if(seMod) seMod.addEventListener('click', e => { if(e.target === seMod) closeStorageExplorerModal(); });
+const seRef = $("#seRefreshBtn"); if(seRef) seRef.onclick = () => { refreshStorageExplorer(); };
+
+const seSearch = $("#seSearchInput");
+if(seSearch){
+  seSearch.oninput = () => {
+    filterStorageExplorer(seSearch.value);
+  };
+}
+
+async function refreshStorageExplorer(){
+  const container = $("#seSeriesContainer");
+  if(!container) return;
+  container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px 20px;font-size:13px">⏳ កំពុងទាញយកបញ្ជីឯកសារវីដេអូ...</div>';
+  try {
+    const data = await (await fetch("/dl/storage/files")).json();
+    if(!data || !data.ok){
+      container.innerHTML = `<div style="text-align:center;color:var(--bad,#ef4444);padding:30px">❌ មិនអាចទាញយកទិន្នន័យបានទេ: ${esc((data && data.error) || 'Unknown error')}</div>`;
+      return;
+    }
+    seCachedData = data;
+    if($("#seCurrentPath")) $("#seCurrentPath").textContent = data.root || CLOUD_DIR;
+    if($("#seDiskFree")) $("#seDiskFree").textContent = (data.free_gb || '—') + ' GB Free';
+    if($("#seStatsChip")) $("#seStatsChip").textContent = `${data.total_series || 0} រឿង · ${data.total_videos || 0} ភាគ`;
+    if($("#seTotalStorage")) $("#seTotalStorage").textContent = data.total_bytes_str || '0 MB';
+    renderStorageExplorer(data.series || []);
+  } catch(e){
+    container.innerHTML = `<div style="text-align:center;color:var(--bad,#ef4444);padding:30px">❌ បរាជ័យក្នុងការតភ្ជាប់: ${esc(e)}</div>`;
+  }
+}
+
+function filterStorageExplorer(query){
+  if(!seCachedData || !seCachedData.series) return;
+  const q = (query || "").trim().toLowerCase();
+  if(!q){
+    renderStorageExplorer(seCachedData.series);
+    return;
+  }
+  const filtered = seCachedData.series.filter(s => {
+    return (s.title && s.title.toLowerCase().includes(q)) ||
+           (s.title_km && s.title_km.toLowerCase().includes(q)) ||
+           (s.folder_name && s.folder_name.toLowerCase().includes(q));
+  });
+  renderStorageExplorer(filtered);
+}
+
+function renderStorageExplorer(seriesList){
+  const container = $("#seSeriesContainer");
+  if(!container) return;
+  if(!seriesList || seriesList.length === 0){
+    container.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--muted)">
+        <div style="font-size:36px;margin-bottom:8px">📭</div>
+        <div style="font-weight:700;font-size:15px;color:var(--ink)">មិនទាន់មានវីដេអូដែលបានទាញយកនៅឡើយទេ</div>
+        <div style="font-size:12.5px;margin-top:4px">សូមជ្រើសរើសរឿង និងចុចដោនឡូត នោះវីដេអូនឹងបង្ហាញនៅទីនេះ!</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = seriesList.map((s, idx) => {
+    const dispTitle = s.title_km || s.title || s.folder_name;
+    const origTitle = (s.title && s.title !== dispTitle) ? `<small style="color:var(--muted);font-weight:400;margin-left:4px">(${esc(s.title)})</small>` : '';
+    const coverHtml = s.cover ? `<img src="/img?url=${encodeURIComponent(s.cover)}" style="width:48px;height:64px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="">` : `<div style="width:48px;height:64px;background:var(--surface-3);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🎬</div>`;
+
+    return `
+      <div class="se-card" style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:12px;align-items:center">
+          ${coverHtml}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${esc(dispTitle)} ${origTitle}
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap">
+              <span class="chip" style="font-size:11px;padding:2px 7px;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.25)">
+                ⚡ ${s.ep_count} ភាគ
+              </span>
+              <span class="chip" style="font-size:11px;padding:2px 7px;background:rgba(255,255,255,0.06);color:var(--ink-2)">
+                💾 ${s.folder_size_str}
+              </span>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+            <button class="btn accent sm se-play-btn" data-sname="${esc(s.folder_name)}" style="padding:4px 10px;font-size:12px">🎬 ទស្សនា</button>
+            <button class="btn ghost sm se-expand-btn" data-sidx="${idx}" style="padding:4px 10px;font-size:12px">📂 ភាគ & ទាញយក</button>
+            <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn ghost sm" title="ទាញយកភាគទាំងអស់ជា ZIP ដាក់កុំព្យូទ័រ" style="padding:4px 10px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">📦 ZIP</a>
+          </div>
+        </div>
+
+        <!-- Collapsible Episode List -->
+        <div class="se-eps-panel" id="seEpsPanel_${idx}" hidden style="border-top:1px solid var(--line);padding-top:10px;margin-top:2px">
+          <div style="font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+            <span>បញ្ជីភាគដែលបានដោនឡូតរួច (ចុចលើប៊ូតុង ដើម្បី Download មក PC):</span>
+            <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none">⬇️ ទាញយកទាំងអស់ (.ZIP)</a>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;max-height:200px;overflow-y:auto;padding-right:4px">
+            ${(s.episodes || []).map(ep => `
+              <div style="background:var(--surface-3);border:1px solid var(--line);border-radius:6px;padding:6px 8px;display:flex;align-items:center;justify-content:space-between;gap:4px">
+                <div style="min-width:0">
+                  <b style="font-size:12px;color:var(--ink)">ភាគ ${ep.ep}</b>
+                  <div style="font-size:10px;color:var(--muted)">${ep.size_str}</div>
+                </div>
+                <div style="display:flex;gap:3px">
+                  <button type="button" class="btn ghost sm se-ep-play-btn" data-sname="${esc(s.folder_name)}" data-ep="${ep.ep}" title="ទស្សនា" style="padding:2px 6px;font-size:11px">🎬</button>
+                  <a href="/dl/library/video?name=${encodeURIComponent(s.folder_name)}&ep=${ep.ep}&download=1" download class="btn accent sm" title="ទាញយក MP4 មកកាន់កុំព្យូទ័រ" style="padding:2px 6px;font-size:11px;text-decoration:none">⬇️</a>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.se-play-btn').forEach(b => {
+    b.onclick = () => {
+      const sName = b.dataset.sname;
+      closeStorageExplorerModal();
+      openVideoPlayer(sName, 1);
+    };
+  });
+
+  container.querySelectorAll('.se-ep-play-btn').forEach(b => {
+    b.onclick = () => {
+      const sName = b.dataset.sname;
+      const ep = Number(b.dataset.ep) || 1;
+      closeStorageExplorerModal();
+      openVideoPlayer(sName, ep);
+    };
+  });
+
+  container.querySelectorAll('.se-expand-btn').forEach(b => {
+    b.onclick = () => {
+      const idx = b.dataset.sidx;
+      const panel = $(`#seEpsPanel_${idx}`);
+      if(panel){
+        panel.hidden = !panel.hidden;
+        b.textContent = panel.hidden ? "📂 ភាគ & ទាញយក" : "▲ បិទវិញ";
+      }
+    };
+  });
 }
 
 /* ---------- Already Downloaded Choice Modal Handlers ---------- */

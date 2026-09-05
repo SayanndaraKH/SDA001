@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Ensure download and state directories exist with write permissions
-RUN mkdir -p /app/app/downloads /app/data /app/.stream_cache && \
+RUN mkdir -p /app/app/downloads /app/data /app/data/downloads /app/.stream_cache && \
     chmod +x /app/start.sh
 
 EXPOSE 8000

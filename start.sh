@@ -38,6 +38,10 @@ export BIND_HOST="0.0.0.0"
 export PORT="$TARGET_PORT"
 export SIGN_SERVER="http://127.0.0.1:9099"
 export HG_LICENSE_DISABLED="1"
+export HG_OUT="/app/data/downloads"
+export RAILWAY_ENVIRONMENT="1"
+
+mkdir -p /app/data/downloads
 
 echo "[*] Starting FastAPI Web Server on 0.0.0.0:${TARGET_PORT}..."
 exec python app/server.py

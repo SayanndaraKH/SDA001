@@ -171,9 +171,17 @@ def live_snapshot():
 def set_output_dir(path):
     """设置下载输出目录(整剧文件夹+mp4存这里)。元数据仍在项目 downloads/.state。返回生效路径。"""
     global OUT
-    if path and path.strip():
-            OUT = os.path.abspath(os.path.expanduser(path.strip()))
+    if path and str(path).strip():
+        p = str(path).strip()
+        # Protect against Windows drive paths on Linux/Docker/Cloud environments
+        if not sys.platform.startswith('win'):
+            if re.match(r'^(?:/app/)?([a-zA-Z]:|\\|/[a-zA-Z]:)', p) or not p.startswith('/'):
+                p = os.environ.get('HG_OUT') or '/app/data/downloads'
+        OUT = os.path.abspath(os.path.expanduser(p))
+        try:
             os.makedirs(OUT, exist_ok=True)
+        except Exception:
+            pass
     return OUT
 def log(msg):
     with _plock:

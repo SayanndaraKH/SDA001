@@ -145,7 +145,7 @@ if not ADMIN_TOKEN:
 RATE_PER_MIN = int(os.environ.get('RATE_PER_MIN', '120'))
 _rl = {}
 _rl_lock = threading.Lock()
-_EXEMPT = ('/', '/ui', '/img', '/docs', '/openapi.json', '/redoc', '/favicon.ico', '/logo.png', '/dl', '/dl/submit', '/dl/status', '/dl/diag', '/dl/search', '/dl/resolve', '/dl/cancel', '/dl/config', '/dl/open', '/dl/pick', '/dl/drives', '/dl/episodes', '/dl/rank', '/dl/explorer', '/dl/bugreport', '/dl/library', '/dl/poster', '/dl/library/open', '/dl/library/play', '/dl/library/video', '/dl/library/transcode', '/dl/library/update', '/dl/library/episodes', '/dl/library/seen', '/dl/restart', '/dl/license/status', '/dl/license/activate', '/dl/license/deactivate', '/dl/license/usage', '/dl/update-check', '/dl/update-download', '/dl/update-run', '/dl/history', '/dl/history/poster', '/dl/translate', '/dl/translate_batch', '/dl/gemini/status', '/dl/gemini/config', '/dl/gemini/test')
+_EXEMPT = ('/', '/ui', '/img', '/docs', '/openapi.json', '/redoc', '/favicon.ico', '/logo.png', '/dl', '/dl/submit', '/dl/status', '/dl/diag', '/dl/search', '/dl/resolve', '/dl/cancel', '/dl/config', '/dl/open', '/dl/pick', '/dl/drives', '/dl/episodes', '/dl/rank', '/dl/explorer', '/dl/bugreport', '/dl/library', '/dl/poster', '/dl/library/open', '/dl/library/play', '/dl/library/video', '/dl/library/transcode', '/dl/library/update', '/dl/library/episodes', '/dl/library/seen', '/dl/restart', '/dl/license/status', '/dl/license/activate', '/dl/license/deactivate', '/dl/license/usage', '/dl/update-check', '/dl/update-download', '/dl/update-run', '/dl/history', '/dl/history/poster', '/dl/translate', '/dl/translate_batch', '/dl/gemini/status', '/dl/gemini/config', '/dl/gemini/test', '/dl/storage/files', '/dl/library/zip', '/dl/storage/delete')
 _ADMIN_PREFIX = '/admin'
 def _check_admin(request: Request) -> bool:
     tok = request.headers.get('x-admin-token') or request.query_params.get('admin_token') or ''
@@ -1268,21 +1268,87 @@ def _data_dir():
     except Exception:
         d = os.path.dirname(os.path.abspath(__file__))
     return d
+def is_cloud_env():
+    """Detect if running on Railway, Docker, or Linux cloud deployment."""
+    return bool(
+        os.environ.get('RAILWAY_ENVIRONMENT') or
+        os.environ.get('RAILWAY_SERVICE_ID') or
+        os.path.exists('/.dockerenv') or
+        not sys.platform.startswith('win')
+    )
+
+def _fmt_size(sz):
+    """Format bytes to human-readable size."""
+    if sz < 1024:
+        return f"{sz} B"
+    elif sz < 1024 * 1024:
+        return f"{sz / 1024:.1f} KB"
+    elif sz < 1024 * 1024 * 1024:
+        return f"{sz / (1024 * 1024):.1f} MB"
+    else:
+        return f"{sz / (1024 * 1024 * 1024):.2f} GB"
+
+def _migrate_old_mangled_storage():
+    """Recover and migrate any drama folders previously saved into mangled paths
+    such as /app/F :... or /app/C:... into the clean cloud downloads folder."""
+    if not is_cloud_env():
+        return
+    dest = ODL.OUT or os.environ.get('HG_OUT') or '/app/data/downloads'
+    try:
+        os.makedirs(dest, exist_ok=True)
+    except Exception:
+        pass
+    app_root = '/app'
+    if not os.path.isdir(app_root):
+        return
+    try:
+        import shutil
+        for entry in os.listdir(app_root):
+            if any(ch in entry for ch in [':', '\\']) or entry.startswith('F ') or entry.startswith('C '):
+                src_dir = os.path.join(app_root, entry)
+                if os.path.isdir(src_dir) and src_dir != dest:
+                    for sub in os.listdir(src_dir):
+                        sub_path = os.path.join(src_dir, sub)
+                        target_path = os.path.join(dest, sub)
+                        if os.path.isdir(sub_path) and not os.path.exists(target_path):
+                            shutil.move(sub_path, target_path)
+    except Exception as e:
+        print(f"[storage-migration] notice: {e}", flush=True)
+
 _DLCFG = os.path.join(_data_dir(), 'dlconfig.json')
 _DLCFG_OLD = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads', '.dlconfig.json')
 def _load_dlcfg():
     src = _DLCFG if os.path.exists(_DLCFG) else _DLCFG_OLD if os.path.exists(_DLCFG_OLD) else None
-    if not src:
-        return
+    if is_cloud_env():
+        cloud_default = os.environ.get('HG_OUT') or '/app/data/downloads'
+        if not src:
+            ODL.set_output_dir(cloud_default)
+            _migrate_old_mangled_storage()
+            return
+        else:
+            try:
+                cfg = json.load(open(src, encoding='utf-8'))
+                out_p = (cfg.get('output_dir') or '').strip()
+                if not out_p or re.match(r'^(?:/app/)?([a-zA-Z]:|\\|/[a-zA-Z]:)', out_p) or not out_p.startswith('/'):
+                    out_p = cloud_default
+                ODL.set_output_dir(out_p)
+                _save_dlcfg()
+                _migrate_old_mangled_storage()
+            except Exception:
+                ODL.set_output_dir(cloud_default)
+                return None
     else:
-        try:
-            cfg = json.load(open(src, encoding='utf-8'))
-            if cfg.get('output_dir'):
-                ODL.set_output_dir(cfg['output_dir'])
-        except Exception:
-            return None
-        if src == _DLCFG_OLD:
-            _save_dlcfg()
+        if not src:
+            return
+        else:
+            try:
+                cfg = json.load(open(src, encoding='utf-8'))
+                if cfg.get('output_dir'):
+                    ODL.set_output_dir(cfg['output_dir'])
+            except Exception:
+                return None
+            if src == _DLCFG_OLD:
+                _save_dlcfg()
 def _save_dlcfg():
     try:
         os.makedirs(os.path.dirname(_DLCFG), exist_ok=True)
@@ -1314,22 +1380,41 @@ def _rescan_state_once():
 threading.Thread(target=_rescan_state_once, daemon=True).start()
 @app.get('/dl/config')
 def dl_config_get():
-    return {'output_dir': ODL.OUT}
+    return {
+        'output_dir': ODL.OUT,
+        'is_cloud': is_cloud_env(),
+        'platform': sys.platform,
+        'default_cloud_dir': '/app/data/downloads' if is_cloud_env() else ''
+    }
 @app.post('/dl/config')
 def dl_config_set(payload: dict=Body(...)):
-    path = (payload or {}).get('output_dir', '') or ''
+    raw_path = (payload or {}).get('output_dir', '') or ''
+    path = raw_path.strip()
+    warning_msg = None
+    if is_cloud_env():
+        if re.match(r'^(?:/app/)?([a-zA-Z]:|\\|/[a-zA-Z]:)', path):
+            cloud_default = os.environ.get('HG_OUT') or '/app/data/downloads'
+            path = cloud_default
+            warning_msg = 'Cloud Server (Railway) មិនអាចប្រើ Windows Drive (C:, F:) នៃកុំព្យូទ័ររបស់អ្នកបានទេ។ ប្រព័ន្ធបានកំណត់ទីតាំងរក្សាទុកលើ Server Storage: ' + cloud_default + ' ដោយស្វ័យប្រវត្តិ!'
+        elif not path.startswith('/'):
+            path = os.environ.get('HG_OUT') or '/app/data/downloads'
     try:
         newp = ODL.set_output_dir(path)
         _save_dlcfg()
-        return {'ok': True, 'output_dir': newp}
+        res = {'ok': True, 'output_dir': newp, 'is_cloud': is_cloud_env()}
+        if warning_msg:
+            res['warning'] = warning_msg
+        return res
     except Exception as e:
-        return {'ok': False, 'error': str(e), 'output_dir': ODL.OUT}
+        return {'ok': False, 'error': str(e), 'output_dir': ODL.OUT, 'is_cloud': is_cloud_env()}
 @app.post('/dl/open')
 def dl_open():
-    """Open the current download folder in the OS file browser (local tool, binds 127.0.0.1)."""
+    """Open the current download folder in OS file browser (Windows), or signal Web Explorer for cloud."""
     import subprocess
     import sys
     d = ODL.OUT or ''
+    if is_cloud_env():
+        return {'ok': True, 'output_dir': d, 'is_cloud': True, 'action': 'web_explorer'}
     try:
         if d:
             os.makedirs(d, exist_ok=True)
@@ -1340,9 +1425,9 @@ def dl_open():
                 subprocess.Popen(['open', d])
             else:
                 subprocess.Popen(['xdg-open', d])
-        return {'ok': True, 'output_dir': d}
+        return {'ok': True, 'output_dir': d, 'is_cloud': False}
     except Exception as e:
-        return {'ok': False, 'error': str(e), 'output_dir': d}
+        return {'ok': False, 'error': str(e), 'output_dir': d, 'is_cloud': is_cloud_env()}
 def _redacted_log_tail(path, lines=1500):
     try:
         with open(path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -1404,32 +1489,56 @@ def dl_bugreport(payload: dict=Body(...)):
         return {'ok': False, 'error': str(e)}
 @app.get('/dl/drives')
 def dl_drives():
-    """List available system drives and free space for folder selector."""
+    """List available system drives or Cloud Server storage info."""
     import string
     import shutil
     drives = []
-    for letter in string.ascii_uppercase:
-        drive_path = f"{letter}:\\"
-        if os.path.exists(drive_path):
-            try:
-                total, used, free = shutil.disk_usage(drive_path)
-                free_gb = round(free / (1024 ** 3), 1)
-                total_gb = round(total / (1024 ** 3), 1)
-                drives.append({
-                    'drive': drive_path,
-                    'letter': letter,
-                    'free_gb': free_gb,
-                    'total_gb': total_gb
-                })
-            except Exception:
-                drives.append({'drive': drive_path, 'letter': letter, 'free_gb': 0, 'total_gb': 0})
-    return {'drives': drives, 'current': ODL.OUT or ''}
+    cloud = is_cloud_env()
+    if sys.platform.startswith('win') and not cloud:
+        for letter in string.ascii_uppercase:
+            drive_path = f"{letter}:\\"
+            if os.path.exists(drive_path):
+                try:
+                    total, used, free = shutil.disk_usage(drive_path)
+                    free_gb = round(free / (1024 ** 3), 1)
+                    total_gb = round(total / (1024 ** 3), 1)
+                    drives.append({
+                        'drive': drive_path,
+                        'letter': letter,
+                        'free_gb': free_gb,
+                        'total_gb': total_gb
+                    })
+                except Exception:
+                    drives.append({'drive': drive_path, 'letter': letter, 'free_gb': 0, 'total_gb': 0})
+    else:
+        # Linux / Docker / Railway Cloud
+        try:
+            target = ODL.OUT if (ODL.OUT and os.path.exists(ODL.OUT)) else '/'
+            total, used, free = shutil.disk_usage(target)
+            free_gb = round(free / (1024 ** 3), 1)
+            total_gb = round(total / (1024 ** 3), 1)
+            drives.append({
+                'drive': ODL.OUT or '/app/data/downloads',
+                'letter': 'Cloud Server',
+                'free_gb': free_gb,
+                'total_gb': total_gb,
+                'is_cloud': True
+            })
+        except Exception:
+            pass
+    return {'drives': drives, 'current': ODL.OUT or '', 'is_cloud': cloud}
 
 @app.post('/dl/pick')
 def dl_pick():
     """Pop a native folder-picker on the server machine, return the chosen path (does not save it)."""
     import subprocess
     import sys
+    if is_cloud_env():
+        return {
+            'ok': False,
+            'is_cloud': True,
+            'error': 'Cloud Server (Railway) ដំណើរការលើ Linux — វីដេអូត្រូវបានរក្សាទុកលើ Server Storage (/app/data/downloads) ដោយស្វ័យប្រវត្តិ។'
+        }
     if not sys.platform.startswith('win'):
         return {'ok': False, 'error': 'folder picker is Windows-only here — type the path instead'}
     else:
@@ -1577,8 +1686,8 @@ def dl_library_open(payload: dict=Body(...)):
         except Exception as e:
             return {'ok': False, 'error': str(e)}
 @app.api_route('/dl/library/video', methods=['GET', 'HEAD'])
-def dl_library_video(name: str = '', ep: int = 1):
-    """Serve local downloaded MP4 video file with streaming range support."""
+def dl_library_video(name: str = '', ep: int = 1, download: int = 0):
+    """Serve local downloaded MP4 video file with streaming range support or trigger browser download."""
     import re
     safe = os.path.basename(name or '')
     folder = os.path.join(ODL.OUT, safe)
@@ -1602,7 +1711,166 @@ def dl_library_video(name: str = '', ep: int = 1):
     else:
         path = os.path.join(folder, target)
         
+    if download:
+        clean_name = re.sub(r'[^\w\-\.]', '_', f"{safe}_Ep{int(ep):02d}.mp4")
+        return FileResponse(
+            path,
+            media_type='video/mp4',
+            filename=clean_name,
+            headers={'Content-Disposition': f'attachment; filename="{clean_name}"'}
+        )
     return FileResponse(path, media_type='video/mp4')
+
+@app.get('/dl/library/zip')
+def dl_library_zip(name: str = ''):
+    """Stream all episodes of a series as a single zip archive for 1-click batch download to PC."""
+    import zipfile
+    import io
+    import re
+    safe = os.path.basename(name or '')
+    folder = os.path.join(ODL.OUT, safe)
+    if not safe or not os.path.isdir(folder):
+        raise HTTPException(404, 'Series folder not found')
+    
+    files = [f for f in sorted(os.listdir(folder)) if f.lower().endswith('.mp4') and not f.lower().endswith('.raw.mp4')]
+    if not files:
+        raise HTTPException(404, 'No MP4 video files found in this series')
+        
+    clean_series_name = re.sub(r'[^\w\-]', '_', safe)
+    zip_filename = f"{clean_series_name}_All_Episodes.zip"
+    
+    def iter_zip():
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_STORED) as zf:
+            for f in files:
+                fp = os.path.join(folder, f)
+                zf.write(fp, arcname=f)
+        buffer.seek(0)
+        while True:
+            chunk = buffer.read(1024 * 1024)
+            if not chunk:
+                break
+            yield chunk
+            
+    return StreamingResponse(
+        iter_zip(),
+        media_type='application/zip',
+        headers={'Content-Disposition': f'attachment; filename="{zip_filename}"'}
+    )
+
+@app.get('/dl/storage/files')
+def dl_storage_files():
+    """Return all series folders, video files, sizes, and total storage usage for the Web Storage Explorer."""
+    import shutil
+    import re
+    root = ODL.OUT or (os.environ.get('HG_OUT') if is_cloud_env() else '') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads')
+    os.makedirs(root, exist_ok=True)
+    
+    try:
+        total_space, used_space, free_space = shutil.disk_usage(root)
+    except Exception:
+        total_space, used_space, free_space = 0, 0, 0
+        
+    series_list = []
+    total_video_files = 0
+    total_video_bytes = 0
+    
+    try:
+        names = sorted(os.listdir(root))
+    except Exception:
+        names = []
+        
+    for name in names:
+        folder = os.path.join(root, name)
+        if not os.path.isdir(folder) or name.startswith('.'):
+            continue
+            
+        meta = ODL._lib_meta(folder)
+        series_id = str(meta.get('series_id') or '')
+        title = meta.get('title') or name
+        title_km = meta.get('title_km') or ''
+        cover = meta.get('cover') or ''
+        
+        ep_files = []
+        folder_bytes = 0
+        
+        try:
+            folder_entries = sorted(os.listdir(folder))
+        except Exception:
+            folder_entries = []
+            
+        for f in folder_entries:
+            fp = os.path.join(folder, f)
+            if os.path.isfile(fp):
+                fsize = os.path.getsize(fp)
+                folder_bytes += fsize
+                if f.lower().endswith('.mp4') and not f.lower().endswith('.raw.mp4'):
+                    m = re.search(r'(\d+)', f)
+                    ep_num = int(m.group(1)) if m else 0
+                    ep_files.append({
+                        'name': f,
+                        'ep': ep_num,
+                        'size_bytes': fsize,
+                        'size_str': _fmt_size(fsize),
+                        'mtime': int(os.path.getmtime(fp))
+                    })
+                    total_video_files += 1
+                    
+        total_video_bytes += folder_bytes
+        ep_files.sort(key=lambda x: x['ep'])
+        
+        series_list.append({
+            'folder_name': name,
+            'series_id': series_id,
+            'title': title,
+            'title_km': title_km,
+            'cover': cover,
+            'ep_count': len(ep_files),
+            'total_ep': int(meta.get('total') or len(ep_files)),
+            'folder_size_bytes': folder_bytes,
+            'folder_size_str': _fmt_size(folder_bytes),
+            'episodes': ep_files
+        })
+        
+    return {
+        'ok': True,
+        'root': root,
+        'is_cloud': is_cloud_env(),
+        'free_gb': round(free_space / (1024 ** 3), 1),
+        'total_gb': round(total_space / (1024 ** 3), 1),
+        'used_gb': round(used_space / (1024 ** 3), 1),
+        'total_series': len(series_list),
+        'total_videos': total_video_files,
+        'total_bytes_str': _fmt_size(total_video_bytes),
+        'series': series_list
+    }
+
+@app.post('/dl/storage/delete')
+def dl_storage_delete(payload: dict = Body(...)):
+    """Delete a series folder or single episode file from storage."""
+    import shutil
+    import re
+    safe = os.path.basename((payload or {}).get('name', '') or '')
+    ep = (payload or {}).get('ep')
+    if not safe:
+        return {'ok': False, 'error': 'Missing series name'}
+    folder = os.path.join(ODL.OUT, safe)
+    if not os.path.isdir(folder):
+        return {'ok': False, 'error': 'Series not found'}
+    try:
+        if ep is not None:
+            for f in os.listdir(folder):
+                if f.lower().endswith('.mp4'):
+                    m = re.search(r'(\d+)', f)
+                    if m and int(m.group(1)) == int(ep):
+                        os.remove(os.path.join(folder, f))
+                        return {'ok': True, 'deleted': f}
+            return {'ok': False, 'error': f'Episode {ep} not found'}
+        else:
+            shutil.rmtree(folder)
+            return {'ok': True, 'deleted': safe}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
 
 @app.post('/dl/library/transcode')
 def dl_library_transcode(payload: dict = Body(...)):
