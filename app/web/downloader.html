@@ -3105,6 +3105,24 @@ function renderQueue(){
             trackFill.className = `fill ${isDone ? 'done' : ''} ${cls === 'downloading' ? 'live' : ''}`;
           }
         }
+
+        // Fast-path: dynamically update q-actions to add direct PC ZIP download button!
+        const actions = row.querySelector(".q-actions");
+        if(actions){
+          const hasDlPc = actions.querySelector(".q-dl-pc-btn");
+          if((isDone || (s && s.done > 0)) && !hasDlPc){
+            const sName = title || id;
+            const dispName = kmTitle || title || sName;
+            const cleanName = dispName.replace(/[\\/:*?"<>|]/g, '_').trim();
+            const dlA = document.createElement("a");
+            dlA.className = "btn primary sm q-dl-pc-btn";
+            dlA.href = `/dl/library/zip?name=${encodeURIComponent(sName)}`;
+            dlA.download = `${cleanName}_All_Episodes.zip`;
+            dlA.style.cssText = "padding:3px 12px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:var(--accent,#ff5c00);color:#000;border-radius:6px;margin-left:4px;box-shadow:0 2px 8px rgba(255,92,0,0.35)";
+            dlA.innerHTML = `💾 ទាញយកចូល PC (.ZIP)`;
+            actions.appendChild(dlA);
+          }
+        }
       });
       if(cartDirty) saveCart();
       updateDock();
@@ -3189,7 +3207,11 @@ function renderQueue(){
         <div class="q-actions" style="display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap">
           <button class="q-btn q-redl" data-redl="${id}" title="Re-download this drama (ទាញយកម្តងទៀត)">🔄 Redownload</button>
           ${(!s || isDone) ? `<button class="q-btn" data-ep="${id}">☰ Choose episodes</button>` : ''}
-          ${(s && s.done > 0) ? `<button class="q-btn" data-q-save-pc="${id}" style="color:var(--accent);font-weight:700" title="រក្សាទុកវីដេអូដែលបានដោនឡូតចូលក្នុង PC Local">💾 Save ចូល PC</button>` : ''}
+          ${(s && s.done > 0) ? `
+            <a href="/dl/library/zip?name=${encodeURIComponent(title)}" download="${esc((kmTitle || title).replace(/[\\/:*?"<>|]/g, '_'))}_All_Episodes.zip" class="btn primary sm q-dl-pc-btn" style="padding:3px 12px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:var(--accent,#ff5c00);color:#000;border-radius:6px;box-shadow:0 2px 8px rgba(255,92,0,0.35)" title="ទាញយកចូលក្នុងកុំព្យូទ័រ PC">
+              💾 ទាញយកចូល PC (.ZIP)
+            </a>
+          ` : ''}
         </div>
       </div>
     </div>`;
@@ -4541,10 +4563,13 @@ async function openDir(){
   if(DEMO){ toast("Preview mode — on the live app this opens the folder in your file browser"); return; }
   try{
     const j = await (await fetch("/dl/open",{method:"POST"})).json();
-    if(j && j.ok) toast("📁 បានបើកថតវីដេអូលើកុំព្យូទ័រ (PC) រួចរាល់!");
-    else toast((j && j.error) || "Couldn't open folder", true);
+    if(j && j.ok && !j.is_cloud && j.action !== 'web_explorer'){
+      toast("📁 បានបើកថតវីដេអូលើកុំព្យូទ័រ (PC) រួចរាល់!");
+    } else {
+      openStorageExplorerModal();
+    }
   }catch(e){
-    toast("Couldn't open folder: " + e, true);
+    openStorageExplorerModal();
   }
 }
 async function pickDir(){
