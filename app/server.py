@@ -47,7 +47,7 @@ def _read_app_version():
             pass
     return '1.0.0.8'
 APP_VERSION = _read_app_version()
-GITHUB_REPO = os.environ.get('HG_GITHUB_REPO', 'M4St3r0/hongguo-downloader')
+GITHUB_REPO = os.environ.get('HG_GITHUB_REPO', 'SayanndaraKH/SDA001')
 GITHUB_TOKEN = os.environ.get('HG_GITHUB_TOKEN', '').strip()
 UPDATE_API_URL = os.environ.get('HG_UPDATE_URL', 'https://api.github.com/repos/%s/releases/latest' % GITHUB_REPO)
 _update_cache = {'at': 0.0, 'data': None}
