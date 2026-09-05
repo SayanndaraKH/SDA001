@@ -1846,7 +1846,7 @@ def dl_library_open(payload: dict=Body(...)):
     name = (payload or {}).get('name', '') or ''
     folder = _find_series_folder(name)
     if not folder or not os.path.isdir(folder):
-        return {'ok': False, 'error': 'folder not found'}
+        return {'ok': False, 'error': f'រកមិនឃើញ Folder រឿង "{name}" ទេ'}
     try:
         if sys.platform.startswith('win'):
             os.startfile(folder)
@@ -1855,9 +1855,9 @@ def dl_library_open(payload: dict=Body(...)):
                 subprocess.Popen(['open', folder])
             else:
                 subprocess.Popen(['xdg-open', folder])
-        return {'ok': True}
+        return {'ok': True, 'folder': folder}
     except Exception as e:
-        return {'ok': False, 'error': str(e)}
+        return {'ok': False, 'error': str(e), 'folder': folder}
 
 @app.api_route('/dl/library/video', methods=['GET', 'HEAD'])
 def dl_library_video(name: str = '', ep: int = 1, download: int = 0):

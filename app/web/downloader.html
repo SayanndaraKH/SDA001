@@ -3106,21 +3106,20 @@ function renderQueue(){
           }
         }
 
-        // Fast-path: dynamically update q-actions to add direct PC ZIP download button!
+        // Fast-path: dynamically update q-actions to add direct PC folder open button!
         const actions = row.querySelector(".q-actions");
         if(actions){
-          const hasDlPc = actions.querySelector(".q-dl-pc-btn");
-          if((isDone || (s && s.done > 0)) && !hasDlPc){
+          const hasOpen = actions.querySelector(".q-open-folder");
+          if((isDone || (s && s.done > 0)) && !hasOpen){
             const sName = title || id;
-            const dispName = kmTitle || title || sName;
-            const cleanName = dispName.replace(/[\\/:*?"<>|]/g, '_').trim();
-            const dlA = document.createElement("a");
-            dlA.className = "btn primary sm q-dl-pc-btn";
-            dlA.href = `/dl/library/zip?name=${encodeURIComponent(sName)}`;
-            dlA.download = `${cleanName}_All_Episodes.zip`;
-            dlA.style.cssText = "padding:3px 12px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:var(--accent,#ff5c00);color:#000;border-radius:6px;margin-left:4px;box-shadow:0 2px 8px rgba(255,92,0,0.35)";
-            dlA.innerHTML = `💾 ទាញយកចូល PC (.ZIP)`;
-            actions.appendChild(dlA);
+            const openBtn = document.createElement("button");
+            openBtn.type = "button";
+            openBtn.className = "q-btn q-open-folder";
+            openBtn.setAttribute("data-open-folder", sName);
+            openBtn.style.cssText = "display:inline-flex;align-items:center;gap:4px;color:var(--accent,#ff9800);font-weight:700";
+            openBtn.title = "បើកទីតាំង Folder នៃរឿងនេះនៅលើ PC Local";
+            openBtn.innerHTML = `📁 បើកថតរឿង`;
+            actions.appendChild(openBtn);
           }
         }
       });
@@ -3208,9 +3207,9 @@ function renderQueue(){
           <button class="q-btn q-redl" data-redl="${id}" title="Re-download this drama (ទាញយកម្តងទៀត)">🔄 Redownload</button>
           ${(!s || isDone) ? `<button class="q-btn" data-ep="${id}">☰ Choose episodes</button>` : ''}
           ${(s && s.done > 0) ? `
-            <a href="/dl/library/zip?name=${encodeURIComponent(title)}" download="${esc((kmTitle || title).replace(/[\\/:*?"<>|]/g, '_'))}_All_Episodes.zip" class="btn primary sm q-dl-pc-btn" style="padding:3px 12px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:var(--accent,#ff5c00);color:#000;border-radius:6px;box-shadow:0 2px 8px rgba(255,92,0,0.35)" title="ទាញយកចូលក្នុងកុំព្យូទ័រ PC">
-              💾 ទាញយកចូល PC (.ZIP)
-            </a>
+            <button type="button" class="q-btn q-open-folder" data-open-folder="${esc(title || id)}" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent,#ff9800);font-weight:700" title="បើកទីតាំង Folder នៃរឿងនេះនៅលើ PC Local">
+              📁 បើកថតរឿង
+            </button>
           ` : ''}
         </div>
       </div>
@@ -4650,9 +4649,8 @@ function libCards(items){
       <div class="ttl">${esc(title)}</div>
       <div class="libactions">
         <button data-lib-play="${esc(name)}">▶ Play</button>
-        <button data-lib-save-pc="${esc(name)}" style="color:var(--accent);font-weight:700" title="រក្សាទុកវីដេអូទាំងអស់ចូលក្នុង PC Local">💾 Save PC</button>
+        <button data-lib-open="${esc(name)}" style="color:var(--accent,#ff9800);font-weight:700" title="បើកទីតាំង Folder នៃរឿងនេះនៅលើ PC Local">📁 បើកថតរឿង</button>
         <button data-lib-update="${esc(name)}">↻ Update</button>
-        <button data-lib-open="${esc(name)}">Open ↗</button>
       </div>
     </div>`;
   }).join("");
@@ -4814,10 +4812,22 @@ function applyLiveToLibrary(status){
   });
 }
 async function openSeries(name){
+  if(!name) return;
   try{
-    const j=await (await fetch("/dl/library/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})})).json();
-    if(!j.ok) openLibEpisodes(name);
+    toast(`⏳ កំពុងបើកថតរឿង...`);
+    const j = await (await fetch("/dl/library/open",{
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    })).json();
+    if(j && j.ok){
+      toast(`📁 បានបើកថតរឿង: ${j.folder || name}`);
+    } else {
+      toast(`⚠️ ${j.error || "រកមិនឃើញថតរឿងនេះទេ"}`, true);
+      openLibEpisodes(name);
+    }
   }catch(e){
+    toast("បរាជ័យក្នុងការបើកថត: " + (e.message || e), true);
     openLibEpisodes(name);
   }
 }
@@ -5053,6 +5063,8 @@ document.addEventListener("click", e=>{
     return;
   }
   const lu=e.target.closest("[data-lib-update]"), lo=e.target.closest("[data-lib-open]"), lp=e.target.closest("[data-lib-play]");
+  const qof=e.target.closest("[data-open-folder]");
+  if(qof){ e.stopPropagation(); openSeries(qof.dataset.openFolder); return; }
   if(lp){ playSeries(lp.dataset.libPlay); return; }
   if(lu){ updateOne(lu.dataset.libUpdate); return; }
   if(lo){ openSeries(lo.dataset.libOpen); return; }
