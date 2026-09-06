@@ -589,6 +589,11 @@ def login(identity: str, password: str, device_id: str = ""):
         users = d.get("users", {})
         if not target_key:
             target_key = target.get("key") or ("user_" + clean_firebase_key(target.get("username", ident)))
+        # Detach this hardware device from any other local user
+        if current_hw:
+            for ok, ou in users.items():
+                if ok != target_key and ou.get("device_id") == current_hw:
+                    ou["device_id"] = ""
         users[target_key] = target
         d["users"] = users
         _save_data(d)
@@ -762,7 +767,7 @@ def purge_expired_trial_users():
 
     return 0
 
-def get_user_status(token_or_device_id: str = ""):
+def get_user_status(token_or_device_id: str = "", device_id: str = ""):
     """
     Returns the user's status, settings, and allowed episode boundaries.
     Startup check: Queries Firebase Realtime Database (https://syd-drama-default-rtdb.firebaseio.com)
@@ -839,6 +844,32 @@ def get_user_status(token_or_device_id: str = ""):
     if not user and ident and ident in _sessions:
         user = _sessions[ident]
 
+    # Check if ident is a device ID registered to a user in Firebase /licenses/
+    if not user and ident and ident != "guest":
+        clean_dev = clean_firebase_key(ident)
+        fb_lic = firebase_fetch_license(clean_dev)
+        if fb_lic and isinstance(fb_lic, dict) and fb_lic.get("username"):
+            lic_username = fb_lic.get("username")
+            with _lock:
+                d = _load_data()
+                users = d.get("users", {})
+                for k, u in users.items():
+                    if str(u.get("username", "")).lower() == str(lic_username).lower():
+                        user = u
+                        break
+            if not user:
+                fb_u2 = firebase_fetch_user(lic_username)
+                user = dict(fb_u2) if (fb_u2 and isinstance(fb_u2, dict) and fb_u2.get("username")) else dict(fb_lic)
+                user.setdefault("device_id", ident)
+                with _lock:
+                    d = _load_data()
+                    users = d.get("users", {})
+                    u_key = user.get("key") or f"user_{clean_firebase_key(lic_username)}"
+                    users[u_key] = user
+                    d["users"] = users
+                    _save_data(d)
+            _sessions[ident] = user
+
     if not user and ident:
         # Check local database
         with _lock:
@@ -848,7 +879,7 @@ def get_user_status(token_or_device_id: str = ""):
                     user = u
                     break
 
-    # If not found locally, query Firebase Realtime Database (/users/{ident} or /licenses/{clean_id})
+    # If not found locally, query Firebase Realtime Database (/users/{ident})
     if not user and ident and ident != "guest":
         fb_u = firebase_fetch_user(ident)
         if fb_u and isinstance(fb_u, dict) and fb_u.get("username"):
@@ -861,34 +892,10 @@ def get_user_status(token_or_device_id: str = ""):
                 d["users"] = users
                 _save_data(d)
             _sessions[ident] = user
-        else:
-            # Check if ident is a device ID in Firebase /licenses/
-            clean_dev = clean_firebase_key(ident)
-            fb_lic = firebase_fetch_license(clean_dev)
-            if fb_lic and isinstance(fb_lic, dict) and fb_lic.get("username"):
-                lic_username = fb_lic.get("username")
-                with _lock:
-                    d = _load_data()
-                    users = d.get("users", {})
-                    for k, u in users.items():
-                        if str(u.get("username", "")).lower() == str(lic_username).lower():
-                            user = u
-                            break
-                if not user:
-                    fb_u2 = firebase_fetch_user(lic_username)
-                    user = dict(fb_u2) if (fb_u2 and isinstance(fb_u2, dict) and fb_u2.get("username")) else dict(fb_lic)
-                    user.setdefault("device_id", ident)
-                    with _lock:
-                        d = _load_data()
-                        users = d.get("users", {})
-                        u_key = user.get("key") or f"user_{clean_firebase_key(lic_username)}"
-                        users[u_key] = user
-                        d["users"] = users
-                        _save_data(d)
-                _sessions[ident] = user
 
     settings = get_settings()
-    dev_check = (user.get("device_id") if user else ident) or get_current_device_id()
+    client_dev = str(device_id or "").strip()
+    dev_check = client_dev or (user.get("device_id") if user else ident) or get_current_device_id()
     clean_id = clean_firebase_key(dev_check)
     current_hw_id = get_current_device_id()
 
@@ -1023,12 +1030,21 @@ def get_user_status(token_or_device_id: str = ""):
             fb_status = "expired"
 
         if user:
+            user_is_regular = (not user.get("is_vip") and user.get("role") == "user" and user.get("status") in ("user", "pending_vip", "expired", "trial_locked_24h"))
+            if user_is_regular and fb_vip:
+                fb_vip = False
+                fb_status = "user"
+                try:
+                    threading.Thread(target=_heal_stale_firebase_license, args=(clean_id, user), daemon=True).start()
+                except Exception:
+                    pass
+
             user["role"] = "banned" if fb_banned else ("vip" if fb_vip else user.get("role", "user"))
             user["is_vip"] = fb_vip
             user["is_banned"] = fb_banned
             user["status"] = fb_status
             user["expires_at"] = fb_exp
-            user["approved_package"] = fb_data.get("approved_package", user.get("approved_package", ""))
+            user["approved_package"] = fb_data.get("approved_package", user.get("approved_package", "")) if fb_vip else ""
             user["requested_package"] = fb_data.get("requested_package", user.get("requested_package", "1_year"))
             user["max_free_episodes"] = 0 if fb_banned else (999999 if fb_vip else 5)
             if "coins" in fb_data and fb_data["coins"] is not None:
@@ -1038,6 +1054,18 @@ def get_user_status(token_or_device_id: str = ""):
                 user["purchased_series"] = fb_data["purchased_series"]
         else:
             # Reconstitute regular user from Firebase Realtime Database
+            fb_u_master = firebase_fetch_user(fb_data.get("username", ""))
+            if fb_u_master and isinstance(fb_u_master, dict):
+                u_master_vip = bool(fb_u_master.get("is_vip", False))
+                u_master_role = fb_u_master.get("role", "user")
+                if not u_master_vip and u_master_role == "user" and fb_vip:
+                    fb_vip = False
+                    fb_status = "user"
+                    try:
+                        threading.Thread(target=_heal_stale_firebase_license, args=(clean_id, fb_u_master), daemon=True).start()
+                    except Exception:
+                        pass
+
             tok = "usr_" + clean_id[-12:]
             user = {
                 "key": "user_" + clean_id[-8:],
@@ -1046,13 +1074,13 @@ def get_user_status(token_or_device_id: str = ""):
                 "username": fb_data.get("username", "User"),
                 "name": fb_data.get("name", fb_data.get("username", "User")),
                 "contact": fb_data.get("contact", ""),
-                "role": "banned" if fb_banned else ("vip" if fb_vip else fb_data.get("role", "user")),
+                "role": "banned" if fb_banned else ("vip" if fb_vip else (fb_u_master.get("role") if fb_u_master else fb_data.get("role", "user"))),
                 "is_vip": fb_vip,
                 "is_banned": fb_banned,
                 "is_admin": False,
                 "status": fb_status,
                 "requested_package": fb_data.get("requested_package", "1_year"),
-                "approved_package": fb_data.get("approved_package", ""),
+                "approved_package": fb_data.get("approved_package", "") if fb_vip else "",
                 "expires_at": fb_exp,
                 "max_free_episodes": 0 if fb_banned else (999999 if fb_vip else 5),
                 "coins": int(fb_data.get("coins", 0)),
@@ -1403,9 +1431,68 @@ def approve_user_vip(target_id: str, package: str = None, custom_days: int = Non
                 s_user["package_name"] = pkg_name
                 s_user["days_left"] = -1 if expires_at == 0 else max(0, int((expires_at - now) / 86400))
 
-        # Sync approval to Firebase Realtime Database (/licenses/ and /users/)
-        threading.Thread(target=firebase_sync_license, args=(target,), daemon=True).start()
-        threading.Thread(target=firebase_sync_user, args=(target,), daemon=True).start()
+        # Sync approval to Firebase Realtime Database across all matching devices
+        def _do_firebase_multi_approve():
+            try:
+                u_name = str(target.get("username", "")).strip()
+                clean_u = clean_firebase_key(u_name)
+                root_url, root_params = _firebase_url("")
+                lic_url, lic_params = _firebase_url("licenses")
+                matching_devs = set()
+                if target.get("device_id"):
+                    matching_devs.add(clean_firebase_key(target.get("device_id")))
+                if ident:
+                    matching_devs.add(clean_firebase_key(ident))
+                if lic_url:
+                    r_lic = requests.get(lic_url, params=lic_params, timeout=4, headers={"User-Agent": "SYD-Downloader-Pro"})
+                    if r_lic.status_code == 200 and r_lic.text and r_lic.text != "null":
+                        all_lics = r_lic.json()
+                        if isinstance(all_lics, dict):
+                            for lk, lv in all_lics.items():
+                                if isinstance(lv, dict) and str(lv.get("username", "")).strip().lower() == u_name.lower():
+                                    matching_devs.add(lk)
+
+                patch_payload = {
+                    f"users/{clean_u}/role": "vip" if target.get("role") != "admin" else "admin",
+                    f"users/{clean_u}/status": "approved",
+                    f"users/{clean_u}/is_vip": True,
+                    f"users/{clean_u}/approved_package": target_pkg,
+                    f"users/{clean_u}/package_name": pkg_name,
+                    f"users/{clean_u}/package_badge": "VIP",
+                    f"users/{clean_u}/max_free_episodes": 999999,
+                    f"users/{clean_u}/expires_at": expires_at,
+                    f"users/{clean_u}/updated_at": now
+                }
+                for dev_k in matching_devs:
+                    patch_payload[f"licenses/{dev_k}/role"] = "vip"
+                    patch_payload[f"licenses/{dev_k}/status"] = "approved"
+                    patch_payload[f"licenses/{dev_k}/is_vip"] = True
+                    patch_payload[f"licenses/{dev_k}/approved_package"] = target_pkg
+                    patch_payload[f"licenses/{dev_k}/package_name"] = pkg_name
+                    patch_payload[f"licenses/{dev_k}/package_badge"] = "VIP"
+                    patch_payload[f"licenses/{dev_k}/max_free_episodes"] = 999999
+                    patch_payload[f"licenses/{dev_k}/expires_at"] = expires_at
+                    patch_payload[f"licenses/{dev_k}/updated_at"] = now
+                    if dev_k in _firebase_cache:
+                        _firebase_cache[dev_k]["time"] = time.time()
+                        if _firebase_cache[dev_k].get("data"):
+                            _firebase_cache[dev_k]["data"].update({
+                                "role": "vip",
+                                "status": "approved",
+                                "is_vip": True,
+                                "approved_package": target_pkg,
+                                "max_free_episodes": 999999
+                            })
+
+                if root_url:
+                    requests.patch(root_url, params=root_params, json=patch_payload, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+            except Exception as ex:
+                print(f"[firebase] multi-device approve error: {ex}")
+
+        try:
+            _do_firebase_multi_approve()
+        except Exception:
+            pass
 
         return True, target
 
@@ -1493,7 +1580,7 @@ def ban_user(target_id: str, banned: bool = True, sync_to_firebase: bool = True)
 def downgrade_user_to_regular(target_id: str):
     """
     ADMIN revokes VIP and downgrades user back to regular User tier (episodes 1-5).
-    Syncs across local database, active sessions, and Firebase RTDB.
+    Syncs across local database, active sessions, and Firebase RTDB across ALL user devices.
     """
     ident = str(target_id or "").strip()
     if not ident:
@@ -1531,21 +1618,40 @@ def downgrade_user_to_regular(target_id: str):
             clean_id = clean_firebase_key(ident)
             fb_lic = firebase_fetch_license(clean_id)
             if fb_lic and isinstance(fb_lic, dict) and fb_lic.get("username"):
-                u_name = fb_lic.get("username")
+                u_name_chk = fb_lic.get("username")
                 for k, u in users.items():
-                    if str(u.get("username", "")).lower() == str(u_name).lower():
+                    if str(u.get("username", "")).lower() == str(u_name_chk).lower():
                         target = u
                         target_k = k
                         break
                 if not target:
-                    fb_u2 = firebase_fetch_user(u_name)
+                    fb_u2 = firebase_fetch_user(u_name_chk)
                     target = dict(fb_u2) if (fb_u2 and isinstance(fb_u2, dict) and fb_u2.get("username")) else dict(fb_lic)
-                    target_k = target.get("key") or f"user_{clean_firebase_key(u_name)}"
+                    target_k = target.get("key") or f"user_{clean_firebase_key(u_name_chk)}"
                     users[target_k] = target
                     d["users"] = users
 
         if not target:
             return False, f"រកមិនឃើញ User '{ident}' ក្នុងប្រព័ន្ធឡើយ"
+
+        u_name = str(target.get("username") or ident).strip()
+        if u_name.upper() == "ADMIN" or target.get("role") == "admin":
+            return False, "មិនអាចទម្លាក់គណនី ADMIN បានឡើយ"
+
+        # Update all local matching user records
+        for k, u in list(users.items()):
+            if str(u.get("username", "")).lower() == u_name.lower() or u.get("device_id") == target.get("device_id") or k == target_k:
+                u["role"] = "user"
+                u["status"] = "user"
+                u["is_vip"] = False
+                u["approved_package"] = ""
+                u["package_name"] = f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)"
+                u["package_badge"] = f"{TRIAL_DAYS} ថ្ងៃ"
+                u["max_free_episodes"] = 5
+                u["expires_at"] = exp
+                u["expires_date"] = exp_date_str
+                u["days_left"] = TRIAL_DAYS
+                u["updated_at"] = now
 
         target["role"] = "user"
         target["status"] = "user"
@@ -1562,7 +1668,7 @@ def downgrade_user_to_regular(target_id: str):
 
         # Update active in-memory sessions
         for tok, su in list(_sessions.items()):
-            if su.get("username") == target.get("username") or su.get("device_id") == target.get("device_id"):
+            if str(su.get("username", "")).lower() == u_name.lower() or su.get("device_id") == target.get("device_id") or tok == ident:
                 su["role"] = "user"
                 su["status"] = "user"
                 su["is_vip"] = False
@@ -1574,14 +1680,83 @@ def downgrade_user_to_regular(target_id: str):
                 su["expires_date"] = exp_date_str
                 su["days_left"] = TRIAL_DAYS
 
-        # Sync to Firebase RTDB (/users/ and /licenses/)
+    # Multi-Device sync in Firebase RTDB:
+    # Update /users/{clean_u} AND ALL matching /licenses/{dev_key}
+    def _do_firebase_multi_downgrade():
         try:
-            threading.Thread(target=firebase_sync_license, args=(dict(target),), daemon=True).start()
-            threading.Thread(target=firebase_sync_user, args=(dict(target),), daemon=True).start()
-        except Exception:
-            pass
+            clean_u = clean_firebase_key(u_name)
+            root_url, root_params = _firebase_url("")
+            lic_url, lic_params = _firebase_url("licenses")
+            
+            matching_devs = set()
+            if target.get("device_id"):
+                matching_devs.add(clean_firebase_key(target.get("device_id")))
+            if ident:
+                matching_devs.add(clean_firebase_key(ident))
+                
+            if lic_url:
+                r_lic = requests.get(lic_url, params=lic_params, timeout=4, headers={"User-Agent": "SYD-Downloader-Pro"})
+                if r_lic.status_code == 200 and r_lic.text and r_lic.text != "null":
+                    all_lics = r_lic.json()
+                    if isinstance(all_lics, dict):
+                        for lk, lv in all_lics.items():
+                            if isinstance(lv, dict):
+                                l_u = str(lv.get("username", "")).strip().lower()
+                                if l_u == u_name.lower():
+                                    matching_devs.add(lk)
+                                    
+            patch_payload = {
+                f"users/{clean_u}/role": "user",
+                f"users/{clean_u}/status": "user",
+                f"users/{clean_u}/is_vip": False,
+                f"users/{clean_u}/approved_package": "",
+                f"users/{clean_u}/package_name": f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)",
+                f"users/{clean_u}/package_badge": f"{TRIAL_DAYS} ថ្ងៃ",
+                f"users/{clean_u}/max_free_episodes": 5,
+                f"users/{clean_u}/expires_at": exp,
+                f"users/{clean_u}/expires_date": exp_date_str,
+                f"users/{clean_u}/days_left": TRIAL_DAYS,
+                f"users/{clean_u}/updated_at": now
+            }
+            for dev_k in matching_devs:
+                patch_payload[f"licenses/{dev_k}/role"] = "user"
+                patch_payload[f"licenses/{dev_k}/status"] = "user"
+                patch_payload[f"licenses/{dev_k}/is_vip"] = False
+                patch_payload[f"licenses/{dev_k}/approved_package"] = ""
+                patch_payload[f"licenses/{dev_k}/package_name"] = "User ធម្មតា (ភាគ 1-5)"
+                patch_payload[f"licenses/{dev_k}/package_badge"] = "User"
+                patch_payload[f"licenses/{dev_k}/max_free_episodes"] = 5
+                patch_payload[f"licenses/{dev_k}/expires_at"] = exp
+                patch_payload[f"licenses/{dev_k}/expires_date"] = exp_date_str
+                patch_payload[f"licenses/{dev_k}/days_left"] = TRIAL_DAYS
+                patch_payload[f"licenses/{dev_k}/updated_at"] = now
+                
+                # Invalidate/update _firebase_cache
+                if dev_k in _firebase_cache:
+                    _firebase_cache[dev_k]["time"] = time.time()
+                    if _firebase_cache[dev_k].get("data"):
+                        _firebase_cache[dev_k]["data"].update({
+                            "role": "user",
+                            "status": "user",
+                            "is_vip": False,
+                            "approved_package": "",
+                            "max_free_episodes": 5
+                        })
+                else:
+                    _firebase_cache.pop(dev_k, None)
 
-        return True, target
+            if root_url:
+                requests.patch(root_url, params=root_params, json=patch_payload, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        except Exception as ex:
+            print(f"[firebase] multi-device downgrade error: {ex}")
+
+    try:
+        # Run immediately so response doesn't return before Firebase is updated
+        _do_firebase_multi_downgrade()
+    except Exception:
+        pass
+
+    return True, target
 
 def revoke_user(target_id: str):
     """
@@ -2239,7 +2414,40 @@ def firebase_fetch_user(identity: str, timeout: float = 3.5):
                                 return u
     except Exception as e:
         print(f"[firebase] fetch user error: {e}")
-    return None
+def _heal_stale_firebase_license(clean_id: str, user_dict: dict = None):
+    """
+    Self-healing: If a device license in Firebase RTDB still has is_vip=True,
+    but the user master account is regular user, patch the device license to is_vip=False.
+    """
+    try:
+        clean_dev = clean_firebase_key(clean_id)
+        url, params = _firebase_url(f"licenses/{clean_dev}")
+        if not url:
+            return
+        now_ts = int(time.time())
+        exp = (user_dict or {}).get("expires_at", 0) if isinstance(user_dict, dict) else 0
+        exp_date = (user_dict or {}).get("expires_date", f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)") if isinstance(user_dict, dict) else f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)"
+        dl = (user_dict or {}).get("days_left", TRIAL_DAYS) if isinstance(user_dict, dict) else TRIAL_DAYS
+        patch_data = {
+            "role": "user",
+            "status": "user",
+            "is_vip": False,
+            "approved_package": "",
+            "package_name": "User ធម្មតា (ភាគ 1-5)",
+            "package_badge": "User",
+            "max_free_episodes": 5,
+            "expires_at": exp,
+            "expires_date": exp_date,
+            "days_left": dl,
+            "updated_at": now_ts
+        }
+        if clean_dev in _firebase_cache:
+            _firebase_cache[clean_dev]["time"] = time.time()
+            if _firebase_cache[clean_dev].get("data"):
+                _firebase_cache[clean_dev]["data"].update(patch_data)
+        requests.patch(url, params=params, json=patch_data, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+    except Exception as ex:
+        print(f"[firebase] heal stale license error: {ex}")
 
 def firebase_fetch_license(device_id: str, force: bool = False, timeout: float = 3.0):
     """
@@ -2287,12 +2495,20 @@ def firebase_fetch_license(device_id: str, force: bool = False, timeout: float =
                 updated = False
                 for k, u in users.items():
                     if u.get("device_id") == device_id or clean_firebase_key(u.get("device_id", "")) == clean_id or u.get("username") == fb_data.get("username"):
+                        user_is_regular = (not u.get("is_vip") and u.get("role") == "user" and u.get("status") in ("user", "pending_vip", "expired", "trial_locked_24h"))
+                        if user_is_regular and fb_vip:
+                            fb_vip = False
+                            fb_status = "user"
+                            try:
+                                threading.Thread(target=_heal_stale_firebase_license, args=(clean_id, u), daemon=True).start()
+                            except Exception:
+                                pass
                         u["role"] = "banned" if fb_banned else ("vip" if fb_vip else "user")
                         u["is_vip"] = fb_vip
                         u["is_banned"] = fb_banned
                         u["status"] = fb_status
                         u["expires_at"] = fb_exp
-                        u["approved_package"] = fb_data.get("approved_package", u.get("approved_package", ""))
+                        u["approved_package"] = fb_data.get("approved_package", u.get("approved_package", "")) if fb_vip else ""
                         u["max_free_episodes"] = 0 if fb_banned else (999999 if fb_vip else 5)
                         if "coins" in fb_data and fb_data["coins"] is not None:
                             u["coins"] = int(fb_data["coins"])
@@ -2535,45 +2751,21 @@ def firebase_admin_approve_license(device_id: str, package: str = "1_year", cust
     except Exception as e:
         return False, str(e)
 
-def firebase_admin_downgrade_license(device_id: str, sync_local: bool = True):
+def firebase_admin_downgrade_license(device_id: str, sync_local: bool = True, username: str = ""):
     """Admin: downgrade a VIP license in Firebase Realtime Database back to regular user (Free tier 1-5 episodes)."""
     try:
         clean_id = clean_firebase_key(device_id)
-        now = int(time.time())
-        exp = now + TRIAL_SECONDS
-        import datetime
-        exp_date_str = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
-        
-        patch_data = {
-            "role": "user",
-            "status": "user",
-            "is_vip": False,
-            "approved_package": "",
-            "package_name": "User ធម្មតា (ភាគ 1-5)",
-            "package_badge": "User",
-            "max_free_episodes": 5,
-            "updated_at": now,
-            "expires_at": exp,
-            "expires_date": exp_date_str,
-            "days_left": TRIAL_DAYS
-        }
+        u_name = str(username or "").strip()
+        if not u_name:
+            fb_lic = firebase_fetch_license(clean_id, force=True, timeout=2.0)
+            if fb_lic and isinstance(fb_lic, dict) and fb_lic.get("username"):
+                u_name = fb_lic.get("username")
 
-        # Invalidate/update cache
-        if clean_id in _firebase_cache and _firebase_cache[clean_id].get("data"):
-            _firebase_cache[clean_id]["data"].update(patch_data)
-            _firebase_cache[clean_id]["time"] = time.time()
+        # Downgrade user account and ALL matching device licenses
+        if u_name and not str(u_name).startswith("pc_"):
+            return downgrade_user_to_regular(u_name)
         else:
-            _firebase_cache.pop(clean_id, None)
-
-        url, params = _firebase_url(f"licenses/{clean_id}")
-        if url:
-            requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
-
-        # Also downgrade locally and in Firebase /users/
-        if sync_local:
-            downgrade_user_to_regular(device_id)
-
-        return True, patch_data
+            return downgrade_user_to_regular(device_id)
     except Exception as e:
         print(f"[firebase] admin downgrade error: {e}")
         return False, str(e)

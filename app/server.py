@@ -934,7 +934,7 @@ def dl_access_status(request: Request, token: str='', device_id: str='', auth_to
             tok = auth_hdr[7:].strip()
     if (pin in ('8888', 'syd@168') or (tok and tok in ('8888', 'syd@168'))) and not (tok and (tok.startswith('admin_') or tok.startswith('adm_'))):
         tok = 'admin_pin_master_session'
-    st = ACC.get_user_status(tok)
+    st = ACC.get_user_status(tok, device_id=device_id)
     dep = is_deployed_website(request)
     st['is_deployed_website'] = dep
     is_adm = bool(st.get('is_admin') or st.get('role') in ('admin', 'dev'))
@@ -1156,8 +1156,10 @@ def dl_access_admin_revoke(payload: dict=Body(...)):
     if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     target_id = (payload or {}).get('target_id') or (payload or {}).get('device_id', '') or (payload or {}).get('username', '')
-    ACC.revoke_user(target_id)
-    return {'ok': True}
+    ok, res = ACC.downgrade_user_to_regular(target_id)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+    return {'ok': True, 'result': res}
 
 @app.post('/dl/access/admin/downgrade-user')
 def dl_access_admin_downgrade_user(payload: dict=Body(...)):
@@ -1354,7 +1356,8 @@ def dl_firebase_admin_downgrade(payload: dict=Body(...)):
     if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     dev_id = (payload or {}).get('device_id', '') or (payload or {}).get('target_id', '') or (payload or {}).get('username', '')
-    ok, res = ACC.firebase_admin_downgrade_license(dev_id)
+    u_name = (payload or {}).get('username', '')
+    ok, res = ACC.firebase_admin_downgrade_license(dev_id, username=u_name)
     if not ok:
         return {'ok': False, 'error': str(res)}
     return {'ok': True, 'result': res}
@@ -3678,27 +3681,32 @@ def dl_admin_build_exe(payload: dict = Body(...)):
                     yield json.dumps({'type': 'log', 'text': line}) + '\n'
 
             ret = proc.wait()
-            if ret == 0:
-                cur_v, cur_tag, _, _ = _get_build_version_info()
-                out_dir = os.path.join(repo_root, 'output')
-                versioned_name = f"SYD-Downloader-Pro {cur_tag}.exe"
-                full_path = os.path.join(out_dir, versioned_name)
-                sz_mb = round(os.path.getsize(full_path) / (1024 * 1024), 1) if os.path.isfile(full_path) else 0.0
+            cur_v, cur_tag, _, _ = _get_build_version_info()
+            out_dir = os.path.join(repo_root, 'output')
+            versioned_name = f"SYD-Downloader-Pro {cur_tag}.exe"
+            full_path = os.path.join(out_dir, versioned_name)
+            std_path = os.path.join(out_dir, "SYD-Downloader-Pro.exe")
+            target_exe = full_path if os.path.isfile(full_path) else (std_path if os.path.isfile(std_path) else None)
+            sz_mb = round(os.path.getsize(target_exe) / (1024 * 1024), 1) if (target_exe and os.path.isfile(target_exe)) else 0.0
 
+            if ret == 0 and target_exe and sz_mb > 1.0:
                 yield json.dumps({
                     'type': 'done',
                     'ok': True,
                     'version': cur_v,
                     'version_tag': cur_tag,
-                    'exe_name': versioned_name,
+                    'exe_name': os.path.basename(target_exe),
                     'size_mb': sz_mb,
                     'output_dir': out_dir
                 }) + '\n'
             else:
+                err_msg = f'PyInstaller Build exited with code {ret}'
+                if sz_mb <= 0.0:
+                    err_msg += ' (មិនបានរកឃើញឯកសារ EXE ក្នុង output/ ឡើយ)'
                 yield json.dumps({
                     'type': 'done',
                     'ok': False,
-                    'error': f'PyInstaller Build exited with code {ret}'
+                    'error': err_msg
                 }) + '\n'
         except Exception as e:
             yield json.dumps({'type': 'done', 'ok': False, 'error': str(e)}) + '\n'

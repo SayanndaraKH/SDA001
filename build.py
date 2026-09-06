@@ -109,6 +109,13 @@ def clean_temp():
                     os.remove(os.path.join(root, f))
                 except Exception:
                     pass
+    if os.path.isdir(DIST_DIR):
+        for f in os.listdir(DIST_DIR):
+            if f.endswith(".bak") or ".running_" in f:
+                try:
+                    os.remove(os.path.join(DIST_DIR, f))
+                except Exception:
+                    pass
     print("      ✓ Cache cleaned.")
 
 def prepare_stage_app():
@@ -129,9 +136,45 @@ def prepare_stage_app():
     print("      ✓ Stage app prepared.")
     return stage_app
 
+def safe_deploy_exe(src_path, dst_path):
+    """
+    Safely deploy executable to dst_path on Windows.
+    If dst_path is currently running, Windows locks write access.
+    We rename the running file to .running_<timestamp>.bak first, then copy the new file!
+    """
+    if not os.path.isfile(src_path):
+        return False
+    try:
+        shutil.copy2(src_path, dst_path)
+        return True
+    except PermissionError:
+        bak_path = dst_path + f".running_{int(time.time())}.bak"
+        try:
+            if os.path.exists(bak_path):
+                try:
+                    os.remove(bak_path)
+                except Exception:
+                    pass
+            os.rename(dst_path, bak_path)
+            shutil.copy2(src_path, dst_path)
+            print(f"      ✓ Overwrote active running executable: {os.path.basename(dst_path)} (old process running on .bak)")
+            return True
+        except Exception as ex:
+            print(f"      ⚠️ Notice: {os.path.basename(dst_path)} is currently active ({ex}).")
+            return False
+    except Exception as e:
+        print(f"      ⚠️ Copy error for {os.path.basename(dst_path)}: {e}")
+        return False
+
 def build_single_exe(stage_app, version_tag):
     print(f"[3/4] Compiling and packaging Standalone SYD-Downloader-Pro {version_tag}.exe...")
     os.makedirs(DIST_DIR, exist_ok=True)
+    
+    # Compile into isolated build/dist directory so a running output/SYD-Downloader-Pro.exe never causes Access Denied!
+    staging_dist = os.path.join(ROOT_DIR, "build", "dist")
+    if os.path.exists(staging_dist):
+        shutil.rmtree(staging_dist, ignore_errors=True)
+    os.makedirs(staging_dist, exist_ok=True)
     
     pyinstaller = PYINSTALLER_EXE if os.path.isfile(PYINSTALLER_EXE) else "pyinstaller"
     main_py = os.path.join(ROOT_DIR, "main.py")
@@ -188,49 +231,71 @@ def build_single_exe(stage_app, version_tag):
         "--hidden-import=requests",
         "--hidden-import=urllib3",
         "--hidden-import=httpx",
-        f"--distpath={DIST_DIR}",
+        f"--distpath={staging_dist}",
         f"--workpath={os.path.join(ROOT_DIR, 'build', 'single_exe_work')}",
         f"--specpath={os.path.join(ROOT_DIR, 'build')}",
         main_py
     ]
     cmd = [c for c in cmd if c]
     
-    res = subprocess.run(cmd, check=False)
-    if res.returncode != 0:
-        print(f"      ❌ PyInstaller build returned code: {res.returncode}")
+    # Run PyInstaller with real-time log streaming
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        encoding='utf-8',
+        errors='replace'
+    )
+    for raw_line in proc.stdout:
+        line = raw_line.rstrip()
+        if line:
+            # Stream informative compiler progress
+            low = line.lower()
+            if any(k in low for k in ("building", "copying", "collecting", "adding", "completed", "error", "warning", "info:", "analyzing", "appended", "checking")):
+                print(f"      {line}")
+    proc.wait()
+    if proc.returncode != 0:
+        print(f"      ❌ PyInstaller build returned code: {proc.returncode}")
         return None
         
-    compiled_exe = os.path.join(DIST_DIR, "SYD-Downloader-Pro.exe")
+    compiled_exe = os.path.join(staging_dist, "SYD-Downloader-Pro.exe")
     if not os.path.isfile(compiled_exe):
         # Fallback check
-        alt_exe = os.path.join(DIST_DIR, "HongguoDownloader.exe")
+        alt_exe = os.path.join(staging_dist, "HongguoDownloader.exe")
         if os.path.isfile(alt_exe):
             compiled_exe = alt_exe
         else:
-            print(f"      ❌ Error: Compiled executable not found in {DIST_DIR}")
+            print(f"      ❌ Error: Compiled executable not found in {staging_dist}")
             return None
 
-    # Create version-tagged EXE: SYD-Downloader-Pro V1.0.1.exe
+    # Deploy to DIST_DIR with version-tagged name: SYD-Downloader-Pro V1.0.2.exe
     versioned_exe_name = f"SYD-Downloader-Pro {version_tag}.exe"
     versioned_exe_path = os.path.join(DIST_DIR, versioned_exe_name)
-    shutil.copy2(compiled_exe, versioned_exe_path)
+    safe_deploy_exe(compiled_exe, versioned_exe_path)
 
-    # Ensure compatibility copies exist
+    # Ensure compatibility copies exist in output/
     syd_std_exe = os.path.join(DIST_DIR, "SYD-Downloader-Pro.exe")
     hg_std_exe = os.path.join(DIST_DIR, "HongguoDownloader.exe")
-    if not os.path.isfile(syd_std_exe):
-        shutil.copy2(compiled_exe, syd_std_exe)
-    if not os.path.isfile(hg_std_exe):
-        shutil.copy2(compiled_exe, hg_std_exe)
+    safe_deploy_exe(compiled_exe, syd_std_exe)
+    safe_deploy_exe(compiled_exe, hg_std_exe)
 
-    sz_mb = os.path.getsize(versioned_exe_path) / (1024 * 1024)
-    print(f"      ✓ SUCCESS: Created Standalone Single EXE: {versioned_exe_name} ({sz_mb:.1f} MB)")
-    return versioned_exe_path
+    if os.path.isfile(versioned_exe_path):
+        sz_mb = os.path.getsize(versioned_exe_path) / (1024 * 1024)
+        print(f"      ✓ SUCCESS: Created Standalone Single EXE: {versioned_exe_name} ({sz_mb:.1f} MB)")
+        return versioned_exe_path
+    elif os.path.isfile(syd_std_exe):
+        sz_mb = os.path.getsize(syd_std_exe) / (1024 * 1024)
+        print(f"      ✓ SUCCESS: Created Standalone Single EXE: SYD-Downloader-Pro.exe ({sz_mb:.1f} MB)")
+        return syd_std_exe
+    return None
 
 def cleanup_stage():
     print("[4/4] Cleaning build staging files...")
     shutil.rmtree(os.path.join(ROOT_DIR, "build", "stage_app"), ignore_errors=True)
     shutil.rmtree(os.path.join(ROOT_DIR, "build", "single_exe_work"), ignore_errors=True)
+    shutil.rmtree(os.path.join(ROOT_DIR, "build", "dist"), ignore_errors=True)
     print("      ✓ Staging cleaned.")
 
 def main():
@@ -247,14 +312,20 @@ def main():
     
     elapsed = time.time() - t0
     print("\n" + "=" * 68)
-    print(f"   🎉 BUILD COMPLETED IN {elapsed:.1f} SECONDS!")
-    print(f"   📂 Output Directory: {DIST_DIR}")
     if final_exe and os.path.isfile(final_exe):
+        print(f"   🎉 BUILD COMPLETED IN {elapsed:.1f} SECONDS!")
+        print(f"   📂 Output Directory: {DIST_DIR}")
         print(f"   📦 Single Standalone EXE (មួយគត់ គ្រប់គ្រាន់):")
         print(f"      👉 {final_exe}")
         print(f"      👉 {os.path.join(DIST_DIR, 'SYD-Downloader-Pro.exe')}")
         print("   🔒 All code compiled as bytecode - 100% Protected from bypass/hacks!")
-    print("=" * 68)
+        print("=" * 68)
+        return 0
+    else:
+        print(f"   ❌ BUILD FAILED AFTER {elapsed:.1f} SECONDS!")
+        print(f"   📂 Please review compiler output logs above.")
+        print("=" * 68)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
