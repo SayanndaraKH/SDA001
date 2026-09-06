@@ -1155,9 +1155,21 @@ def dl_access_admin_revoke(payload: dict=Body(...)):
     tok = (payload or {}).get('token', '')
     if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
-    target_id = (payload or {}).get('target_id') or (payload or {}).get('device_id', '')
+    target_id = (payload or {}).get('target_id') or (payload or {}).get('device_id', '') or (payload or {}).get('username', '')
     ACC.revoke_user(target_id)
     return {'ok': True}
+
+@app.post('/dl/access/admin/downgrade-user')
+def dl_access_admin_downgrade_user(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    target_id = (payload or {}).get('target_id') or (payload or {}).get('device_id', '') or (payload or {}).get('username', '')
+    ok, res = ACC.downgrade_user_to_regular(target_id)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+    return {'ok': True, 'result': res}
 
 @app.post('/dl/access/admin/delete')
 def dl_access_admin_delete(payload: dict=Body(...)):
@@ -1331,6 +1343,18 @@ def dl_firebase_admin_approve(payload: dict=Body(...)):
     pkg = (payload or {}).get('package', '1_year')
     custom_days = (payload or {}).get('custom_days', None)
     ok, res = ACC.firebase_admin_approve_license(dev_id, pkg, custom_days)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+    return {'ok': True, 'result': res}
+
+@app.post('/dl/firebase/admin/downgrade')
+def dl_firebase_admin_downgrade(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    dev_id = (payload or {}).get('device_id', '') or (payload or {}).get('target_id', '') or (payload or {}).get('username', '')
+    ok, res = ACC.firebase_admin_downgrade_license(dev_id)
     if not ok:
         return {'ok': False, 'error': str(res)}
     return {'ok': True, 'result': res}

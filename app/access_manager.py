@@ -832,7 +832,7 @@ def get_user_status(token_or_device_id: str = ""):
                     user = u
                     break
 
-    # If not found locally, query Firebase Realtime Database (/users/{ident})
+    # If not found locally, query Firebase Realtime Database (/users/{ident} or /licenses/{clean_id})
     if not user and ident and ident != "guest":
         fb_u = firebase_fetch_user(ident)
         if fb_u and isinstance(fb_u, dict) and fb_u.get("username"):
@@ -845,6 +845,31 @@ def get_user_status(token_or_device_id: str = ""):
                 d["users"] = users
                 _save_data(d)
             _sessions[ident] = user
+        else:
+            # Check if ident is a device ID in Firebase /licenses/
+            clean_dev = clean_firebase_key(ident)
+            fb_lic = firebase_fetch_license(clean_dev)
+            if fb_lic and isinstance(fb_lic, dict) and fb_lic.get("username"):
+                lic_username = fb_lic.get("username")
+                with _lock:
+                    d = _load_data()
+                    users = d.get("users", {})
+                    for k, u in users.items():
+                        if str(u.get("username", "")).lower() == str(lic_username).lower():
+                            user = u
+                            break
+                if not user:
+                    fb_u2 = firebase_fetch_user(lic_username)
+                    user = dict(fb_u2) if (fb_u2 and isinstance(fb_u2, dict) and fb_u2.get("username")) else dict(fb_lic)
+                    user.setdefault("device_id", ident)
+                    with _lock:
+                        d = _load_data()
+                        users = d.get("users", {})
+                        u_key = user.get("key") or f"user_{clean_firebase_key(lic_username)}"
+                        users[u_key] = user
+                        d["users"] = users
+                        _save_data(d)
+                _sessions[ident] = user
 
     settings = get_settings()
     dev_check = (user.get("device_id") if user else ident) or get_current_device_id()
@@ -990,8 +1015,9 @@ def get_user_status(token_or_device_id: str = ""):
             user["approved_package"] = fb_data.get("approved_package", user.get("approved_package", ""))
             user["requested_package"] = fb_data.get("requested_package", user.get("requested_package", "1_year"))
             user["max_free_episodes"] = 0 if fb_banned else (999999 if fb_vip else 5)
-            if "coins" in fb_data:
-                user["coins"] = int(fb_data.get("coins") or 0)
+            if "coins" in fb_data and fb_data["coins"] is not None:
+                user["coins"] = max(int(user.get("coins") or 0), int(fb_data.get("coins") or 0))
+                user["coins_riel"] = user["coins"] * 500
             if "purchased_series" in fb_data and isinstance(fb_data["purchased_series"], dict):
                 user["purchased_series"] = fb_data["purchased_series"]
         else:
@@ -1448,42 +1474,105 @@ def ban_user(target_id: str, banned: bool = True, sync_to_firebase: bool = True)
             return True, {"device_id": ident, "status": "banned" if banned else "user", "is_banned": banned}
     return False, "រកមិនឃើញគណនីនេះទេ"
 
+def downgrade_user_to_regular(target_id: str):
+    """
+    ADMIN revokes VIP and downgrades user back to regular User tier (episodes 1-5).
+    Syncs across local database, active sessions, and Firebase RTDB.
+    """
+    ident = str(target_id or "").strip()
+    if not ident:
+        return False, "សូមបញ្ជាក់ User ឬ Device ID"
+
+    now = int(time.time())
+    exp = now + TRIAL_SECONDS
+    import datetime
+    exp_date_str = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
+
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+        target = None
+        target_k = None
+        for k, u in users.items():
+            if k == ident or u.get("device_id") == ident or u.get("username") == ident or u.get("key") == ident or clean_firebase_key(u.get("device_id", "")) == clean_firebase_key(ident) or str(u.get("username", "")).lower() == ident.lower():
+                if str(u.get("username")).upper() == "ADMIN" or u.get("role") == "admin":
+                    return False, "មិនអាចទម្លាក់គណនី ADMIN បានឡើយ"
+                target = u
+                target_k = k
+                break
+
+        if not target:
+            # Look up in Firebase /users/
+            fb_u = firebase_fetch_user(ident)
+            if fb_u and isinstance(fb_u, dict) and fb_u.get("username"):
+                target = dict(fb_u)
+                target_k = fb_u.get("key") or f"user_{clean_firebase_key(fb_u.get('username'))}"
+                users[target_k] = target
+                d["users"] = users
+
+        if not target:
+            # Look up in Firebase /licenses/
+            clean_id = clean_firebase_key(ident)
+            fb_lic = firebase_fetch_license(clean_id)
+            if fb_lic and isinstance(fb_lic, dict) and fb_lic.get("username"):
+                u_name = fb_lic.get("username")
+                for k, u in users.items():
+                    if str(u.get("username", "")).lower() == str(u_name).lower():
+                        target = u
+                        target_k = k
+                        break
+                if not target:
+                    fb_u2 = firebase_fetch_user(u_name)
+                    target = dict(fb_u2) if (fb_u2 and isinstance(fb_u2, dict) and fb_u2.get("username")) else dict(fb_lic)
+                    target_k = target.get("key") or f"user_{clean_firebase_key(u_name)}"
+                    users[target_k] = target
+                    d["users"] = users
+
+        if not target:
+            return False, f"រកមិនឃើញ User '{ident}' ក្នុងប្រព័ន្ធឡើយ"
+
+        target["role"] = "user"
+        target["status"] = "user"
+        target["is_vip"] = False
+        target["approved_package"] = ""
+        target["package_name"] = f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)"
+        target["package_badge"] = f"{TRIAL_DAYS} ថ្ងៃ"
+        target["max_free_episodes"] = 5
+        target["expires_at"] = exp
+        target["expires_date"] = exp_date_str
+        target["days_left"] = TRIAL_DAYS
+        target["updated_at"] = now
+        _save_data(d)
+
+        # Update active in-memory sessions
+        for tok, su in list(_sessions.items()):
+            if su.get("username") == target.get("username") or su.get("device_id") == target.get("device_id"):
+                su["role"] = "user"
+                su["status"] = "user"
+                su["is_vip"] = False
+                su["approved_package"] = ""
+                su["package_name"] = target["package_name"]
+                su["package_badge"] = target["package_badge"]
+                su["max_free_episodes"] = 5
+                su["expires_at"] = exp
+                su["expires_date"] = exp_date_str
+                su["days_left"] = TRIAL_DAYS
+
+        # Sync to Firebase RTDB (/users/ and /licenses/)
+        try:
+            threading.Thread(target=firebase_sync_license, args=(dict(target),), daemon=True).start()
+            threading.Thread(target=firebase_sync_user, args=(dict(target),), daemon=True).start()
+        except Exception:
+            pass
+
+        return True, target
+
 def revoke_user(target_id: str):
     """
     Revert a VIP user back to a regular free user (1-5 episodes).
     """
-    ident = str(target_id or "").strip()
-    with _lock:
-        d = _load_data()
-        users = d.get("users", {})
-        for k, u in users.items():
-            if k == ident or u.get("device_id") == ident or u.get("username") == ident or u.get("key") == ident:
-                if str(u.get("username")).upper() == "ADMIN":
-                    return False
-                u["status"] = "user"
-                u["is_vip"] = False
-                u["role"] = "user"
-                u["expires_at"] = 0
-                u["max_free_episodes"] = 5
-                u["package_name"] = "គណនីធម្មតា (ភាគ 1-5)"
-                u["updated_at"] = int(time.time())
-                _save_data(d)
-                for tok, s_user in list(_sessions.items()):
-                    if s_user.get("username") == u.get("username") or s_user.get("device_id") == u.get("device_id"):
-                        s_user["is_vip"] = False
-                        s_user["status"] = "user"
-                        s_user["max_free_episodes"] = 5
-                        s_user["expires_at"] = 0
-                        s_user["package_name"] = "គណនីធម្មតា (ភាគ 1-5)"
-                
-                # Sync revoke to Firebase Realtime Database
-                try:
-                    threading.Thread(target=firebase_sync_license, args=(dict(u),), daemon=True).start()
-                    threading.Thread(target=firebase_sync_user, args=(dict(u),), daemon=True).start()
-                except Exception:
-                    pass
-                return True
-    return False
+    ok, res = downgrade_user_to_regular(target_id)
+    return ok
 
 # ----------------- Drama Free Rules Management ----------------- #
 
@@ -2430,6 +2519,49 @@ def firebase_admin_approve_license(device_id: str, package: str = "1_year", cust
     except Exception as e:
         return False, str(e)
 
+def firebase_admin_downgrade_license(device_id: str, sync_local: bool = True):
+    """Admin: downgrade a VIP license in Firebase Realtime Database back to regular user (Free tier 1-5 episodes)."""
+    try:
+        clean_id = clean_firebase_key(device_id)
+        now = int(time.time())
+        exp = now + TRIAL_SECONDS
+        import datetime
+        exp_date_str = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
+        
+        patch_data = {
+            "role": "user",
+            "status": "user",
+            "is_vip": False,
+            "approved_package": "",
+            "package_name": "User ធម្មតា (ភាគ 1-5)",
+            "package_badge": "User",
+            "max_free_episodes": 5,
+            "updated_at": now,
+            "expires_at": exp,
+            "expires_date": exp_date_str,
+            "days_left": TRIAL_DAYS
+        }
+
+        # Invalidate/update cache
+        if clean_id in _firebase_cache and _firebase_cache[clean_id].get("data"):
+            _firebase_cache[clean_id]["data"].update(patch_data)
+            _firebase_cache[clean_id]["time"] = time.time()
+        else:
+            _firebase_cache.pop(clean_id, None)
+
+        url, params = _firebase_url(f"licenses/{clean_id}")
+        if url:
+            requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+
+        # Also downgrade locally and in Firebase /users/
+        if sync_local:
+            downgrade_user_to_regular(device_id)
+
+        return True, patch_data
+    except Exception as e:
+        print(f"[firebase] admin downgrade error: {e}")
+        return False, str(e)
+
 def firebase_admin_ban_license(device_id: str, banned: bool = True, sync_local: bool = True):
     """Admin: ban or unban a user license in Firebase Realtime Database."""
     try:
@@ -2749,7 +2881,7 @@ def admin_approve_coin_request(request_id: str, admin_note: str = ""):
         return True, "សំណើនេះត្រូវបាន Approve រួចរាល់ហើយ"
 
     coins = int(req_data.get("coins") or req_data.get("amount_coins") or 0)
-    target_id = req_data.get("device_id") or req_data.get("username")
+    target_id = req_data.get("username") or req_data.get("device_id")
 
     # Credit coins to user!
     ok, res = admin_adjust_user_coins(target_id, action="add", coins=coins, note=f"Approve Request #{request_id} ({coins} Coins = {coins*500:,}៛)")
@@ -2757,12 +2889,27 @@ def admin_approve_coin_request(request_id: str, admin_note: str = ""):
         return False, f"បរាជ័យក្នុងការបញ្ចូល Coins ជូន User: {res}"
 
     now_ts = int(time.time())
+    new_coins_val = (res.get("new_coins") if isinstance(res, dict) else None)
     patch_data = {
         "status": "approved",
         "approved_at": now_ts,
         "updated_at": now_ts,
         "admin_note": admin_note or "Admin approved payment"
     }
+
+    # Also directly sync request device license if present
+    req_dev = req_data.get("device_id")
+    if req_dev and new_coins_val is not None:
+        clean_req_dev = clean_firebase_key(req_dev)
+        try:
+            url_dev, p_dev = _firebase_url(f"licenses/{clean_req_dev}")
+            if url_dev:
+                requests.patch(url_dev, params=p_dev, json={"coins": new_coins_val, "updated_at": now_ts}, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+            if clean_req_dev in _firebase_cache and isinstance(_firebase_cache[clean_req_dev].get("data"), dict):
+                _firebase_cache[clean_req_dev]["data"]["coins"] = new_coins_val
+                _firebase_cache[clean_req_dev]["data"]["updated_at"] = now_ts
+        except Exception:
+            pass
 
     # Update local
     with _lock:
@@ -2848,15 +2995,32 @@ def admin_adjust_user_coins(username_or_dev: str, action: str = "add", coins: in
                 break
 
         if not target:
-            # Check Firebase
+            # 1. Check Firebase /users/{ident}
+            fb_u = firebase_fetch_user(ident)
+            if fb_u and isinstance(fb_u, dict) and fb_u.get("username"):
+                target = dict(fb_u)
+                target_k = fb_u.get("key") or f"user_{clean_firebase_key(fb_u.get('username'))}"
+                users[target_k] = target
+                d["users"] = users
+                _save_data(d)
+
+        if not target:
+            # 2. Check Firebase /licenses/{clean_id}
             clean_id = clean_firebase_key(ident)
             fb = firebase_fetch_license(clean_id)
             if fb and isinstance(fb, dict) and fb.get("username"):
                 for k, u in users.items():
-                    if u.get("username") == fb.get("username"):
+                    if str(u.get("username", "")).lower() == str(fb.get("username", "")).lower():
                         target = u
                         target_k = k
                         break
+                if not target:
+                    fb_u2 = firebase_fetch_user(fb.get("username"))
+                    target = dict(fb_u2) if (fb_u2 and isinstance(fb_u2, dict) and fb_u2.get("username")) else dict(fb)
+                    target_k = target.get("key") or f"user_{clean_firebase_key(fb.get('username'))}"
+                    users[target_k] = target
+                    d["users"] = users
+                    _save_data(d)
 
         if not target:
             return False, f"រកមិនឃើញ User '{ident}' ក្នុងប្រព័ន្ធឡើយ"
@@ -2885,32 +3049,49 @@ def admin_adjust_user_coins(username_or_dev: str, action: str = "add", coins: in
                 su["coins"] = new_c
                 su["coins_riel"] = new_c * 500
 
-    # Sync to Firebase RTDB
-    dev_id = target.get("device_id") or ident
-    clean_id = clean_firebase_key(dev_id)
+    # Sync to Firebase RTDB: User Account & All Known Devices
     u_name = target.get("username")
     clean_u = clean_firebase_key(u_name) if u_name else ""
+    devices_to_sync = set()
+    if target.get("device_id"):
+        devices_to_sync.add(clean_firebase_key(target.get("device_id")))
+    if ident and ("d1:" in ident or "usr_" in ident or "_" in ident or ":" in ident):
+        devices_to_sync.add(clean_firebase_key(ident))
+
+    # Also discover all licenses in Firebase belonging to this user
     try:
-        url, params = _firebase_url(f"licenses/{clean_id}")
-        if url:
-            requests.patch(url, params=params, json={"coins": new_c, "updated_at": now_ts}, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        url_lics, p_lics = _firebase_url("licenses")
+        if url_lics:
+            all_l = requests.get(url_lics, params=p_lics, timeout=4, headers={"User-Agent": "SYD-Downloader-Pro"}).json()
+            if all_l and isinstance(all_l, dict):
+                for l_key, l_val in all_l.items():
+                    if isinstance(l_val, dict) and str(l_val.get("username", "")).lower() == str(u_name).lower():
+                        devices_to_sync.add(clean_firebase_key(l_key))
+    except Exception:
+        pass
+
+    try:
         if clean_u:
             url_u, params_u = _firebase_url(f"users/{clean_u}")
             if url_u:
-                requests.patch(url_u, params=params_u, json={"coins": new_c, "updated_at": now_ts}, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+                requests.patch(url_u, params=params_u, json={"coins": new_c, "coins_riel": new_c * 500, "updated_at": now_ts}, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        for dev_k in devices_to_sync:
+            url_d, params_d = _firebase_url(f"licenses/{dev_k}")
+            if url_d:
+                requests.patch(url_d, params=params_d, json={"coins": new_c, "updated_at": now_ts}, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+            # Immediately refresh in-memory Firebase cache
+            if dev_k in _firebase_cache:
+                if isinstance(_firebase_cache[dev_k].get("data"), dict):
+                    _firebase_cache[dev_k]["data"]["coins"] = new_c
+                    _firebase_cache[dev_k]["data"]["updated_at"] = now_ts
+                    _firebase_cache[dev_k]["time"] = time.time()
+                else:
+                    _firebase_cache.pop(dev_k, None)
     except Exception as e:
         print(f"[coin] firebase coin sync error: {e}")
 
-    # Immediately refresh in-memory Firebase cache to avoid stale read-back
-    if clean_id in _firebase_cache:
-        if isinstance(_firebase_cache[clean_id].get("data"), dict):
-            _firebase_cache[clean_id]["data"]["coins"] = new_c
-            _firebase_cache[clean_id]["data"]["updated_at"] = now_ts
-            _firebase_cache[clean_id]["time"] = time.time()
-        else:
-            _firebase_cache.pop(clean_id, None)
-
     # Log Transaction in Firebase RTDB
+    dev_id = target.get("device_id") or ident
     _record_coin_transaction(
         username=target.get("username", "User"),
         device_id=dev_id,

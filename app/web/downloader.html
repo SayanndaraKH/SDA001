@@ -9169,9 +9169,9 @@ function renderAdminUserList(users){
           <button class="btn sm" style="height:30px;padding:2px 10px;font-size:11.5px;font-weight:700;background:rgba(255,46,99,0.15);color:var(--bad);border:1px solid rgba(255,46,99,0.35)" onclick="adminBanUser('${esc(targetKey)}', true)">🚫 បិទគណនី (Ban)</button>
         `}
 
-        <!-- Revoke VIP -->
+        <!-- Revoke VIP / Downgrade to User ធម្មតា -->
         ${isApp ? `
-          <button class="btn ghost sm" style="height:30px;padding:2px 10px;font-size:11.5px;color:var(--accent);border-color:rgba(255,106,43,0.35)" onclick="adminRevokeUser('${esc(targetKey)}')">⛔ ដកសិទ្ធិ VIP</button>
+          <button class="btn ghost sm" style="height:30px;padding:2px 10px;font-size:11.5px;color:#38bdf8;border:1px solid rgba(56,189,248,0.4);background:rgba(56,189,248,0.08)" onclick="adminRevokeUser('${esc(targetKey)}')">🔄 User ធម្មតា</button>
         ` : ''}
       </div>` : ''}
     </div>`;
@@ -9628,6 +9628,11 @@ function renderFirebaseLicensesList(licenses){
             <button class="btn ghost sm" onclick="firebaseCustomDaysApprove('${esc(devId)}')" style="font-size:11px;padding:4px 8px">
               ⏳ ថ្ងៃផ្ទាល់
             </button>
+            ${isVip ? `
+              <button class="btn ghost sm" onclick="firebaseDowngradeLicense('${esc(devId)}', '${esc(userName)}')" style="font-size:11px;padding:4px 8px;color:#38bdf8;border:1px solid rgba(56,189,248,0.4);background:rgba(56,189,248,0.08)" title="ដកសិទ្ធិ VIP និងប្តូរជា User ធម្មតាវិញ (Free ភាគ 1-5)">
+                🔄 User ធម្មតា
+              </button>
+            ` : ''}
             ${isBanned ? `
               <button class="btn ghost sm" onclick="firebaseUnbanLicense('${esc(devId)}')" style="font-size:11px;padding:4px 8px;color:var(--good);border:1px solid rgba(46,204,113,0.4)">
                 🟢 Unban
@@ -9647,6 +9652,32 @@ function renderFirebaseLicensesList(licenses){
   });
   cont.innerHTML = html;
 }
+
+window.firebaseDowngradeLicense = async function(devId, userName){
+  if(!devId) return;
+  const nameDisp = userName || devId;
+  if(!confirm(`តើអ្នកពិតជាចង់ប្តូរគណនី "${nameDisp}" ពី VIP មកជា User ធម្មតាវិញមែនទេ?`)) return;
+  const pin = currentAdminPin || '8888';
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  try {
+    const res = await fetch("/dl/firebase/admin/downgrade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin, token: tok, device_id: devId, username: userName })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast(`✅ បានប្តូរ "${nameDisp}" មកជា User ធម្មតាវិញជោគជ័យ!`);
+      refreshFirebaseLicenses();
+      refreshAdminUsersList();
+      fetchAccessStatus();
+    } else {
+      alert(j.error || "បរាជ័យក្នុងការប្តូរស្ថានភាព User");
+    }
+  } catch(e){
+    alert("Network error: " + e.message);
+  }
+};
 
 window.firebaseApproveLicense = async function(devId, pkg, customDays = null){
   if(!devId) return;
