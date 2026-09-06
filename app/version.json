@@ -1,7 +1,5 @@
 {
-  "version": "1.0.5",
-  "version_tag": "V1.0.5",
-  "app_name": "SYD-Downloader-Pro",
-  "updated_at": "2026-09-05 13:36:00",
-  "message": "Release V1.0.5 (2026-09-05 13:36:00)"
+  "version": "1.0.0.8",
+  "updated_at": "2026-09-06 13:57:29",
+  "message": "Auto update and deploy (2026-09-06 13:57:29)"
 }

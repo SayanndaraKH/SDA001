@@ -146,7 +146,7 @@ if not ADMIN_TOKEN:
 RATE_PER_MIN = int(os.environ.get('RATE_PER_MIN', '120'))
 _rl = {}
 _rl_lock = threading.Lock()
-_EXEMPT = ('/', '/ui', '/img', '/docs', '/openapi.json', '/redoc', '/favicon.ico', '/logo.png', '/dl', '/dl/submit', '/dl/status', '/dl/diag', '/dl/search', '/dl/resolve', '/dl/cancel', '/dl/config', '/dl/open', '/dl/pick', '/dl/drives', '/dl/episodes', '/dl/rank', '/dl/explorer', '/dl/bugreport', '/dl/library', '/dl/poster', '/dl/library/open', '/dl/library/play', '/dl/library/video', '/dl/library/transcode', '/dl/library/update', '/dl/library/episodes', '/dl/library/seen', '/dl/restart', '/dl/license/status', '/dl/license/activate', '/dl/license/deactivate', '/dl/license/usage', '/dl/update-check', '/dl/update-download', '/dl/update-run', '/dl/history', '/dl/history/poster', '/dl/translate', '/dl/translate_batch', '/dl/gemini/status', '/dl/gemini/config', '/dl/gemini/test', '/dl/storage/files', '/dl/library/zip', '/dl/storage/delete', '/dl/admin/push-deploy', '/dl/admin/build-info', '/dl/admin/build-exe', '/dl/admin/open-output-folder', '/dl/admin/download-exe')
+_EXEMPT = ('/', '/ui', '/img', '/docs', '/openapi.json', '/redoc', '/favicon.ico', '/logo.png', '/dl', '/dl/submit', '/dl/status', '/dl/diag', '/dl/search', '/dl/actors', '/dl/resolve', '/dl/cancel', '/dl/config', '/dl/open', '/dl/pick', '/dl/drives', '/dl/episodes', '/dl/rank', '/dl/explorer', '/dl/bugreport', '/dl/library', '/dl/poster', '/dl/library/open', '/dl/library/play', '/dl/library/video', '/dl/library/transcode', '/dl/library/update', '/dl/library/episodes', '/dl/library/seen', '/dl/restart', '/dl/license/status', '/dl/license/activate', '/dl/license/deactivate', '/dl/license/usage', '/dl/update-check', '/dl/update-download', '/dl/update-run', '/dl/history', '/dl/history/poster', '/dl/translate', '/dl/translate_batch', '/dl/gemini/status', '/dl/gemini/config', '/dl/gemini/test', '/dl/storage/files', '/dl/library/zip', '/dl/storage/delete', '/dl/admin/push-deploy', '/dl/admin/build-info', '/dl/admin/build-exe', '/dl/admin/open-output-folder', '/dl/admin/download-exe')
 _ADMIN_PREFIX = '/admin'
 def _check_admin(request: Request) -> bool:
     tok = request.headers.get('x-admin-token') or request.query_params.get('admin_token') or ''
@@ -508,7 +508,7 @@ def api_stream(series_id: str=None, ep: str='1', vid: str=None, quality: str='be
     注: <video> 标签无法带请求头, 用 ?api_key= 传密钥。"""
     try:
         idx = int(ep) if str(ep).isdigit() else 1
-        ok, _, msg = ACC.can_access_episode(idx, token or device_id)
+        ok, _, msg = ACC.can_access_episode(idx, token or device_id, series_id or '')
         if not ok:
             raise HTTPException(403, msg)
         fname = None
@@ -538,7 +538,7 @@ def _dl_log(m):
     with _dl_lock:
         _dl_state['log'].append(f"{time.strftime('%H:%M:%S')} {m}")
         _dl_state['log'] = _dl_state['log'][(-80):]
-def _dl_worker(text, ids, conc, quality, ranges=None, series_at_once=3, scores=None, ranks=None, titles_km=None):
+def _dl_worker(text, ids, conc, quality, ranges=None, series_at_once=3, scores=None, ranks=None, titles_km=None, user_token=None):
     ranges = ranges or {}
     ranks = ranks or {}
     titles_km = titles_km or {}
@@ -610,7 +610,7 @@ def _dl_worker(text, ids, conc, quality, ranges=None, series_at_once=3, scores=N
         return
     try:
         _dl_log(f'downloading {len(final)} series into {ODL.OUT} (already-downloaded episodes are skipped)...')
-        ODL.dl_batch([f[0] for f in final], concurrency=conc, retry_rounds=2, quality=quality, ranges=ranges, series_at_once=series_at_once, ranks=ranks)
+        ODL.dl_batch([f[0] for f in final], concurrency=conc, retry_rounds=2, quality=quality, ranges=ranges, series_at_once=series_at_once, ranks=ranks, user_token=user_token)
         _dl_log('cancelled' if ODL.CANCEL.is_set() else 'all done')
     except Exception as e:
         import traceback
@@ -635,25 +635,50 @@ def dl_submit(payload: dict=Body(...)):
     else:
         dev = (payload or {}).get('device_id') or ACC.get_current_device_id()
         tok = (payload or {}).get('token') or dev
-        max_req_ep = 0
-        if ranges:
-            for sid, r_str in ranges.items():
-                parts = str(r_str).split('-')
-                try:
-                    if len(parts) == 2:
-                        max_req_ep = max(max_req_ep, int(parts[1]))
-                    elif len(parts) == 1 and parts[0].isdigit():
-                        max_req_ep = max(max_req_ep, int(parts[0]))
-                except Exception:
-                    pass
-        can_dl, reason, msg, capped_range = ACC.check_can_download(tok, None, max_req_ep)
-        if not can_dl:
-            return {'ok': False, 'reason': reason, 'error': msg}
         user_st = ACC.get_user_status(tok)
-        if capped_range and not (user_st.get('is_admin') or user_st.get('is_vip')):
+        is_full_user = bool(user_st.get('is_admin') or user_st.get('is_vip'))
+        if not is_full_user and ids:
+            user_coins = int(user_st.get('coins', 0))
+            purchased_sids = user_st.get('purchased_series') or {}
+            accumulated_coins = 0
             for sid in ids:
-                if sid not in ranges or ranges[sid] == 'all':
-                    ranges[sid] = capped_range
+                r_str = ranges.get(sid, 'all')
+                max_ep_sid = 999999
+                if r_str and r_str != 'all':
+                    parts = str(r_str).split('-')
+                    try:
+                        if len(parts) == 2 and parts[1].isdigit():
+                            max_ep_sid = int(parts[1])
+                        elif len(parts) == 1 and parts[0].isdigit():
+                            max_ep_sid = int(parts[0])
+                    except Exception:
+                        pass
+
+                # If already purchased, user has full access
+                if sid in purchased_sids or str(sid) in purchased_sids:
+                    continue
+
+                can_dl, reason, msg, capped_range = ACC.check_can_download(tok, None, max_ep_sid, sid)
+                if not can_dl:
+                    # User needs to buy with coins!
+                    p_info = ACC.get_movie_pricing(sid)
+                    req_c = p_info.get('coins', 2)
+                    accumulated_coins += req_c
+                    if user_coins < accumulated_coins:
+                        return {
+                            'ok': False,
+                            'reason': 'insufficient_coins',
+                            'error': f"Coins មិនគ្រប់គ្រាន់! រឿងនេះត្រូវការ {req_c} Coins ({p_info.get('riel', 1000):,}៛) ប៉ុន្តែអ្នកមានត្រឹមតែ {user_coins} Coins ({user_coins * 500:,}៛)។ សូមបញ្ចូល Coin បន្ថែម!",
+                            'required_coins': req_c,
+                            'user_coins': user_coins,
+                            'series_id': sid
+                        }
+                    # User has enough coins -> allow download! (Deduction will happen on completion)
+                    if sid in ranges and ranges[sid] == capped_range:
+                        ranges[sid] = 'all'
+                elif capped_range:
+                    if sid not in ranges or ranges[sid] == 'all':
+                        ranges[sid] = capped_range
         blocked = []
         if ids:
             keep = []
@@ -670,7 +695,7 @@ def dl_submit(payload: dict=Body(...)):
                 else:
                     _dl_state.update(running=True, log=[], series={}, started=int(time.time()), mode='download')
             ODL.CANCEL.clear()
-            threading.Thread(target=_dl_worker, args=(text, ids, conc, quality, ranges, series_at_once, scores, ranks, titles_km), daemon=True).start()
+            threading.Thread(target=_dl_worker, args=(text, ids, conc, quality, ranges, series_at_once, scores, ranks, titles_km, tok), daemon=True).start()
             resp = {'ok': True}
             if blocked:
                 u = LIC.usage()
@@ -865,6 +890,14 @@ def dl_access_status(token: str='', device_id: str=''):
     tok = token or device_id
     return ACC.get_user_status(tok)
 
+@app.get('/dl/access/check-user')
+def dl_access_check_user(identity: str = Query('')):
+    ident = (identity or '').strip()
+    if not ident:
+        return {'exists': False}
+    exists = ACC.user_exists(ident)
+    return {'exists': exists, 'identity': ident}
+
 @app.post('/dl/access/login')
 def dl_access_login(payload: dict=Body(...)):
     identity = (payload or {}).get('identity', '').strip()
@@ -876,8 +909,24 @@ def dl_access_login(payload: dict=Body(...)):
         return {'ok': False, 'error': 'សូមបញ្ចូលពាក្យសម្ងាត់ (Password)'}
     ok, res = ACC.login(identity, password, dev)
     if not ok:
-        return {'ok': False, 'error': res}
+        err_str = str(res)
+        is_not_found = ('user_not_found' in err_str or 'រកមិនឃើញ' in err_str or 'មិនទាន់មាន' in err_str)
+        clean_err = err_str.replace('user_not_found:', '').strip()
+        return {
+            'ok': False,
+            'error': clean_err,
+            'code': 'user_not_found' if is_not_found else 'login_failed',
+            'need_register': is_not_found,
+            'identity': identity
+        }
     return {'ok': True, 'user': res, 'token': res.get('token', '')}
+
+@app.post('/dl/access/logout')
+def dl_access_logout(payload: dict=Body(None)):
+    tok = (payload or {}).get('token', '').strip()
+    dev = (payload or {}).get('device_id', '').strip()
+    ACC.logout(tok or dev)
+    return {'ok': True, 'message': 'បានចាកចេញពីគណនីជោគជ័យ'}
 
 @app.post('/dl/access/register')
 def dl_access_register(payload: dict=Body(...)):
@@ -907,22 +956,99 @@ def dl_access_request_vip(payload: dict=Body(...)):
     ok, res = ACC.request_vip(tok, package, note, name, contact)
     if not ok:
         return {'ok': False, 'error': res}
-    return {'ok': True, 'user': res}
+@app.post('/dl/access/purchase-series')
+def dl_access_purchase_series(payload: dict=Body(...)):
+    """
+    Directly purchase/unlock a series with coins.
+    Deducts 2 coins (or current series price in coins) and unlocks all episodes for this user permanently.
+    """
+    tok = (payload or {}).get('token', '').strip()
+    dev = (payload or {}).get('device_id', '').strip()
+    series_id = str((payload or {}).get('series_id', '')).strip()
+    series_title = str((payload or {}).get('series_title', '')).strip()
+
+    user_ident = tok or dev
+    if not user_ident:
+        return {'ok': False, 'error': 'សូមចូលគណនីជាមុនសិន ដើម្បីទិញរឿងដោះសោរ!', 'reason': 'login_required'}
+    if not series_id:
+        return {'ok': False, 'error': 'មិនមាន Series ID នៃរឿងទេ'}
+
+    st = ACC.get_user_status(user_ident)
+    if not st.get('registered') and not st.get('authenticated'):
+        return {'ok': False, 'error': 'សូមចូលគណនីជាមុនសិន ដើម្បីទិញរឿងដោះសោរ!', 'reason': 'login_required'}
+
+    # If already purchased
+    purchased = st.get('purchased_series') or {}
+    if series_id in purchased or str(series_id) in purchased:
+        return {
+            'ok': True,
+            'message': 'អ្នកបានទិញរឿងនេះរួចរាល់ហើយ!',
+            'already_owned': True,
+            'coins': int(st.get('coins', 0)),
+            'coins_riel': int(st.get('coins_riel', 0)),
+            'purchased_series': purchased
+        }
+
+    # If VIP / Admin
+    if st.get('is_admin') or st.get('is_vip'):
+        return {
+            'ok': True,
+            'message': 'គណនី VIP/Admin អាចទស្សនា & ដោនឡូតគ្រប់ភាគដោយឥតគិត Coin!',
+            'coins': int(st.get('coins', 0)),
+            'coins_riel': int(st.get('coins_riel', 0)),
+            'purchased_series': purchased
+        }
+
+    # Check pricing & coin balance
+    pricing = ACC.get_movie_pricing(series_id)
+    req_coins = pricing.get('coins', 2)
+    user_coins = int(st.get('coins', 0))
+
+    if user_coins < req_coins:
+        return {
+            'ok': False,
+            'reason': 'insufficient_coins',
+            'error': f"Coins មិនគ្រប់គ្រាន់ទេ! រឿងនេះត្រូវការ {req_coins} Coins ({pricing.get('riel', 1000):,}៛) ប៉ុន្តែអ្នកមានត្រឹម {user_coins} Coins។ សូមទិញ Coin បន្ថែម!",
+            'required_coins': req_coins,
+            'user_coins': user_coins
+        }
+
+    ok, res = ACC.finalize_series_purchase(user_ident, series_id, series_title)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+
+    updated_st = ACC.get_user_status(user_ident)
+    bal = res.get('balance_after', int(updated_st.get('coins', 0))) if isinstance(res, dict) else int(updated_st.get('coins', 0))
+    return {
+        'ok': True,
+        'message': f"ទិញដោះសោររឿងជោគជ័យ! បានកាត់ {req_coins} Coins ({req_coins * 500:,}៛)",
+        'coins': int(bal),
+        'coins_riel': int(bal * 500),
+        'purchased_series': updated_st.get('purchased_series', {}),
+        'coins_deducted': req_coins
+    }
 
 @app.post('/dl/access/dev-login')
 def dl_access_dev_login(payload: dict=Body(...)):
     key = (payload or {}).get('key', '').strip()
     dev = (payload or {}).get('device_id', '').strip()
     if not key:
-        return {'ok': False, 'error': 'សូមបញ្ចូល DEV Key'}
+        return {'ok': False, 'error': 'សូមបញ្ចូល Password ADMIN'}
     ok, res = ACC.login('ADMIN', key, dev)
-    if not ok:
-        # Fallback to key check
-        if key in ACC.DEV_KEYS or key == '8888':
-            ok, res = ACC.login('ADMIN', 'syd@168', dev)
     if not ok:
         return {'ok': False, 'error': res}
     return {'ok': True, 'user': res, 'role': 'admin', 'token': res.get('token', '')}
+
+@app.post('/dl/access/switch-mode')
+def dl_access_switch_mode(payload: dict=Body(...)):
+    mode = (payload or {}).get('mode', 'user').strip()
+    pin = (payload or {}).get('pin', '').strip()
+    dev = (payload or {}).get('device_id', '').strip()
+    ok, res = ACC.switch_mode(mode, pin, dev)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+    return {'ok': True, 'user': res, 'token': res.get('token', '')}
+
 
 @app.get('/dl/access/admin/users')
 def dl_access_admin_users(pin: str='', token: str=''):
@@ -1000,8 +1126,27 @@ def dl_access_admin_settings(payload: dict=Body(...)):
     if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     settings = (payload or {}).get('settings', {})
-    res = ACC.save_settings(settings)
+    res = ACC.save_settings(settings, sync_to_firebase=True)
     return {'ok': True, 'settings': res}
+
+@app.post('/dl/access/admin/vip-button-toggle')
+def dl_access_admin_vip_button_toggle(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    enabled = (payload or {}).get('enabled')
+    if enabled is None:
+        curr = ACC.get_settings(sync_from_firebase=False).get('vip_request_enabled', False)
+        enabled = not curr
+    else:
+        if isinstance(enabled, str):
+            enabled = enabled.lower() in ('true', '1', 'yes', 'on')
+        else:
+            enabled = bool(enabled)
+    res = ACC.save_settings({'vip_request_enabled': enabled}, sync_to_firebase=True)
+    return {'ok': True, 'vip_request_enabled': res.get('vip_request_enabled', False), 'settings': res}
+
 
 @app.post('/dl/access/admin/ban')
 def dl_access_admin_ban(payload: dict=Body(...)):
@@ -1015,6 +1160,66 @@ def dl_access_admin_ban(payload: dict=Body(...)):
     if not ok:
         return {'ok': False, 'error': str(res)}
     return {'ok': True, 'user': res}
+
+# ==================== Drama Free Rules Endpoints ==================== #
+
+@app.get('/dl/drama/rules')
+def dl_drama_rules():
+    """Public endpoint to get all configured drama rules and the auto default rule."""
+    return {
+        'ok': True,
+        'rules': ACC.get_drama_rules(),
+        'default_rule': ACC.get_default_drama_rule()
+    }
+
+@app.get('/dl/admin/drama_rules')
+def dl_admin_get_drama_rules(pin: str='', token: str=''):
+    is_valid_pin = ACC.verify_pin(pin)
+    is_admin_token = token and ACC.get_user_status(token).get('is_admin')
+    if not is_valid_pin and not is_admin_token:
+        return {'ok': False, 'error': 'Unauthorized: Admin required'}
+    return {
+        'ok': True,
+        'rules': ACC.get_drama_rules(),
+        'default_rule': ACC.get_default_drama_rule()
+    }
+
+@app.post('/dl/admin/drama_rules/default')
+def dl_admin_set_default_drama_rule(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    is_valid_pin = ACC.verify_pin(pin)
+    is_admin_token = tok and ACC.get_user_status(tok).get('is_admin')
+    if not is_valid_pin and not is_admin_token:
+        return {'ok': False, 'error': 'Unauthorized: Admin required'}
+    rule = str((payload or {}).get('rule', 'free_episodes')).strip()
+    eps = (payload or {}).get('free_episodes', 10)
+    res = ACC.set_default_drama_rule(rule, eps)
+    return res
+
+@app.post('/dl/admin/drama_rules')
+def dl_admin_set_drama_rule(payload: dict=Body(...)):
+    pin = (payload or {}).get('pin', '')
+    tok = (payload or {}).get('token', '')
+    is_valid_pin = ACC.verify_pin(pin)
+    is_admin_token = tok and ACC.get_user_status(tok).get('is_admin')
+    if not is_valid_pin and not is_admin_token:
+        return {'ok': False, 'error': 'Unauthorized: Admin required'}
+    sid = str((payload or {}).get('series_id', '')).strip()
+    rule = str((payload or {}).get('rule', 'free_episodes')).strip()
+    eps = (payload or {}).get('free_episodes', 10)
+    title = str((payload or {}).get('title', '')).strip()
+    res = ACC.set_drama_rule(sid, rule, eps, title)
+    return res
+
+@app.delete('/dl/admin/drama_rules')
+def dl_admin_delete_drama_rule(series_id: str='', pin: str='', token: str=''):
+    is_valid_pin = ACC.verify_pin(pin)
+    is_admin_token = token and ACC.get_user_status(token).get('is_admin')
+    if not is_valid_pin and not is_admin_token:
+        return {'ok': False, 'error': 'Unauthorized: Admin required'}
+    ok = ACC.delete_drama_rule(series_id)
+    return {'ok': ok, 'deleted': series_id}
 
 # ==================== Firebase Realtime Database Endpoints ==================== #
 
@@ -1096,6 +1301,174 @@ def dl_firebase_admin_delete(payload: dict=Body(...)):
     ok = ACC.firebase_admin_delete_license(dev_id)
     return {'ok': ok}
 
+# ==================== Coin & Movie Pricing Endpoints ==================== #
+
+@app.get('/dl/coins/pricing')
+def dl_coins_pricing(series_id: str = ''):
+    """Get active movie pricing and coin rate."""
+    pricing = ACC.get_movie_pricing(series_id)
+    rules = ACC.get_pricing_rules(sync_from_firebase=False)
+    return {'ok': True, 'pricing': pricing, 'rules': rules}
+
+@app.get('/dl/coins/packages')
+def dl_coins_packages():
+    """Get available coin top-up packages (1 coin = 500 Riel)."""
+    rate = 500
+    packages = [
+        {"coins": 10, "riel": 10 * rate, "label": "10 Coins (5,000៛) — ទិញបាន 5 រឿង", "badge": "5,000៛"},
+        {"coins": 20, "riel": 20 * rate, "label": "20 Coins (10,000៛) — ទិញបាន 10 រឿង", "badge": "10,000៛", "popular": True},
+        {"coins": 50, "riel": 50 * rate, "label": "50 Coins (25,000៛) — ទិញបាន 25 រឿង", "badge": "25,000៛"},
+        {"coins": 100, "riel": 100 * rate, "label": "100 Coins (50,000៛) — ទិញបាន 50 រឿង", "badge": "50,000៛"}
+    ]
+    rules = ACC.get_pricing_rules()
+    return {'ok': True, 'packages': packages, 'rate': rate, 'pricing_rules': rules}
+
+@app.post('/dl/coins/request')
+def dl_coins_request(payload: dict=Body(...)):
+    """User submits a coin purchase request to Firebase RTDB."""
+    tok = (payload or {}).get('token') or (payload or {}).get('device_id', '')
+    coins = int((payload or {}).get('coins', 10) or 10)
+    amount = (payload or {}).get('amount_riel')
+    note = (payload or {}).get('note', '')
+    ok, res = ACC.create_coin_request(tok, coins=coins, amount_riel=amount, note=note)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+    return {'ok': True, 'request': res, 'message': 'សំណើសុំទិញ Coin ត្រូវបានបញ្ជូនទៅ Admin ជោគជ័យ! សូមរង់ចាំ Admin ពិនិត្យ និងបញ្ជាក់...'}
+
+@app.get('/dl/coins/my_requests')
+def dl_coins_my_requests(token: str = ''):
+    """User views their submitted coin requests."""
+    reqs = ACC.get_user_coin_requests(token)
+    return {'ok': True, 'requests': reqs}
+
+@app.get('/dl/admin/coins/requests')
+def dl_admin_coins_requests(pin: str='', admin_pin: str='', token: str=''):
+    """Admin: view all coin requests from Firebase Realtime Database."""
+    eff_pin = pin or admin_pin
+    is_valid_pin = ACC.verify_pin(eff_pin)
+    is_admin_token = token and ACC.get_user_status(token).get('is_admin')
+    if not is_valid_pin and not is_admin_token:
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    reqs = ACC.admin_get_all_coin_requests()
+    return {'ok': True, 'requests': reqs, 'total': len(reqs)}
+
+@app.post('/dl/admin/coins/approve')
+def dl_admin_coins_approve(payload: dict=Body(...)):
+    """Admin: approve coin request and automatically credit user balance."""
+    pin = (payload or {}).get('pin') or (payload or {}).get('admin_pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    req_id = (payload or {}).get('request_id', '')
+    admin_note = (payload or {}).get('admin_note', '')
+    ok, res = ACC.admin_approve_coin_request(req_id, admin_note=admin_note)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+    credited = res.get('coins_credited', 0) if isinstance(res, dict) else 0
+    return {'ok': True, 'result': res, 'credited_coins': credited}
+
+@app.post('/dl/admin/coins/reject')
+def dl_admin_coins_reject(payload: dict=Body(...)):
+    """Admin: reject a coin request."""
+    pin = (payload or {}).get('pin') or (payload or {}).get('admin_pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    req_id = (payload or {}).get('request_id', '')
+    reason = (payload or {}).get('reason', '')
+    ok, res = ACC.admin_reject_coin_request(req_id, reason=reason)
+    return {'ok': ok, 'message': str(res)}
+
+@app.post('/dl/admin/coins/adjust')
+def dl_admin_coins_adjust(payload: dict=Body(...)):
+    """Admin: freely adjust user coins (add, subtract, set)."""
+    pin = (payload or {}).get('pin') or (payload or {}).get('admin_pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    target = (payload or {}).get('username') or (payload or {}).get('device_id') or (payload or {}).get('target_id', '')
+    adjustment = str((payload or {}).get('adjustment', '')).strip()
+    action = (payload or {}).get('action', 'add')
+    coins_val = (payload or {}).get('coins', 0)
+    if adjustment:
+        if adjustment.startswith('='):
+            action = 'set'
+            try:
+                coins_val = int(adjustment[1:].strip() or 0)
+            except Exception:
+                coins_val = 0
+        elif adjustment.startswith('-'):
+            action = 'subtract'
+            try:
+                coins_val = abs(int(adjustment[1:].strip() or 0))
+            except Exception:
+                coins_val = 0
+        elif adjustment.startswith('+'):
+            action = 'add'
+            try:
+                coins_val = int(adjustment[1:].strip() or 0)
+            except Exception:
+                coins_val = 0
+        else:
+            try:
+                parsed_num = int(adjustment)
+                if parsed_num < 0:
+                    action = 'subtract'
+                    coins_val = abs(parsed_num)
+                else:
+                    action = 'add'
+                    coins_val = parsed_num
+            except Exception:
+                coins_val = int(coins_val or 0)
+    else:
+        try:
+            coins_val = int(coins_val or 0)
+        except Exception:
+            coins_val = 0
+
+    note = (payload or {}).get('note', '')
+    ok, res = ACC.admin_adjust_user_coins(target, action=action, coins=coins_val, note=note)
+    if not ok:
+        return {'ok': False, 'error': str(res)}
+    new_c = res.get('new_coins', 0) if isinstance(res, dict) else 0
+    return {'ok': True, 'result': res, 'new_coins': new_c}
+
+@app.post('/dl/admin/coins/pricing')
+def dl_admin_coins_pricing(payload: dict=Body(...)):
+    """Admin: configure movie pricing rules & date-based promotion in Firebase RTDB."""
+    pin = (payload or {}).get('pin') or (payload or {}).get('admin_pin', '')
+    tok = (payload or {}).get('token', '')
+    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    pricing_rules = (payload or {}).get('pricing_rules', {})
+    res = ACC.save_pricing_rules(pricing_rules)
+    return {'ok': True, 'pricing_rules': res}
+
+@app.get('/dl/admin/coins/transactions')
+def dl_admin_coins_transactions(pin: str='', admin_pin: str='', token: str=''):
+    """Admin: view recent coin transactions."""
+    eff_pin = pin or admin_pin
+    is_valid_pin = ACC.verify_pin(eff_pin)
+    is_admin_token = token and ACC.get_user_status(token).get('is_admin')
+    if not is_valid_pin and not is_admin_token:
+        return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
+    txs = ACC.admin_get_coin_transactions(limit=60)
+    return {'ok': True, 'transactions': txs}
+
+@app.get('/dl/qr_payment.png')
+def dl_qr_payment():
+    """Serve QR payment image."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(os.path.dirname(here), 'qr_payment.png'),
+        os.path.join(here, 'web', 'qr_payment.png'),
+        os.path.join(here, 'qr_payment.png')
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return FileResponse(c, media_type='image/png')
+    raise HTTPException(404, 'QR image not found')
+
 @app.get('/dl/system/network')
 def dl_system_network():
     port = int(os.environ.get('PORT', '8000'))
@@ -1109,29 +1482,160 @@ def dl_system_network():
         pass
     return {'ok': True, 'lan_ip': lan_ip, 'port': port, 'lan_url': f'http://{lan_ip}:{port}/', 'local_url': f'http://127.0.0.1:{port}/'}
 
+_HONGGUO_ACTORS_CACHE = {'at': 0.0, 'data': []}
+
+def _load_hongguo_actors():
+    global _HONGGUO_ACTORS_CACHE
+    now = time.time()
+    if _HONGGUO_ACTORS_CACHE['data'] and (now - _HONGGUO_ACTORS_CACHE['at'] < 300):
+        return _HONGGUO_ACTORS_CACHE['data']
+    here = os.path.dirname(os.path.abspath(__file__))
+    fpaths = [
+        os.path.join(os.path.dirname(here), 'data', 'hongguo_actors.json'),
+        os.path.join(here, 'data', 'hongguo_actors.json'),
+        os.path.join(here, 'web', 'hongguo_actors.json')
+    ]
+    for fp in fpaths:
+        if os.path.exists(fp):
+            try:
+                with open(fp, 'r', encoding='utf-8') as f:
+                    actors = json.load(f)
+                    if actors and isinstance(actors, list):
+                        _HONGGUO_ACTORS_CACHE = {'at': now, 'data': actors}
+                        return actors
+            except Exception:
+                pass
+    return []
+
+@app.get('/dl/actors')
+def dl_actors(gender: str = 'all'):
+    """Return all drama actors/actresses extracted directly from https://hongguoduanju.com/"""
+    actors = _load_hongguo_actors()
+    g = (gender or 'all').lower().strip()
+    if g == 'female':
+        filtered = [a for a in actors if a.get('gender') == 'female']
+    elif g == 'male':
+        filtered = [a for a in actors if a.get('gender') == 'male']
+    else:
+        filtered = actors
+    return {
+        'ok': True,
+        'source': 'https://hongguoduanju.com/',
+        'count': len(filtered),
+        'total': len(actors),
+        'actors': filtered
+    }
+
 @app.get('/dl/search')
 def dl_search(q: str=''):
     q = (q or '').strip()
     if not q:
         return {'results': []}
-    else:
-        try:
-            res = H.search(q) or []
-            import translator as TR
-            titles = [x.get('title', '') for x in res[:20] if x.get('title')]
-            km_map = TR.translate_batch(titles)
-            return {'results': [{
-                'series_id': str(x['series_id']),
-                'title': x.get('title', ''),
-                'title_km': km_map.get(x.get('title', ''), ''),
-                'episode_cnt': x.get('episode_cnt'),
-                'score': x.get('score', ''),
-                'cover': x.get('cover', ''),
-                'created_at': x.get('created_at', ''),
-                'create_time': x.get('create_time', 0)
-            } for x in res[:20]]}
-        except Exception as e:
-            return {'results': [], 'error': str(e)}
+    
+    import urllib.parse
+    import translator as TR
+    results = []
+    seen = set()
+    actor_info = None
+
+    # 1. Check if q matches an actor from hongguoduanju.com
+    actors = _load_hongguo_actors()
+    matched_actor = next((a for a in actors if a.get('name') == q or q in a.get('name', '')), None)
+    if matched_actor:
+        actor_info = matched_actor
+        # Add pre-cached dramas from hongguoduanju.com
+        for d in matched_actor.get('dramas', []):
+            sid = str(d.get('series_id') or '')
+            if sid and sid not in seen:
+                seen.add(sid)
+                results.append({
+                    'series_id': sid,
+                    'title': d.get('title', ''),
+                    'title_km': '',
+                    'episode_cnt': d.get('episode_cnt') or 0,
+                    'score': '8.3',
+                    'cover': d.get('cover', ''),
+                    'created_at': '',
+                    'create_time': 0,
+                    'source': 'https://hongguoduanju.com/'
+                })
+
+    # 2. Live query https://hongguoduanju.com/search/[q] directly
+    try:
+        url = f'https://hongguoduanju.com/search/{urllib.parse.quote(q)}'
+        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=6)
+        m = re.search(r'_ROUTER_DATA\s*=\s*(\{[\s\S]*?\});', r.text)
+        if m:
+            data = json.loads(m.group(1))
+            sk = data.get('loaderData', {}).get('search_(keyword)/page', {}).get('searchList', [])
+            for it in sk:
+                # user_info video_list
+                for v in it.get('video_list', []):
+                    sid = str(v.get('series_id') or '')
+                    if sid and sid not in seen:
+                        seen.add(sid)
+                        results.append({
+                            'series_id': sid,
+                            'title': v.get('series_title', ''),
+                            'title_km': '',
+                            'episode_cnt': v.get('episode_cnt') or 0,
+                            'score': '8.2',
+                            'cover': (v.get('series_cover') or '').replace('.heic', '.image'),
+                            'created_at': '',
+                            'create_time': 0,
+                            'source': 'https://hongguoduanju.com/'
+                        })
+                # doc_type 23 video_data
+                vd = it.get('video_data')
+                if vd and isinstance(vd, dict):
+                    sid = str(vd.get('series_id') or '')
+                    if sid and sid not in seen:
+                        seen.add(sid)
+                        results.append({
+                            'series_id': sid,
+                            'title': vd.get('series_title') or it.get('name') or '',
+                            'title_km': '',
+                            'episode_cnt': vd.get('episode_cnt') or 0,
+                            'score': '8.1',
+                            'cover': (vd.get('series_cover') or '').replace('.heic', '.image'),
+                            'created_at': '',
+                            'create_time': 0,
+                            'source': 'https://hongguoduanju.com/'
+                        })
+    except Exception:
+        pass
+
+    # 3. Combine with upstream Hongguo App Search
+    try:
+        res = H.search(q) or []
+        for x in res[:20]:
+            sid = str(x.get('series_id') or '')
+            if sid and sid not in seen:
+                seen.add(sid)
+                results.append({
+                    'series_id': sid,
+                    'title': x.get('title', ''),
+                    'title_km': '',
+                    'episode_cnt': x.get('episode_cnt'),
+                    'score': x.get('score', ''),
+                    'cover': x.get('cover', ''),
+                    'created_at': x.get('created_at', ''),
+                    'create_time': x.get('create_time', 0),
+                    'source': 'hongguo_app'
+                })
+    except Exception:
+        pass
+
+    # Translate titles to Khmer
+    try:
+        titles = [x.get('title', '') for x in results if x.get('title')]
+        km_map = TR.translate_batch(titles)
+        for x in results:
+            x['title_km'] = km_map.get(x.get('title', ''), '')
+    except Exception:
+        pass
+
+    return {'results': results, 'actor': actor_info, 'total': len(results)}
 @app.get('/dl/rank')
 def dl_rank(board: str='recommend', category: str='all', offset: int=0, size: int=100, refresh: bool=False):
     """The 红果推荐榜 leaderboard (the app\'s real top chart) for the Trending tabs. board = recommend/hot/new;
@@ -1159,6 +1663,171 @@ def dl_rank(board: str='recommend', category: str='all', offset: int=0, size: in
         return {'results': out, 'has_more': bool(has_more), 'next_offset': int(next_off)}
     except Exception as e:
         return {'results': [], 'has_more': False, 'next_offset': off, 'error': str(e)}
+
+_RELATED_CACHE = {}
+
+@app.get('/dl/related')
+def dl_related(series_id: str = '', title: str = '', actor: str = '', category: str = '', limit: int = 15):
+    """
+    Returns 10-15 related or similar dramas:
+    1. Same actor dramas (from bundled 137 actors).
+    2. Shared category/genre/theme keywords.
+    3. Matching Hongguo trending & top chart recommendations.
+    All titles translated to Khmer.
+    """
+    sid_curr = str(series_id or '').strip()
+    title_curr = (title or '').strip()
+    actor_curr = (actor or '').strip()
+    cat_curr = (category or '').strip()
+    limit = max(10, min(int(limit or 15), 30))
+
+    cache_key = f"{sid_curr}_{title_curr}_{actor_curr}_{limit}"
+    if cache_key in _RELATED_CACHE:
+        return _RELATED_CACHE[cache_key]
+
+    import translator as TR
+    results = []
+    seen = set([sid_curr]) if sid_curr else set()
+
+    # Strategy 1: Actor match from bundled actors database
+    if actor_curr:
+        actors = _load_hongguo_actors()
+        for a in actors:
+            a_name = a.get('name', '')
+            if a_name and (a_name in actor_curr or actor_curr in a_name):
+                for d in a.get('dramas', []):
+                    dsid = str(d.get('series_id') or '')
+                    if dsid and dsid not in seen:
+                        seen.add(dsid)
+                        results.append({
+                            'series_id': dsid,
+                            'title': d.get('title', ''),
+                            'title_km': '',
+                            'episode_cnt': d.get('episode_cnt') or 0,
+                            'score': d.get('score') or '8.5',
+                            'cover': d.get('cover', ''),
+                            'created_at': '',
+                            'create_time': 0,
+                            'match_type': 'actor',
+                            'match_label': f'តួសម្តែង: {a_name}'
+                        })
+                        if len(results) >= 6:
+                            break
+                break
+
+    # Strategy 2: Keyword match from title (key genres / themes)
+    keywords = []
+    GENRE_WORDS = [
+        "战神", "总裁", "神豪", "龙王", "高手", "千金", "仙帝", "战皇", "王妃", "修仙",
+        "赘婿", "兵王", "末世", "重生", "穿越", "离婚", "复仇", "归来", "无敌", "逆袭",
+        "女帝", "狂医", "鉴宝", "奶爸", "少帅", "国术", "都市", "古装", "甜宠", "虐恋",
+        "雇佣兵", "荒岛", "求生", "特种兵", "战神", "绝世", "豪门", "狂少", "无双"
+    ]
+    for w in GENRE_WORDS:
+        if w in title_curr or w in cat_curr:
+            keywords.append(w)
+
+    # Also search for words from category
+    if cat_curr:
+        for c in cat_curr.split(','):
+            c_clean = c.strip()
+            if c_clean and len(c_clean) >= 2 and c_clean not in keywords:
+                keywords.append(c_clean)
+
+    for kw in keywords[:2]:
+        if len(results) >= limit:
+            break
+        try:
+            res = H.search(kw, max_items=8) or []
+            for x in res:
+                dsid = str(x.get('series_id') or '')
+                if dsid and dsid not in seen:
+                    seen.add(dsid)
+                    results.append({
+                        'series_id': dsid,
+                        'title': x.get('title', ''),
+                        'title_km': '',
+                        'episode_cnt': x.get('episode_cnt'),
+                        'score': x.get('score') or '8.6',
+                        'cover': x.get('cover', ''),
+                        'created_at': x.get('created_at', ''),
+                        'create_time': x.get('create_time', 0),
+                        'match_type': 'genre',
+                        'match_label': f'ប្រភេទ: {kw}'
+                    })
+                    if len(results) >= limit:
+                        break
+        except Exception:
+            pass
+
+    # Strategy 3: Top leaderboard recommendations (Recommend + Hot + New)
+    if len(results) < limit:
+        for brd in ['recommend', 'hot', 'new']:
+            if len(results) >= limit:
+                break
+            try:
+                items, _, _ = H.leaderboard_page('all', brd, offset=0, size=50)
+                for x in items:
+                    dsid = str(x.get('series_id') or '')
+                    if dsid and dsid not in seen:
+                        seen.add(dsid)
+                        results.append({
+                            'series_id': dsid,
+                            'title': x.get('title', ''),
+                            'title_km': '',
+                            'episode_cnt': x.get('episode_cnt'),
+                            'score': x.get('score') or '8.8',
+                            'cover': x.get('cover', ''),
+                            'created_at': x.get('created_at', ''),
+                            'create_time': x.get('create_time', 0),
+                            'match_type': 'popular',
+                            'match_label': 'រឿងពេញនិយម'
+                        })
+                        if len(results) >= limit:
+                            break
+            except Exception:
+                pass
+
+    # Strategy 4: Bundled catalog / explorer fallback
+    if len(results) < limit:
+        exp = _explorer_catalog()
+        for x in exp:
+            dsid = str(x.get('series_id') or '')
+            if dsid and dsid not in seen:
+                seen.add(dsid)
+                results.append({
+                    'series_id': dsid,
+                    'title': x.get('title', ''),
+                    'title_km': '',
+                    'episode_cnt': x.get('episode_cnt') or 0,
+                    'score': x.get('score') or '8.4',
+                    'cover': x.get('cover', ''),
+                    'created_at': x.get('created_at', ''),
+                    'create_time': x.get('create_time', 0),
+                    'match_type': 'catalog',
+                    'match_label': 'រឿងស្រដៀង'
+                })
+                if len(results) >= limit:
+                    break
+
+    # Batch translate all titles to Khmer
+    titles_to_tr = [x.get('title', '') for x in results if x.get('title') and not x.get('title_km')]
+    if titles_to_tr:
+        try:
+            km_map = TR.translate_batch(titles_to_tr)
+            for x in results:
+                t = x.get('title', '')
+                if t in km_map and km_map[t]:
+                    x['title_km'] = km_map[t]
+        except Exception:
+            pass
+
+    final_results = results[:limit]
+    res_obj = {'ok': True, 'results': final_results, 'total': len(final_results)}
+    if cache_key and len(final_results) >= 10:
+        _RELATED_CACHE[cache_key] = res_obj
+    return res_obj
+
 _EXPLORER = None
 def _explorer_catalog():
     """Load+cache the bundled catalog (web/explorer.json.gz), normalized to a uniform shape.\n    Tolerates both schemas: legacy {series_id,...} and v2 {oversea_id,domestic_id,avail,...}.\n    Each normalized row has a downloadable series_id (oversea preferred, else domestic) + avail.\n    Missing file => empty (feature off)."""
@@ -1947,7 +2616,7 @@ def dl_library_video(name: str = '', ep: int = 1, download: int = 0, token: str 
     import re
     import urllib.parse
     tok = token or device_id or ACC.get_current_device_id()
-    can_access, _, msg = ACC.can_access_episode(int(ep), tok)
+    can_access, _, msg = ACC.can_access_episode(int(ep), tok, name or '')
     if not can_access:
         raise HTTPException(403, msg)
     folder = _find_series_folder(name)
@@ -2217,13 +2886,13 @@ def dl_restart(payload: dict = Body(None)):
     pin = str(p.get('pin', '')).strip()
     token = str(p.get('token', '')).strip()
     is_admin = False
-    if pin and (pin in ('8888', 'syd@168', 'DEV8888') or ACC.verify_pin(pin)):
+    if pin and (pin == 'syd@168' or ACC.verify_pin(pin)):
         is_admin = True
     elif token and (token.startswith('admin_') or ACC.verify_pin(token)):
         is_admin = True
     elif token:
         st = ACC.get_user_status(token)
-        if st.get('is_admin') or st.get('role') in ('admin', 'dev'):
+        if st.get('is_admin') or st.get('role') == 'admin':
             is_admin = True
     
     if not is_admin:
@@ -2331,7 +3000,7 @@ def dl_stream_play(payload: dict=Body(...)):
     quality = (payload or {}).get('quality', 'best')
     tok = (payload or {}).get('token') or (payload or {}).get('device_id') or ACC.get_current_device_id()
     idx = int(ep) if str(ep).isdigit() else 1
-    can_access, reason, msg = ACC.can_access_episode(idx, tok)
+    can_access, reason, msg = ACC.can_access_episode(idx, tok, sid or '')
     if not can_access:
         return {'ok': False, 'reason': reason, 'error': msg}
     try:

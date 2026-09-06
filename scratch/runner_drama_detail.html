@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;background:#110b07">
+<iframe id="appFrame" src="http://127.0.0.1:8000/?auth_token=usr_d3eb16f79c36149b5b41c677a155c0f6" style="width:1280px;height:900px;border:none"></iframe>
+<script>
+const frame = document.getElementById('appFrame');
+frame.onload = () => {
+  setTimeout(() => {
+    try {
+      const win = frame.contentWindow;
+      
+// Open drama detail
+win.openDramaDetail('7662291674818677784');
+
+    } catch(e) {
+      console.error(e);
+    }
+  }, 1500);
+};
+</script>
+</body>
+</html>

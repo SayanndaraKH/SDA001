@@ -1,6 +1,6 @@
 {
-  "mode": "free_all",
-  "admin_pin": "8888",
+  "mode": "vip_required",
+  "admin_pin": "syd@168",
   "users": {
     "admin": {
       "username": "ADMIN",
@@ -15,11 +15,42 @@
       "created_at": 1788543892,
       "approved_at": 1788543892,
       "expires_at": 0
+    },
+    "user_primary": {
+      "key": "user_primary",
+      "device_id": "d1:c32730ad5cd271421a6c7d52bc81952e",
+      "username": "USER",
+      "name": "អ្នកប្រើប្រាស់ជាក់ស្តែង",
+      "contact": "012345678",
+      "password_hash": "7e6e0c3079a08c5cc6036789b57e951f65f82383913ba1a49ae992544f1b4b6e",
+      "role": "user",
+      "is_vip": false,
+      "is_admin": false,
+      "status": "user",
+      "max_free_episodes": 5,
+      "coins": 10,
+      "coins_riel": 5000,
+      "purchased_series": {},
+      "created_at": 1788607882,
+      "updated_at": 1788657717,
+      "approved_at": 0,
+      "expires_at": 1788867082,
+      "trial_lockout_until": 0,
+      "token": "usr_real_user_session",
+      "package_name": "User ធម្មតា (សាកល្បង 3 ថ្ងៃ)",
+      "package_badge": "3 ថ្ងៃ",
+      "expires_date": "08/09/2026",
+      "days_left": 3,
+      "is_banned": false
     }
   },
-  "dev_key": "DEV8888",
+  "drama_rules": {},
+  "drama_rules_default": {
+    "rule": "free_episodes",
+    "free_episodes": 5
+  },
   "settings": {
-    "telegram_admin": "https://t.me/syd_admin_support",
+    "telegram_admin": "https://t.me/sydadmin168",
     "telegram_group": "https://t.me/syd_drama_community"
   }
 }

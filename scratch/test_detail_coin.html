@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;background:#110b07">
+<iframe id="appFrame" src="http://127.0.0.1:8000/" style="width:1280px;height:900px;border:none"></iframe>
+<script>
+const frame = document.getElementById('appFrame');
+frame.onload = () => {
+  setTimeout(() => {
+    try {
+      const win = frame.contentWindow;
+      win.userAccess = {
+        authenticated: true,
+        username: 'test_user_777',
+        role: 'user',
+        coins: 8,
+        purchased_series: {}
+      };
+      win.updateAccessUI(win.userAccess);
+      // Mock opening drama
+      win.ddCurrentDrama = {
+        id: '7662291674818677784',
+        title: '测试剧集',
+        title_km: 'រឿងខ្លីតេស្តសាកល្បង',
+        total: 50,
+        score: '9.2'
+      };
+      win.renderDramaDetailUI(win.ddCurrentDrama);
+      document.getElementById('appFrame').style.display = 'block';
+      win.document.getElementById('resultsSec').hidden = true;
+      win.document.getElementById('dramaDetailSec').hidden = false;
+      document.title = "DRAMA_DETAIL_READY";
+    } catch(e){
+      console.error(e);
+    }
+  }, 1200);
+};
+</script>
+</body>
+</html>

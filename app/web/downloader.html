@@ -886,6 +886,17 @@
   .plan-cta{ display:flex; gap:8px; margin-top:4px; }
   .plan-cta .btn{ flex:1; }
   .plan-note{ font:11.5px/1.5 var(--font-ui); color:var(--faint); margin:9px 2px 0; text-align:center; }
+
+  /* Strictly hide Restart button and Admin controls on User view */
+  :root:not([data-user-role="admin"]) #topAdminRestartBtn,
+  :root:not([data-user-role="admin"]) #topUserCtrlBtn,
+  :root:not([data-user-role="admin"]) #heroLiveDataBadge,
+  :root:not([data-user-role="admin"]) #heroLiveSyncBtn,
+  :root:not([data-user-role="admin"]) #tabLiveData,
+  :root:not([data-user-role="admin"]) #ddAdminRuleBar {
+    display: none !important;
+  }
+
 </style>
 </head>
 <body>
@@ -915,12 +926,20 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn ghost sm" id="acctBtn" hidden title="Your license" style="display:none">Account</button>
+      <button class="btn ghost sm" id="topLoginBtn" onclick="openUserRegisterModal('login', false)" style="border-radius:20px;font-weight:800;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border-color:rgba(255,106,43,0.5);color:var(--accent);background:rgba(255,106,43,0.08)" title="ចូលប្រើប្រាស់គណនី (Form Login)">
+        <span>🔑</span> <span>ចូលគណនី</span>
+      </button>
       <button class="btn ghost sm" id="userAccessBadge" style="border-radius:20px;font-weight:800;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-color:rgba(255,106,43,0.4);color:var(--ink)" title="ស្ថានភាពគណនី / ចូលគណនី">
         <span id="uabIcon">👤</span> <span id="uabText">ចូលគណនី / ចុះឈ្មោះ</span>
       </button>
       <!-- Days Remaining Badge (Admin / VIP / User) -->
       <div id="topDaysLeftBadge" style="display:none;border-radius:20px;font-weight:800;font-size:11.5px;padding:4px 12px;align-items:center;gap:6px;cursor:pointer;box-shadow:var(--shadow-sm);transition:all .2s ease" onclick="openUserRegisterModal('info')" title="ចុចដើម្បីមើលព័ត៌មានលម្អិតគណនី">
         <span id="topDaysLeftIcon">⏳</span> <span id="topDaysLeftText">នៅសល់ 7 ថ្ងៃ</span>
+      </div>
+      <!-- User Coins Badge -->
+      <div id="topCoinBadge" style="display:none;border-radius:20px;font-weight:800;font-size:12px;padding:4px 12px;align-items:center;gap:6px;cursor:pointer;box-shadow:0 0 10px rgba(234,179,8,0.25);background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.5);color:#eab308;transition:all .2s ease" onclick="openCoinModal()" title="សមតុល្យ Coin របស់អ្នក (ចុចដើម្បីទិញ ឬមើលប្រវត្តិ)">
+        <span>🪙</span> <span id="topCoinsVal">0</span> Coin (<span id="topCoinsRiel">0</span>៛)
+        <span style="font-size:11px;background:#eab308;color:#000;padding:1px 6px;border-radius:10px;margin-left:4px;font-weight:900">+ ទិញ</span>
       </div>
       <button class="btn primary sm" id="topReqVipBtn" onclick="openUserRegisterModal('vip')" style="border-radius:20px;font-weight:800;font-size:12px;display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 10px rgba(255,106,43,0.35);cursor:pointer;padding:5px 14px" title="ស្នើសុំកញ្ចប់ VIP ដើម្បីទស្សនាគ្រប់ភាគ">
         <span style="font-size:13px">👑</span> <span id="topReqVipText">ស្នើសុំ VIP</span>
@@ -930,6 +949,9 @@
       <button class="btn primary sm" id="topAutoUpdateBtn" style="display:none;border-radius:20px;font-weight:800;font-size:12px;align-items:center;gap:6px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#ffffff;box-shadow:0 0 14px rgba(14,165,233,0.6);animation:pulseAutoUpdate 2s infinite;cursor:pointer;padding:5px 14px" title="មានកូដកំណែថ្មីនៅលើ GitHub!">
         <span style="display:inline-block;animation:spinSlow 3.5s linear infinite;font-size:13px">⚡</span>
         <span id="topAutoUpdateText">Auto Update ថ្មី</span>
+      </button>
+      <button class="btn ghost sm" id="topAdminVipToggleBtn" onclick="adminToggleVipRequestButton()" style="display:none;border-radius:20px;font-weight:800;font-size:11.5px;padding:4px 12px;align-items:center;gap:5px;cursor:pointer" title="គ្រប់គ្រងការបង្ហាញប៊ូតុងស្នើសុំ VIP សម្រាប់ User (Firebase RTDB)">
+        <span>👑 VIP Button:</span> <span id="topAdminVipStatusLabel" style="color:#ef4444;font-weight:900">OFF</span>
       </button>
       <button class="btn ghost sm" id="topUserCtrlBtn" title="User Management & Control Panel (Admin)" style="display:none;font-weight:700;border-color:rgba(192,132,252,0.5);color:#c084fc">🛡️ User Control</button>
       <button class="btn ghost sm" id="topAdminRestartBtn" onclick="doAdminRestart()" title="Restart App & Server (Admin / DEV)" style="display:none;border-radius:20px;font-size:11.5px;font-weight:800;color:#ef4444;border-color:rgba(239,68,68,0.5);padding:5px 12px;align-items:center;gap:5px;background:rgba(239,68,68,0.1)">
@@ -975,7 +997,7 @@
       <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 12px rgba(255,106,43,0.4)">👑</div>
       <div>
         <div style="font-weight:800;font-size:14px;color:var(--ink);font-family:var(--font-km)">កញ្ចប់ VIP ដោះសោរគ្រប់ភាគទាំងអស់ (ភាគ 11+ ឡើងទៅ)!</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;font-family:var(--font-km)">គណនីធម្មតាអាចមើលបានត្រឹមភាគ 1-10 · ស្នើសុំ VIP ឥឡូវនេះ ដើម្បីទស្សនា និងដោនឡូតរឿងទាំងអស់ដោយគ្មានដែនកំណត់ (Admin អនុម័ត)</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;font-family:var(--font-km)">គណនីធម្មតាអាចមើលបានត្រឹមភាគ 1-5 · ស្នើសុំ VIP ឥឡូវនេះ ដើម្បីទស្សនា និងដោនឡូតរឿងទាំងអស់ដោយគ្មានដែនកំណត់ (Admin អនុម័ត)</div>
       </div>
     </div>
     <button type="button" class="btn primary" onclick="openUserRegisterModal('vip')" style="font-weight:800;font-size:13px;padding:8px 20px;border-radius:24px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 4px 14px rgba(255,106,43,0.4);display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--font-km)">
@@ -1198,8 +1220,14 @@
           <button class="btn ghost sm" id="ddHeroQueueBtn" style="font-family:var(--font-km);font-size:12px;padding:7px 14px">
             ➕ ដាក់ចូល Queue
           </button>
-          <button class="btn primary sm" id="ddVipUnlockBtn" onclick="promptVipModal(11)" style="font-family:var(--font-km);font-weight:800;font-size:12px;padding:7px 14px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 12px rgba(255,106,43,0.4);display:inline-flex;align-items:center;gap:6px" title="ស្នើសុំ VIP ដើម្បីដោះសោរគ្រប់ភាគ">
+          <button class="btn primary sm" id="ddVipUnlockBtn" onclick="promptVipModal(6)" style="font-family:var(--font-km);font-weight:800;font-size:12px;padding:7px 14px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 3px 12px rgba(255,106,43,0.4);display:inline-flex;align-items:center;gap:6px" title="ស្នើសុំ VIP ដើម្បីដោះសោរគ្រប់ភាគ">
             <span>👑 ស្នើសុំ VIP (ដោះសោរគ្រប់ភាគ)</span>
+          </button>
+          <span id="ddCoinPriceBadge" style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:800;padding:6px 12px;border-radius:8px;background:rgba(234,179,8,0.15);color:#eab308;border:1px solid rgba(234,179,8,0.4)">
+            🪙 2 Coins (1,000៛)
+          </span>
+          <button class="btn sm" id="ddBuyDramaBtn" onclick="buyCurrentDramaWithCoins()" style="font-family:var(--font-km);font-weight:800;font-size:12px;padding:7px 14px;background:linear-gradient(135deg,#eab308,#ca8a04);color:#000;border:none;border-radius:8px;box-shadow:0 3px 12px rgba(234,179,8,0.35);cursor:pointer;display:inline-flex;align-items:center;gap:6px" title="ទិញដោះសោររឿងនេះដោយប្រើ 2 Coins (1,000៛)">
+            <span>🛒 ទិញរឿងនេះ (2 Coins)</span>
           </button>
           
           <!-- Mode Toggle (Stream vs Select) -->
@@ -1237,9 +1265,9 @@
         <div id="ddVipEpisodeBanner" style="display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,rgba(255,106,43,0.12),rgba(255,46,99,0.08));border:1px solid rgba(255,106,43,0.35);border-radius:10px;padding:8px 14px;margin-bottom:10px;flex-wrap:wrap;gap:8px">
           <div style="font-size:12px;color:var(--ink);display:flex;align-items:center;gap:8px">
             <span style="font-size:16px">👑</span>
-            <span><b>គណនីធម្មតា:</b> ទស្សនា &amp; ដោនឡូតបានត្រឹមភាគ <b>1 ដល់ 10</b> (ភាគ 11+ ត្រូវបានចាក់សោរ) <span id="ddVipDaysHint" style="font-weight:700;color:var(--accent)"></span></span>
+            <span><b>គណនីធម្មតា:</b> ឥតគិតថ្លៃ (Free) <b>ភាគ 1 ដល់ 5</b> (ភាគ 6 ឡើងទៅ 2 Coins ឬ VIP) <span id="ddVipDaysHint" style="font-weight:700;color:var(--accent)"></span></span>
           </div>
-          <button type="button" class="btn primary sm" onclick="promptVipModal(11)" style="font-size:11.5px;font-weight:800;padding:5px 14px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 2px 8px rgba(255,106,43,0.35);white-space:nowrap">
+          <button type="button" class="btn primary sm" onclick="promptVipModal(6)" style="font-size:11.5px;font-weight:800;padding:5px 14px;background:linear-gradient(135deg,#ff6a2b,#ff2e63);box-shadow:0 2px 8px rgba(255,106,43,0.35);white-space:nowrap">
             ⚡ ស្នើសុំ VIP ដោះសោរគ្រប់ភាគ
           </button>
         </div>
@@ -1664,7 +1692,7 @@
 
     <!-- Alert / Notice Banner (shown e.g. when clicking a locked episode) -->
     <div id="authAlertBanner" style="display:none;background:rgba(255,46,99,0.12);border:1px solid rgba(255,46,99,0.35);padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:12.5px;color:var(--ink);line-height:1.5">
-      <span id="authAlertText">🔒 ភាគនេះត្រូវបានចាក់សោរ (Locked)! គណនីធម្មតាអាចមើលបានត្រឹមភាគ 1-10 ប៉ុណ្ណោះ។</span>
+      <span id="authAlertText">🔒 ភាគនេះត្រូវបានចាក់សោរ (Locked)! គណនីធម្មតាអាចមើលបានត្រឹមភាគ 1-5 ប៉ុណ្ណោះ។</span>
     </div>
 
     <!-- Tab Switcher (Login, Register, Request VIP) -->
@@ -1683,13 +1711,13 @@
     <div class="modal-scroll" style="display:flex;flex-direction:column;gap:14px;overflow-y:auto;padding-right:4px">
       <!-- TAB 1: LOGIN FORM -->
       <div id="authTabLoginSec" style="display:flex;flex-direction:column;gap:12px">
-
+        
 
         <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
-          <div style="font:700 13px var(--font-ui);color:var(--ink-2)">ចូលប្រើប្រាស់គណនី (Login)</div>
+          <div style="font:700 13px var(--font-ui);color:var(--ink-2)" id="authLoginFormHeading">ចូលប្រើប្រាស់គណនី (Login)</div>
           <div>
             <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ឈ្មោះគណនី ឬលេខទូរស័ព្ទ (Username / Phone) <span style="color:var(--accent)">*</span></label>
-            <input type="text" id="authLoginUser" placeholder="បញ្ចូល Username ឬ Phone" style="width:100%;height:38px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+            <input type="text" id="authLoginUser" placeholder="បញ្ចូល Username ឬ Phone (ឧ. USER ឬ ADMIN)" style="width:100%;height:38px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
           </div>
           <div>
             <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ពាក្យសម្ងាត់ (Password) <span style="color:var(--accent)">*</span></label>
@@ -1769,7 +1797,7 @@
               <span style="font-size:18px">👤</span>
               <div>
                 <div id="vipUsernameDisplay" style="font-weight:800;font-size:13.5px;color:var(--ink)">គណនីរបស់អ្នក</div>
-                <div style="font-size:11px;color:var(--muted)">ទស្សនា &amp; ដោនឡូតភាគ 1-10 ឥតគិតថ្លៃ</div>
+                <div style="font-size:11px;color:var(--muted)">ទស្សនា &amp; ដោនឡូតភាគ 1-5 ឥតគិតថ្លៃ</div>
               </div>
             </div>
             <span id="regCurrentStatusBadge" style="font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:6px;background:rgba(255,106,43,0.15);color:var(--accent)">👤 គណនីធម្មតា</span>
@@ -1955,12 +1983,134 @@
   </div>
 </div>
 
-<!-- User Control / Management Modal (Admin Dashboard) -->
-<div class="modal" id="userCtrlModal" hidden style="z-index:110;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px)">
-  <div class="modal-card" style="max-width:760px;width:95vw;padding:22px;background:var(--surface,#18110b);border:1px solid var(--line,#3a2c20);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.85);max-height:90vh;display:flex;flex-direction:column">
-    <div class="modal-head" style="padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line,#3a2c20)">
+<!-- User Coin Modal: Top-up / Buy Coins with 1 Coin = 500 Riel -->
+<div class="modal" id="coinModal" hidden style="z-index:115;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px)">
+  <div class="modal-card" style="max-width:620px;width:min(620px,95vw);max-height:90vh;padding:24px;background:var(--surface,#18110b);border:1.5px solid rgba(234,179,8,0.4);border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,0.9),0 0 25px rgba(234,179,8,0.15);display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-head" style="padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div class="modal-title" style="font-size:18px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px">
+          <span>🪙 កាបូប Coin (SYD COIN WALLET)</span>
+        </div>
+        <div class="modal-sub" style="color:#eab308;font-weight:600;margin-top:3px;font-size:12px">
+          1 Coin = 500៛ | 1 រឿង = 2 Coins (1,000៛) | ដោះសោរគ្រប់ភាគទាំងអស់ជាអចិន្ត្រៃយ៍
+        </div>
+      </div>
+      <button class="x" onclick="closeCoinModal()" title="Close">✕</button>
+    </div>
+
+    <div class="modal-scroll" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding-right:4px">
+      <!-- User Current Coin Balance Card -->
+      <div style="background:linear-gradient(135deg,rgba(234,179,8,0.15),rgba(245,158,11,0.05));border:1px solid rgba(234,179,8,0.4);border-radius:14px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-size:11.5px;color:var(--muted);font-weight:700">សមតុល្យ COIN របស់អ្នក</div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px">
+            <span style="font-size:28px;font-weight:900;color:#eab308;font-family:var(--font-mono)" id="coinModalUserCoins">0</span>
+            <span style="font-size:14px;font-weight:700;color:#eab308">Coins</span>
+            <span style="font-size:13px;color:var(--muted)">≈ <span id="coinModalUserRiel">0</span> ៛</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--ink-2);margin-top:2px" id="coinModalUserAccountName">គណនី: ...</div>
+        </div>
+        <div style="text-align:right">
+          <a href="https://t.me/sydadmin168" target="_blank" class="btn ghost sm" style="font-size:11px;border-radius:20px;border-color:rgba(56,189,248,0.5);color:#38bdf8;padding:4px 10px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+            <span>✈️ Chat ជាមួយ Admin</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick Package Select -->
+      <div>
+        <div style="font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:8px">📦 ជ្រើសរើសកញ្ចប់ទិញ Coin:</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">
+          <div class="coin-pkg-card" onclick="selectCoinPackage(10, 5000)" style="cursor:pointer;padding:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;transition:all .2s ease">
+            <div style="font-size:15px;font-weight:900;color:#eab308">10 Coins</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">5,000 ៛</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">បាន 5 រឿង</div>
+          </div>
+          <div class="coin-pkg-card" onclick="selectCoinPackage(20, 10000)" style="cursor:pointer;padding:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.4);border-radius:10px;text-align:center;transition:all .2s ease">
+            <div style="font-size:15px;font-weight:900;color:#eab308">20 Coins</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">10,000 ៛</div>
+            <div style="font-size:10px;color:#22c55e;font-weight:700;margin-top:2px">★ ពេញនិយម (10 រឿង)</div>
+          </div>
+          <div class="coin-pkg-card" onclick="selectCoinPackage(50, 25000)" style="cursor:pointer;padding:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;transition:all .2s ease">
+            <div style="font-size:15px;font-weight:900;color:#eab308">50 Coins</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">25,000 ៛</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">បាន 25 រឿង</div>
+          </div>
+          <div class="coin-pkg-card" onclick="selectCoinPackage(100, 50000)" style="cursor:pointer;padding:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;transition:all .2s ease">
+            <div style="font-size:15px;font-weight:900;color:#eab308">100 Coins</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">50,000 ៛</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">បាន 50 រឿង</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment & QR Code Section -->
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+        <div style="text-align:center;flex-shrink:0;margin:0 auto">
+          <img src="/dl/qr_payment.png" alt="Admin QR Payment" style="width:140px;height:auto;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);box-shadow:0 4px 15px rgba(0,0,0,0.5)">
+          <div style="font-size:10.5px;color:var(--muted);margin-top:4px;font-weight:700">QR ផ្លូវការរបស់ ADMIN</div>
+        </div>
+        <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:6px;font-size:12px">
+          <div style="font-weight:800;color:var(--accent);font-size:12.5px">📌 របៀបទូទាត់ប្រាក់ &amp; ទទួល Coin:</div>
+          <div style="color:var(--ink);line-height:1.5">
+            1. ស្កេន QR Code ខាងឆ្វេង ដើម្បីផ្ទេរប្រាក់ទៅកាន់ Admin<br>
+            2. អត្រាប្តូរប្រាក់: <b>1 Coin = 500៛</b> (1 រឿង = 2 Coins = 1,000៛)<br>
+            3. បន្ទាប់ពីផ្ទេរប្រាក់រួច បញ្ចូលព័ត៌មានខាងក្រោម រួចចុច "ផ្ញើសំណើទិញ Coin"<br>
+            4. Admin នឹងពិនិត្យ និងបញ្ចូល Coin ជូនគណនីរបស់អ្នកភ្លាមៗ!
+          </div>
+        </div>
+      </div>
+
+      <!-- Coin Request Form -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">ចំនួន Coin ចង់ទិញ:</label>
+            <input type="number" id="coinReqInput" value="20" min="2" max="10000" oninput="onCoinReqInputChange()" style="width:100%;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:#eab308;font:800 15px var(--font-mono)">
+          </div>
+          <div>
+            <label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">ទឹកប្រាក់ត្រូវទូទាត់ (៛):</label>
+            <input type="text" id="coinReqRielDisplay" value="10,000 ៛" readonly style="width:100%;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--good);font:800 15px var(--font-mono)">
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">ព័ត៌មានផ្ទេរប្រាក់ (លេខទូរស័ព្ទ / ឈ្មោះគណនីធនាគារ / ចំណាំ):</label>
+          <input type="text" id="coinReqNoteInput" placeholder="ឧ. ផ្ទេរពីគណនី ABA ឈ្មោះ SOK DARA ឬលេខ 012345678" style="width:100%;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--ink);font:600 12.5px var(--font-ui)">
+        </div>
+
+        <div id="coinReqStatusMsg" style="display:none;font-size:12px;padding:8px 12px;border-radius:8px"></div>
+
+        <button type="button" class="btn primary" id="coinReqSubmitBtn" onclick="submitCoinRequest()" style="height:40px;background:linear-gradient(135deg,#eab308,#ca8a04);color:#000;font-weight:800;font-size:13px;border-radius:8px;box-shadow:0 3px 12px rgba(234,179,8,0.35);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer">
+          <span>📤 ផ្ញើសំណើទិញ Coin ទៅ Admin</span>
+        </button>
+      </div>
+
+      <!-- User's My Coin Requests History -->
+      <div style="border-top:1px solid var(--line);padding-top:12px">
+        <div style="font-size:12.5px;font-weight:800;color:var(--ink);display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span>📋 ប្រវត្តិសំណើទិញ Coin របស់អ្នក</span>
+          <button type="button" class="btn ghost sm" onclick="loadMyCoinRequests()" style="font-size:11px;padding:2px 8px">🔄 Refresh</button>
+        </div>
+        <div id="coinMyRequestsList" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto">
+          <div style="text-align:center;padding:12px;color:var(--muted);font-size:11.5px">មិនទាន់មានសំណើទិញ Coin ទេ</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-foot" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:11px;color:var(--muted)">🔒 1 Coin = 500៛ | 1 រឿង = 2 Coins (1,000៛) ដោះសោរគ្រប់ភាគ</div>
+      <button class="btn ghost sm" onclick="closeCoinModal()">បិទ</button>
+    </div>
+  </div>
+</div>
+
+<!-- User Control / Management Modal (Admin Dashboard) -->
+<div class="modal" id="userCtrlModal" hidden style="z-index:110;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px)">
+  <div class="modal-card" style="max-width:1200px;width:96vw;padding:24px;background:var(--surface,#18110b);border:1px solid var(--line,#3a2c20);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.85);max-height:94vh;display:flex;flex-direction:column">
+    <div class="modal-head" style="padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line,#3a2c20)">
+      <div>
+        <div class="modal-title" style="font-size:20px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px">
           <span>🛡️ SYD ADMIN DASHBOARD</span>
         </div>
         <div class="modal-sub" style="color:var(--accent);font-weight:600;margin-top:3px">គ្រប់គ្រងគណនីអ្នកប្រើប្រាស់, សិទ្ធិ VIP &amp; Telegram Settings</div>
@@ -1978,28 +2128,28 @@
     </div>
 
     <!-- Unlocked State: Tab Switcher & Panels -->
-    <div id="adminUnlockedPanel" hidden style="display:flex;flex-direction:column;flex:1;min-height:0;gap:12px">
+    <div id="adminUnlockedPanel" hidden style="display:flex;flex-direction:column;flex:1;min-height:0;gap:14px">
       <!-- Admin Tab Switcher -->
-      <div style="display:flex;gap:6px;background:var(--surface-2);padding:4px;border-radius:10px;border:1px solid var(--line)">
-        <button type="button" class="btn sm uc-tab-btn on" id="ucTabBtnUsers" onclick="switchUcTab('users')" style="flex:1;font-weight:700;font-size:12px;border-radius:8px;padding:7px 6px">
+      <div style="display:flex;gap:8px;background:var(--surface-2);padding:6px;border-radius:12px;border:1px solid var(--line);flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn sm uc-tab-btn on" id="ucTabBtnUsers" onclick="switchUcTab('users')" style="flex:1 1 auto;min-width:145px;font-weight:700;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px">
           👥 គ្រប់គ្រងអ្នកប្រើប្រាស់ &amp; VIP
         </button>
-        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnSettings" onclick="switchUcTab('settings')" style="flex:1;font-weight:700;font-size:12px;border-radius:8px;padding:7px 6px">
+        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnSettings" onclick="switchUcTab('settings')" style="flex:1 1 auto;min-width:140px;font-weight:700;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px">
           💬 Telegram Settings
         </button>
-        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnSys" onclick="switchUcTab('system')" style="flex:1;font-weight:700;font-size:12px;border-radius:8px;padding:7px 6px">
+        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnSys" onclick="switchUcTab('system')" style="flex:1 1 auto;min-width:140px;font-weight:700;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px">
           🎬 Download &amp; Storage
         </button>
-        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnFirebase" onclick="switchUcTab('firebase')" style="flex:1;font-weight:700;font-size:12px;border-radius:8px;padding:7px 6px;color:#ff6a2b">
+        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnFirebase" onclick="switchUcTab('firebase')" style="flex:1 1 auto;min-width:130px;font-weight:700;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;color:#ff6a2b">
           🔥 Firebase Cloud
         </button>
-        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnDeploy" onclick="openPushDeployModal()" style="flex:1;font-weight:800;font-size:12px;border-radius:8px;padding:7px 6px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#ffffff;box-shadow:0 0 10px rgba(14,165,233,0.35)">
+        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnDeploy" onclick="openPushDeployModal()" style="flex:1 1 auto;min-width:130px;font-weight:800;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#ffffff;box-shadow:0 0 10px rgba(14,165,233,0.35)">
           🚀 PUSH &amp; DEPLOY
         </button>
-        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnBuild" onclick="openBuildExeModal()" style="flex:1;font-weight:800;font-size:12px;border-radius:8px;padding:7px 6px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000000;box-shadow:0 0 10px rgba(245,158,11,0.35)">
+        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnBuild" onclick="openBuildExeModal()" style="flex:1 1 auto;min-width:120px;font-weight:800;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000000;box-shadow:0 0 10px rgba(245,158,11,0.35)">
           🛠️ BUILD EXE
         </button>
-        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnRestart" onclick="doAdminRestart()" style="flex:1;font-weight:800;font-size:12px;border-radius:8px;padding:7px 6px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#ffffff;box-shadow:0 0 10px rgba(239,68,68,0.35)">
+        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnRestart" onclick="doAdminRestart()" style="flex:1 1 auto;min-width:110px;font-weight:800;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#ffffff;box-shadow:0 0 10px rgba(239,68,68,0.35)">
           ⚡ RESTART
         </button>
       </div>
@@ -2067,6 +2217,29 @@
           </div>
         </div>
 
+        <!-- Card: VIP Request Button Control (Firebase Realtime Database) -->
+        <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="font:700 13.5px var(--font-ui);color:#eab308;display:flex;align-items:center;gap:6px">
+              <span>👑</span> <span>ប៊ូតុងស្នើសុំ VIP សម្រាប់ User (Firebase Realtime Database)</span>
+            </div>
+            <span id="adminVipToggleBadge" style="font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px;background:rgba(239,68,68,0.18);color:#ef4444;border:1px solid rgba(239,68,68,0.4)">
+              🔴 កំពុងបិទ (OFF)
+            </span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.5">
+            លក្ខខណ្ឌ៖ <b>លុះត្រាតែ ADMIN បើក ទើប USER អាចឃើញប៊ូតុង "ស្នើសុំ VIP" បាន</b>។ ប្រសិនបើបិទ (OFF) ប៊ូតុង "ស្នើសុំ VIP" នឹងត្រូវលាក់ពីផ្ទាំងរបស់ User ទាំងអស់ក្នុង Realtime ដោយស្វ័យប្រវត្តិតាមរយៈ Firebase Realtime Database។
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+            <button type="button" class="btn primary sm" id="adminVipToggleBtn" onclick="adminToggleVipRequestButton()" style="font-weight:800;font-size:12px;padding:6px 18px;border-radius:20px;cursor:pointer;background:linear-gradient(135deg,#22c55e,#16a34a)">
+              ⚡ ចុចដើម្បី បើក (Enable)
+            </button>
+            <span id="adminVipToggleStatusText" style="font-size:12px;font-weight:700;color:var(--ink-2)">
+              ស្ថានភាពបច្ចុប្បន្ន៖ បិទ (User មិនឃើញប៊ូតុងស្នើសុំ VIP)
+            </span>
+          </div>
+        </div>
+
         <!-- Card 3: System Mode Selection -->
         <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:8px">
           <div style="font:700 13px var(--font-ui);color:var(--accent);display:flex;align-items:center;gap:6px">
@@ -2076,8 +2249,8 @@
             <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink);padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line)">
               <input type="radio" name="adminModeRadio" value="vip_required" style="margin-top:2px">
               <div>
-                <b style="color:var(--accent)">🔒 VIP Required (គណនីធម្មតាមើលបានភាគ 1-10, VIP មើលបានគ្រប់ភាគ - Recommended)</b>
-                <div style="font-size:11.5px;color:var(--muted);margin-top:2px">អ្នកប្រើប្រាស់ធម្មតាអាចមើលនិងទាញយកបានត្រឹមភាគ 1-10។ ចាប់ពីភាគ 11 ឡើងទៅ តម្រូវឱ្យមានកញ្ចប់ VIP។</div>
+                <b style="color:var(--accent)">🔒 VIP Required (គណនីធម្មតាមើលបានភាគ 1-5, VIP មើលបានគ្រប់ភាគ - Recommended)</b>
+                <div style="font-size:11.5px;color:var(--muted);margin-top:2px">អ្នកប្រើប្រាស់ធម្មតាអាចមើលនិងទាញយកបានត្រឹមភាគ 1-5។ ចាប់ពីភាគ 6 ឡើងទៅ តម្រូវឱ្យមានកញ្ចប់ VIP ឬ Coin។</div>
               </div>
             </label>
             <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink);padding:8px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line)">
@@ -2229,7 +2402,7 @@
 
 <!-- Admin PUSH & DEPLOY Modal (Live Terminal Processing) -->
 <div class="modal" id="pushDeployModal" hidden style="z-index:125;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px)">
-  <div class="modal-card" style="max-width:680px;width:95vw;padding:22px;background:var(--surface,#18110b);border:1px solid rgba(14,165,233,0.4);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.9), 0 0 30px rgba(14,165,233,0.2);max-height:92vh;display:flex;flex-direction:column">
+  <div class="modal-card" style="max-width:960px;width:95vw;padding:24px;background:var(--surface,#18110b);border:1px solid rgba(14,165,233,0.4);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.9), 0 0 30px rgba(14,165,233,0.2);max-height:92vh;display:flex;flex-direction:column">
     <div class="modal-head" style="position:relative;padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div class="modal-title" style="font-size:18px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px">
@@ -2291,7 +2464,7 @@
 
 <!-- Admin BUILD.EXE Modal (Standalone Single EXE Compiler) -->
 <div class="modal" id="buildExeModal" hidden style="z-index:125;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px)">
-  <div class="modal-card" style="max-width:760px;width:95vw;padding:22px;background:var(--surface,#18110b);border:1px solid rgba(245,158,11,0.45);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.9), 0 0 35px rgba(245,158,11,0.22);max-height:92vh;display:flex;flex-direction:column">
+  <div class="modal-card" style="max-width:1050px;width:95vw;padding:24px;background:var(--surface,#18110b);border:1px solid rgba(245,158,11,0.45);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.9), 0 0 35px rgba(245,158,11,0.22);max-height:92vh;display:flex;flex-direction:column">
     <div class="modal-head" style="position:relative;padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div class="modal-title" style="font-size:18px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px">
@@ -4304,6 +4477,9 @@ function renderDramaDetailUI(item){
   }
   renderDramaDetailEpisodes();
   updateDdQueueBtn();
+  if(typeof updateDramaDetailCoinUI === 'function'){
+    updateDramaDetailCoinUI(item);
+  }
 }
 
 function renderDramaDetailEpisodes(){
@@ -4323,19 +4499,83 @@ function renderDramaDetailEpisodes(){
   const rangesEl = $("#ddEpRanges");
   const gridEl = $("#ddEpGrid");
   const totHint = $("#ddEpTotalHint");
-  if(totHint) totHint.textContent = `សរុប ${eps.length} ភាគ`;
 
   if(!eps.length){
+    if(totHint) totHint.textContent = `សរុប 0 ភាគ`;
     gridEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted);font-family:var(--font-km)">⏳ កំពុងទាញយកបញ្ជីភាគ...</div>';
     if(rangesEl) rangesEl.innerHTML = '';
     return;
   }
 
-  // Range switcher (tabs like 1-30, 31-60, 61-80)
+  const isFull = isUserFullAccess();
+  let userEpLimit = 5;
+  let isDramaFreeAll = false;
+  const currSid = (ddCurrentDrama ? (ddCurrentDrama.id || ddCurrentDrama.series_id) : null);
+  if (currSid && typeof getDramaRuleForSeries === 'function') {
+    const dr = getDramaRuleForSeries(currSid);
+    if (dr && dr.rule === 'free_all') isDramaFreeAll = true;
+    else if (dr && dr.free_episodes != null) userEpLimit = Number(dr.free_episodes);
+    else userEpLimit = 5;
+  } else {
+    userEpLimit = 5;
+  }
+
+  // Calculate episode statistics (ទាំងភាគ Lock និងភាគអត់ Lock)
+  let freeEpCount = 0;
+  let lockedEpCount = 0;
+  if(isFull || isDramaFreeAll){
+    freeEpCount = eps.length;
+    lockedEpCount = 0;
+  } else {
+    freeEpCount = Math.min(eps.length, userEpLimit);
+    lockedEpCount = Math.max(0, eps.length - freeEpCount);
+  }
+
+  // Update Episode Statistics Badges in UI (បង្ហាញចំនួនភាគទាំងភាគ Lock និងភាគអត់ Lock)
+  if(totHint){
+    totHint.innerHTML = `
+      <span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;background:rgba(34,197,94,0.18);color:#22c55e;border:1px solid rgba(34,197,94,0.4)" title="ភាគដែលអាចទស្សនា និងដោនឡូតបានដោយសេរី ឥតគិតថ្លៃ">
+          🔓 អត់ Lock: ${freeEpCount} ភាគ
+        </span>
+        <span style="font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;background:rgba(234,179,8,0.18);color:#eab308;border:1px solid rgba(234,179,8,0.4)" title="ភាគដែលត្រូវប្រើ 2 Coins (1,000៛) ឬ VIP">
+          🔒 ជាប់ Lock: ${lockedEpCount} ភាគ
+        </span>
+        <span style="font-size:11.5px;font-weight:800;color:var(--muted)">
+          (សរុប ${eps.length} ភាគ)
+        </span>
+      </span>
+    `;
+  }
+
+  // Update Drama Rule Badge in info bar
+  const ruleBadge = $("#ddDramaRuleBadge");
+  if(ruleBadge){
+    if(isDramaFreeAll || isFull){
+      ruleBadge.innerHTML = `🟢 Free គ្រប់ភាគទាំងអស់ (${eps.length} ភាគ)`;
+      ruleBadge.style.color = "var(--good)";
+      ruleBadge.style.background = "rgba(34,197,94,0.15)";
+      ruleBadge.style.borderColor = "rgba(34,197,94,0.4)";
+    } else {
+      ruleBadge.innerHTML = `🔓 Free (អត់ Lock): ភាគ 1-${userEpLimit} (${freeEpCount} ភាគ) · 🔒 ជាប់ Lock: ភាគ ${userEpLimit+1}+ (${lockedEpCount} ភាគ)`;
+    }
+  }
+
+  // Update VIP Episode Alert Banner text with exact breakdown
+  const vipBanner = $("#ddVipEpisodeBanner");
+  if(vipBanner){
+    vipBanner.style.display = (isFull || isDramaFreeAll) ? 'none' : 'flex';
+    const vipSpan = vipBanner.querySelector('div span');
+    if(vipSpan){
+      vipSpan.innerHTML = `<b>គណនីធម្មតា:</b> ឥតគិតថ្លៃ (អត់ Lock) <b>${freeEpCount} ភាគ</b> (ភាគ 1 ដល់ ${userEpLimit}) · ជាប់ Lock <b>${lockedEpCount} ភាគ</b> (ភាគ ${userEpLimit+1} ឡើងទៅ តម្រូវការ 2 Coins ឬ VIP)`;
+    }
+  }
+
+  // Range Switcher Tabs (e.g. ទាំងអស់, 1-30, 31-60, 61-90, 91-94)
   if(eps.length > DD_RANGE_SIZE){
     rangesEl.hidden = false;
     const numRanges = Math.ceil(eps.length / DD_RANGE_SIZE);
-    let rHtml = `<button type="button" class="dd-range-tab ${ddActiveRange===-1?'on':''}" data-range="-1">ទាំងអស់</button>`;
+    let rHtml = `<button type="button" class="dd-range-tab ${ddActiveRange===-1?'on':''}" data-range="-1">ទាំងអស់ (${eps.length})</button>`;
     for(let r=0; r<numRanges; r++){
       const start = r * DD_RANGE_SIZE + 1;
       const end = Math.min((r + 1) * DD_RANGE_SIZE, eps.length);
@@ -4344,31 +4584,41 @@ function renderDramaDetailEpisodes(){
     rangesEl.innerHTML = rHtml;
   } else {
     rangesEl.hidden = false;
-    rangesEl.innerHTML = `<span style="font-size:13px;font-weight:700;color:var(--muted)">ភាគ 1 - ${eps.length}</span>`;
+    rangesEl.innerHTML = `<span style="font-size:12.5px;font-weight:700;color:var(--muted)">ភាគ 1 - ${eps.length}</span>`;
   }
 
-  // Filter episodes based on active range
+  // Slice visible episodes based on active range
   let visibleEps = eps;
   if(eps.length > DD_RANGE_SIZE && ddActiveRange >= 0){
     const startIdx = ddActiveRange * DD_RANGE_SIZE;
     visibleEps = eps.slice(startIdx, startIdx + DD_RANGE_SIZE);
   }
 
-  gridEl.innerHTML = visibleEps.map(n => {
+  // Render Episode Chips for both locked and unlocked episodes
+  let chipsHtml = visibleEps.map(n => {
+    const epNum = Number(n);
     const isSel = ddSelectedEps.has(n);
     const isPlaying = (ddInlinePlayingEp === n);
-    const isLocked = isEpisodeLocked(n);
+    const isLocked = isEpisodeLocked(n, currSid);
     let cls = "dd-epchip-item";
     if(isPlaying) cls += " active-playing";
     else if(!isStream && isSel) cls += " selected-for-dl";
     if(isLocked) cls += " locked-vip";
     
-    const titleHint = isLocked
-      ? `ភាគទី ${n} · 🔒 VIP Only (គណនីធម្មតាអាចមើលបានត្រឹមភាគ 1-10 · ចុចដើម្បីស្នើសុំ VIP)`
-      : `ភាគទី ${n} · ចុចដើម្បី ${isStream ? 'Live Stream មើលភ្លាមៗ' : 'ជ្រើសរើសដោនឡូត'}`;
+    let epLabel = `${n}`;
+    let titleHint = '';
+    if(isLocked){
+      titleHint = `ភាគទី ${n} · 🔒 ជាប់ Lock (2 Coins = 1,000៛ ឬ VIP · ចុចដើម្បីដោះសោរ)`;
+      epLabel = `<span style="display:inline-flex;align-items:center;justify-content:center;gap:3px"><span>${n}</span><span style="font-size:10px;opacity:0.9">🔒</span></span>`;
+    } else {
+      titleHint = `ភាគទី ${n} · 🔓 អត់ Lock (ឥតគិតថ្លៃ Free · ចុចដើម្បី ${isStream ? 'Live Stream មើល' : 'ជ្រើសរើសដោនឡូត'})`;
+      epLabel = `<span style="display:inline-flex;align-items:center;justify-content:center;gap:3px"><span>${n}</span><span style="font-size:8.5px;color:var(--good);font-weight:900">Free</span></span>`;
+    }
 
-    return `<button type="button" class="${cls}" data-dei="${n}" aria-pressed="${isSel}" title="${titleHint}">${n}</button>`;
+    return `<button type="button" class="${cls}" data-dei="${n}" aria-pressed="${isSel}" title="${titleHint}">${epLabel}</button>`;
   }).join("");
+
+  gridEl.innerHTML = chipsHtml;
 }
 
 async function translateDramaTitle(item){
@@ -4609,7 +4859,7 @@ $("#ddDlAllBtn").onclick = $("#ddHeroDlBtn").onclick = () => {
     cart[id].sel = allowed.length ? allowed : [1];
     saveCart();
     renderQueue();
-    toast(`⬇️ គណនីធម្មតា៖ បានដាក់ភាគ 1-10 នៃរឿង 《${ddCurrentDrama.title}》 ចូលក្នុង Queue`);
+    toast(`⬇️ គណនីធម្មតា៖ បានដាក់ភាគ 1-5 នៃរឿង 《${ddCurrentDrama.title}》 ចូលក្នុង Queue`);
   } else {
     toast(`⬇️ បានដាក់រឿង 《${ddCurrentDrama.title}》 ចូលក្នុង Queue`);
   }
@@ -4632,10 +4882,11 @@ $("#ddHeaderQueueBtn").onclick = $("#ddHeroQueueBtn").onclick = () => {
 
 $("#ddEpSelectAll").onclick = () => {
   if(!isUserFullAccess()){
-    const allowed = (ddAllEps || []).filter(n => n <= 10);
+    const sid = ddCurrentDrama ? (ddCurrentDrama.id || ddCurrentDrama.series_id) : '';
+    const allowed = (ddAllEps || []).filter(n => !isEpisodeLocked(n, sid));
     ddSelectedEps = new Set(allowed);
     renderDramaDetailEpisodes();
-    toast("💡 គណនីធម្មតាអាចជ្រើសរើសបានត្រឹមភាគ 1-10 ប៉ុណ្ណោះ។ សូមស្នើសុំ VIP ដើម្បីដោនឡូតគ្រប់ភាគ!");
+    toast("💡 បានជ្រើសរើសភាគដែល Free។ សូមទិញ Coin ឬស្នើសុំ VIP ដើម្បីដោនឡូតគ្រប់ភាគ!");
     return;
   }
   ddSelectedEps = new Set(ddAllEps);
@@ -6230,9 +6481,28 @@ function isUserFullAccess(){
   return !!(window.userAccess.is_admin || window.userAccess.is_vip || window.userAccess.role === 'admin' || window.userAccess.role === 'dev' || window.userAccess.mode === 'free_all');
 }
 
-function isEpisodeLocked(epNum){
+function isEpisodeLocked(epNum, seriesId){
   if(isUserFullAccess()) return false;
-  return Number(epNum) > 10;
+  const num = Number(epNum);
+  const sid = seriesId || (window.ddCurrentDrama ? (window.ddCurrentDrama.id || window.ddCurrentDrama.series_id) : null);
+
+  // Check if series is already purchased with coins
+  if(sid && window.userAccess && window.userAccess.purchased_series && window.userAccess.purchased_series[sid]){
+    return false;
+  }
+
+  let freeLimit = (window.userAccess && window.userAccess.max_free_episodes !== undefined) ? Number(window.userAccess.max_free_episodes) : 5;
+  if(sid && typeof getDramaRuleForSeries === 'function'){
+    const dr = getDramaRuleForSeries(sid);
+    if(dr){
+      if(dr.rule === 'free_all') return false;
+      if(dr.free_episodes !== undefined && dr.free_episodes !== null){
+        freeLimit = Number(dr.free_episodes);
+      }
+    }
+  }
+
+  return num > freeLimit;
 }
 
 function switchAuthTab(tab){
@@ -6249,6 +6519,15 @@ function switchAuthTab(tab){
   if(secR) secR.style.display = (tab === 'register') ? 'flex' : 'none';
   if(secV) secV.style.display = (tab === 'vip') ? 'flex' : 'none';
   if(secB) secB.style.display = (tab === 'banned') ? 'flex' : 'none';
+
+  if(tab === 'login'){
+    const heading = $("#authLoginFormHeading");
+    if(heading) heading.textContent = "ចូលប្រើប្រាស់គណនី (Login)";
+    setTimeout(() => {
+      const inp = $("#authLoginUser");
+      if(inp) inp.focus();
+    }, 150);
+  }
 
   if(tab === 'vip'){
     const guestWarn = $("#vipGuestWarningBanner");
@@ -6299,21 +6578,57 @@ function openReRequestVipForm(){
 let isMandatoryAuth = false;
 
 function promptVipModal(epNum){
+  const isAuth = !!(window.userAccess && window.userAccess.authenticated);
+  if(!isAuth){
+    toast(`🔒 ភាគទី ${epNum} ត្រូវបានចាក់សោរ! សូមចូលគណនី ឬចុះឈ្មោះដើម្បីទស្សនា`, true);
+    openUserRegisterModal('login', true);
+    return;
+  }
+
+  const sid = ddCurrentDrama ? (ddCurrentDrama.id || ddCurrentDrama.series_id) : '';
+  const title = ddCurrentDrama ? (ddCurrentDrama.title_km || ddCurrentDrama.title) : 'រឿងនេះ';
+  const userCoins = Number((window.userAccess && window.userAccess.coins) || 0);
+
   const banner = $("#authAlertBanner");
   const alertText = $("#authAlertText");
   if(banner && alertText){
-    alertText.innerHTML = `🔒 <b>ភាគទី ${epNum} ត្រូវបានចាក់សោរ (Locked)!</b><br>គណនីធម្មតាអាចទស្សនា & ដោនឡូតបានត្រឹម <b>ភាគ 1 ដល់ 10</b> ប៉ុណ្ណោះ។<br>👉 សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ដើម្បីទស្សនា និងដោនឡូតគ្រប់ភាគទាំងអស់ដោយគ្មានការ Lock!`;
+    alertText.innerHTML = `🔒 <b>ភាគទី ${epNum} នៃរឿង 《${esc(title)}》 ត្រូវបានចាក់សោរ!</b><br>
+    🪙 <b>ទិញដោះសោររឿងនេះ៖</b> ត្រូវការត្រឹមតែ <b>2 Coins (1,000៛)</b> ដោះសោរគ្រប់ភាគទាំងអស់ជាអចិន្ត្រៃយ៍!<br>
+    👑 <b>ឬស្នើសុំកញ្ចប់ VIP៖</b> ដោះសោរគ្រប់រឿងទាំងអស់ក្នុងកម្មវិធីដោយគ្មានការ Lock!`;
     banner.style.display = 'block';
   }
+
+  if(sid && userCoins >= 2){
+    if(confirm(`🔒 ភាគទី ${epNum} ត្រូវបានចាក់សោរ!
+
+សមតុល្យរបស់អ្នកមាន: ${userCoins} Coins
+រឿងនេះត្រូវការ: 2 Coins (1,000៛) ដើម្បីដោះសោរគ្រប់ភាគទាំងអស់។
+
+តើអ្នកចង់ទិញដោះសោររឿងនេះឥឡូវនេះទេ?`)){
+      buyDramaWithCoins(sid, title);
+      return;
+    }
+  } else if(sid && userCoins < 2){
+    if(confirm(`🔒 ភាគទី ${epNum} ត្រូវបានចាក់សោរ!
+
+សមតុល្យ Coins របស់អ្នក: ${userCoins} Coins (មិនគ្រប់ 2 Coins ទេ)
+
+តើអ្នកចង់បើកកាបូប Coin ដើម្បីបញ្ចូល Coin (Top-up) ដែរឬទេ?`)){
+      openCoinModal();
+      return;
+    }
+  }
+
   openUserRegisterModal('vip', false);
 }
 
-function openUserRegisterModal(preferTab = 'register', isMandatory = false){
+function openUserRegisterModal(preferTab = 'login', isMandatory = false){
   const m = $("#userRegisterModal");
   if(!m) return;
   const isAuth = !!(window.userAccess && window.userAccess.authenticated);
   const isBanned = !!(window.userAccess && (window.userAccess.status === 'banned' || window.userAccess.is_banned));
-  isMandatoryAuth = (!isAuth || isBanned) && !!isMandatory;
+  // Mandatory Login/Register: Every time app is opened, user must login or register!
+  isMandatoryAuth = (!isAuth || isBanned || !!isMandatory);
   const closeBtn1 = $("#regCloseBtn");
   const closeBtn2 = $("#regCloseBtn2");
   if(closeBtn1) closeBtn1.style.display = isMandatoryAuth ? 'none' : 'block';
@@ -6322,11 +6637,12 @@ function openUserRegisterModal(preferTab = 'register', isMandatory = false){
   const isAdmin = !!(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin' || window.userAccess.role === 'dev'));
   const isVip = !!(window.userAccess && window.userAccess.is_vip);
   const isPendingVip = !!(window.userAccess && window.userAccess.status === 'pending_vip');
+  const vipReqEnabled = !!(window.userAccess && window.userAccess.settings && (window.userAccess.settings.vip_request_enabled === true || window.userAccess.settings.vip_request_enabled === 'true' || window.userAccess.settings.vip_request_enabled === 1));
 
-  // Tab VIP button: ALWAYS VISIBLE for anyone who is not already Admin or approved VIP!
+  // Tab VIP button: ONLY VISIBLE if Admin enabled it in Firebase RTDB and user is not Admin/VIP
   const tabVipBtn = $("#tabBtnVip");
   if(tabVipBtn){
-    if(isAdmin || isVip){
+    if(isAdmin || isVip || !vipReqEnabled){
       tabVipBtn.style.display = 'none';
     } else {
       tabVipBtn.style.display = 'block';
@@ -6339,16 +6655,18 @@ function openUserRegisterModal(preferTab = 'register', isMandatory = false){
       sub.textContent = "🚫 គណនីត្រូវបាន ADMIN បិទ (Banned) · សូមស្នើសុំបើកឡើងវិញ ឬទាក់ទង ADMIN";
       sub.style.color = "var(--bad)";
     } else if(!isAuth){
-      sub.textContent = "សូមចូលគណនី ឬចុះឈ្មោះគណនីធម្មតាដើម្បីទស្សនាភាគ 1-10 និងស្នើសុំ VIP";
+      sub.textContent = "សូមចូលគណនី ឬចុះឈ្មោះគណនីធម្មតាដើម្បីទស្សនា និងប្រើប្រាស់";
       sub.style.color = "var(--accent)";
     } else if(isPendingVip){
-      sub.textContent = "⏳ សំណើសុំ VIP របស់អ្នកកំពុងរង់ចាំ Admin អនុម័ត (ភាគ 1-10 ឥតគិតថ្លៃ)";
+      sub.textContent = "⏳ សំណើសុំ VIP របស់អ្នកកំពុងរង់ចាំ Admin អនុម័ត";
       sub.style.color = "var(--gold)";
     } else if(isVip){
       sub.textContent = "👑 គណនី VIP (ដោះសោរគ្រប់ភាគទាំងអស់ គ្មានដែនកំណត់)";
       sub.style.color = "var(--good)";
     } else {
-      sub.textContent = "👤 គណនីធម្មតា (ភាគ 1-10 ឥតគិតថ្លៃ · ស្នើសុំ VIP ដើម្បីដោះសោរគ្រប់ភាគ)";
+      sub.textContent = vipReqEnabled 
+        ? "👤 គណនីធម្មតា (ស្នើសុំ VIP ដើម្បីដោះសោរគ្រប់ភាគ)"
+        : "👤 គណនីធម្មតា (អ្នកប្រើប្រាស់ជាក់ស្តែង)";
       sub.style.color = "var(--ink-2)";
     }
   }
@@ -6362,20 +6680,29 @@ function openUserRegisterModal(preferTab = 'register', isMandatory = false){
 
   m.hidden = false;
   
-  let targetTab = preferTab;
+  let targetTab = preferTab || 'login';
   if(isBanned && targetTab !== 'vip'){
     targetTab = 'banned';
-  } else if(isAdmin || isVip){
+  } else if(isAdmin || isVip || !vipReqEnabled){
     if(targetTab === 'vip') targetTab = 'login';
   }
   switchAuthTab(targetTab);
 }
 
-function closeUserRegisterModal(){
-  if(!window.userAccess || !window.userAccess.authenticated){
-    toast("⚠️ ដាច់ខាតត្រូវតែចុះឈ្មោះ User ធម្មតា ឬ Login ជាមុនសិន!", true);
-    return;
+function closeUserRegisterModal(force = false){
+  const isAuth = !!(window.userAccess && window.userAccess.authenticated);
+  const isBanned = !!(window.userAccess && (window.userAccess.status === 'banned' || window.userAccess.is_banned));
+  if(!force){
+    if(isBanned){
+      toast("🚫 គណនីត្រូវបាន Banned មិនអាចបិទផ្ទាំងនេះបានទេ។", true);
+      return;
+    }
+    if(!isAuth || isMandatoryAuth){
+      toast("⚠️ គ្រប់ពេលបើកកម្មវិធីត្រូវតែ Login ជាដាច់ខាត ឬចុះឈ្មោះជាចាំបាច់ដើម្បីប្រើប្រាស់!", true);
+      return;
+    }
   }
+  isMandatoryAuth = false;
   const m = $("#userRegisterModal");
   if(m) m.hidden = true;
   const banner = $("#authAlertBanner");
@@ -6509,12 +6836,25 @@ async function fetchAccessStatus(){
           if(bDesc) bDesc.innerHTML = `<span style="color:#f87171;font-weight:bold">គណនីនេះត្រូវបានភ្ជាប់ជាមួយកុំព្យូទ័រ (PC) ផ្សេងរួចហើយ!</span><br>ប្រព័ន្ធកំណត់ដាច់ខាត 1 Machine ID ប្រើប្រាស់បានតែលើ 1 PC ប៉ុណ្ណោះ មិនអាចប្រើលើកុំព្យូទ័រនេះបានឡើយ។`;
         }
       } else if(!data.authenticated || data.must_register || !data.has_firebase_account){
-        openUserRegisterModal('register', true);
+        openUserRegisterModal('login', true);
       } else {
         isMandatoryAuth = false;
         if(prevWasNotVip && data.is_vip){
           toast(`👑 អបអរសាទរ! ADMIN បានអនុម័តកញ្ចប់ VIP ជូន ${data.name || data.username} រួចរាល់ហើយ! (ដោះសោរគ្រប់ភាគទាំងអស់)`, false);
           closeUserRegisterModal();
+        }
+
+        const act = urlParams.get('action');
+        if(act === 'coin_modal'){
+          setTimeout(() => { if(typeof openCoinModal === 'function') openCoinModal(); }, 400);
+        } else if(act === 'detail'){
+          const sid = urlParams.get('drama_id') || '7662291674818677784';
+          setTimeout(() => { if(typeof openDramaDetail === 'function') openDramaDetail(sid); }, 400);
+        } else if(act === 'logout'){
+          setTimeout(() => {
+            window.confirm = () => true;
+            if(typeof doExplicitLogout === 'function') doExplicitLogout();
+          }, 400);
         }
       }
 
@@ -6528,24 +6868,33 @@ async function fetchAccessStatus(){
 }
 
 function updateAccessUI(data){
+  const isAdmin = !!(data && (data.is_admin || data.role === 'admin'));
+  document.documentElement.dataset.userRole = isAdmin ? "admin" : "user";
+
   const badge = $("#userAccessBadge");
   const icon = $("#uabIcon");
   const txt = $("#uabText");
   const reqVipBtn = $("#topReqVipBtn");
   const topUc = $("#topUserCtrlBtn");
   const topLogout = $("#topLogoutBtn");
-  const footUser = $("#authFootUserLabel");
+  const topLoginBtn = $("#topLoginBtn");
+  const footUser = $("#footUser");
+  if(topLoginBtn) topLoginBtn.style.display = (data && data.authenticated) ? "none" : "inline-flex";
 
-  const isAdmin = !!(data.is_admin || data.role === 'admin' || data.role === 'dev');
-  const isVip = !!(data.is_vip);
-  const isPendingVip = (data.status === 'pending_vip');
-  const isBanned = (data.status === 'banned' || data.is_banned);
-  const isUser = !!(data.username && !isAdmin);
+  const topRestartBtn = $("#topAdminRestartBtn");
+  if(topRestartBtn) topRestartBtn.style.display = isAdmin ? "inline-flex" : "none";
+  const isVip = !!(data && data.is_vip);
+  const isPendingVip = (data && data.status === 'pending_vip');
+  const isBanned = (data && (data.status === 'banned' || data.is_banned));
+  const isUser = !!(data && data.username && !isAdmin);
 
-  // Home VIP Promotion Banner Visibility
+  // VIP Request feature toggle from Firebase Realtime Database
+  const vipReqEnabled = !!(data && data.settings && (data.settings.vip_request_enabled === true || data.settings.vip_request_enabled === 'true' || data.settings.vip_request_enabled === 1));
+
+  // Home VIP Promotion Banner Visibility: strictly hide if Admin disabled VIP requests in Firebase RTDB
   const homeVipBanner = $("#homeVipPromoBanner");
   if(homeVipBanner){
-    homeVipBanner.style.display = (isAdmin || isVip) ? "none" : "flex";
+    homeVipBanner.style.display = (isAdmin || isVip || !vipReqEnabled) ? "none" : "flex";
   }
 
   const acctBtn = $("#acctBtn");
@@ -6559,9 +6908,50 @@ function updateAccessUI(data){
     }
   }
 
-  // Top bar "👑 ស្នើសុំ VIP" button: Visible to anyone who is not already Admin or approved VIP!
+  // Topbar Admin VIP Quick Status & Toggle
+  const topVipToggle = $("#topAdminVipToggleBtn");
+  const topVipStatus = $("#topAdminVipStatusLabel");
+  if(topVipToggle){
+    topVipToggle.style.display = isAdmin ? "inline-flex" : "none";
+    if(topVipStatus){
+      topVipStatus.textContent = vipReqEnabled ? "ON" : "OFF";
+      topVipStatus.style.color = vipReqEnabled ? "var(--good)" : "var(--bad)";
+    }
+  }
+
+  // Admin Modal Status & Controls
+  const adminVipBadge = $("#adminVipToggleBadge");
+  const adminVipBtn = $("#adminVipToggleBtn");
+  const adminVipTxt = $("#adminVipToggleStatusText");
+  if(adminVipBadge){
+    if(vipReqEnabled){
+      adminVipBadge.textContent = "🟢 កំពុងបើក (ON)";
+      adminVipBadge.style.color = "#22c55e";
+      adminVipBadge.style.background = "rgba(34,197,94,0.18)";
+      adminVipBadge.style.borderColor = "rgba(34,197,94,0.4)";
+    } else {
+      adminVipBadge.textContent = "🔴 កំពុងបិទ (OFF)";
+      adminVipBadge.style.color = "#ef4444";
+      adminVipBadge.style.background = "rgba(239,68,68,0.18)";
+      adminVipBadge.style.borderColor = "rgba(239,68,68,0.4)";
+    }
+  }
+  if(adminVipBtn){
+    adminVipBtn.textContent = vipReqEnabled ? "🛑 ចុចដើម្បី បិទ (Disable)" : "⚡ ចុចដើម្បី បើក (Enable)";
+    adminVipBtn.style.background = vipReqEnabled ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#22c55e,#16a34a)";
+  }
+  if(adminVipTxt){
+    adminVipTxt.textContent = vipReqEnabled 
+      ? "ស្ថានភាពបច្ចុប្បន្ន៖ បើក (User អាចឃើញប៊ូតុងស្នើសុំ VIP បាន)"
+      : "ស្ថានភាពបច្ចុប្បន្ន៖ បិទ (User មិនឃើញប៊ូតុងស្នើសុំ VIP)";
+  }
+
+  // STRICT RULE: "ប៊ូតុង ស្នើសុំVIP លុះត្រាតែ ADMIN បើក បាន USER ឃើញ" (Firebase Realtime Database)
   if(reqVipBtn){
     if(isAdmin || isVip || isBanned){
+      reqVipBtn.style.display = "none";
+    } else if(!vipReqEnabled){
+      // Admin has turned OFF VIP Request button in Firebase RTDB: Hide from user!
       reqVipBtn.style.display = "none";
     } else if(isPendingVip){
       reqVipBtn.style.display = "inline-flex";
@@ -6580,21 +6970,21 @@ function updateAccessUI(data){
 
   const tabVipBtn = $("#tabBtnVip");
   if(tabVipBtn){
-    if(isAdmin || isVip || isBanned){
+    if(isAdmin || isVip || isBanned || !vipReqEnabled){
       tabVipBtn.style.display = "none";
     } else {
       tabVipBtn.style.display = "block";
     }
   }
 
-  // Drama Detail VIP Buttons
+  // Drama Detail VIP Buttons: Strictly hidden if Admin turned OFF VIP button
   const ddVipBtn = $("#ddVipUnlockBtn");
   const ddVipBanner = $("#ddVipEpisodeBanner");
   if(ddVipBtn){
-    ddVipBtn.style.display = (isAdmin || isVip) ? "none" : "inline-flex";
+    ddVipBtn.style.display = (isAdmin || isVip || !vipReqEnabled) ? "none" : "inline-flex";
   }
   if(ddVipBanner){
-    ddVipBanner.style.display = (isAdmin || isVip) ? "none" : "flex";
+    ddVipBanner.style.display = (isAdmin || isVip || !vipReqEnabled) ? "none" : "flex";
   }
 
   if(isAdmin){
@@ -6609,7 +6999,7 @@ function updateAccessUI(data){
     }
     if(topUc) topUc.style.display = "inline-flex";
     const topRestart = $("#topAdminRestartBtn");
-    if(topRestart) topRestart.style.display = "inline-flex";
+    if(topRestart) topRestart.style.display = isAdmin ? "inline-flex" : "none";
     if(topLogout) topLogout.style.display = "inline-flex";
     if(footUser) footUser.innerHTML = `<span style="color:${isDevRole ? '#38bdf8' : '#c084fc'};font-weight:700">⚡ ចូលជា: ${isDevRole ? 'DEV MASTER (សេរី គ្មានដែនកំណត់)' : 'ADMIN (Full Control)'}</span>`;
     currentAdminPin = localStorage.getItem('syd_auth_token') || '8888';
@@ -6662,7 +7052,7 @@ function updateAccessUI(data){
     if(footUser) footUser.innerHTML = `<span style="color:var(--gold);font-weight:700">⏳ ចូលជា: ${esc(data.username)} (រង់ចាំ Admin អនុម័ត VIP)</span>`;
   } else if(isUser){
     if(icon) icon.textContent = "👤";
-    if(txt) txt.textContent = `${data.username} (ភាគ 1-10)`;
+    if(txt) txt.textContent = `${data.username} (ភាគ 1-5)`;
     if(badge){
       badge.style.borderColor = "rgba(255,106,43,0.5)";
       badge.style.color = "var(--accent)";
@@ -6671,9 +7061,9 @@ function updateAccessUI(data){
     }
     if(topUc) topUc.style.display = "none";
     if(topLogout) topLogout.style.display = "inline-flex";
-    if(footUser) footUser.innerHTML = `<span style="color:var(--accent);font-weight:700">👤 ចូលជា: ${esc(data.username)} (ភាគ 1-10 ឥតគិតថ្លៃ)</span>`;
+    if(footUser) footUser.innerHTML = `<span style="color:var(--accent);font-weight:700">👤 ចូលជា: ${esc(data.username)} (ភាគ 1-5 ឥតគិតថ្លៃ)</span>`;
   } else {
-    // Guest
+    // Unauthenticated
     if(icon) icon.textContent = "👤";
     if(txt) txt.textContent = "ចូលគណនី / ចុះឈ្មោះ";
     if(badge){
@@ -6684,7 +7074,28 @@ function updateAccessUI(data){
     }
     if(topUc) topUc.style.display = "none";
     if(topLogout) topLogout.style.display = "none";
-    if(footUser) footUser.textContent = "មិនទាន់ចូលគណនី (Guest - ភាគ 1-10)";
+    if(footUser) footUser.textContent = "មិនទាន់ចូលគណនី (សូមចូលគណនី ឬចុះឈ្មោះ)";
+  }
+
+  // Update Topbar Coins Badge
+  const topCoinBadge = $("#topCoinBadge");
+  const topCoinsVal = $("#topCoinsVal");
+  const topCoinsRiel = $("#topCoinsRiel");
+  if(topCoinBadge){
+    const isAuth = !!(data && data.authenticated);
+    if(isAuth){
+      const coins = Number((data && data.coins) || 0);
+      if(topCoinsVal) topCoinsVal.textContent = coins;
+      if(topCoinsRiel) topCoinsRiel.textContent = (coins * 500).toLocaleString();
+      topCoinBadge.style.display = "inline-flex";
+    } else {
+      topCoinBadge.style.display = "none";
+    }
+  }
+
+  // Update Drama Detail Coin UI
+  if(typeof updateDramaDetailCoinUI === 'function' && ddCurrentDrama){
+    updateDramaDetailCoinUI(ddCurrentDrama);
   }
 
   // Update elements inside Modal Status Card
@@ -6696,7 +7107,7 @@ function updateAccessUI(data){
     if(data.username){
       vipUserDisp.textContent = `គណនី: ${data.username}${data.name ? ' (' + data.name + ')' : ''}`;
     } else {
-      vipUserDisp.textContent = "មិនទាន់ចូលគណនី (Guest)";
+      vipUserDisp.textContent = "មិនទាន់ចូលគណនី (សូមចូលគណនី)";
     }
   }
 
@@ -6722,12 +7133,12 @@ function updateAccessUI(data){
       regStBadge.textContent = "👤 គណនីធម្មតា (Free Tier)";
       regStBadge.style.color = "var(--accent)";
       regStBadge.style.background = "rgba(255,106,43,0.15)";
-      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-10";
+      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-5";
     } else {
       regStBadge.textContent = "មិនទាន់ចូលគណនី";
       regStBadge.style.color = "var(--muted)";
       regStBadge.style.background = "rgba(255,255,255,0.08)";
-      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-10";
+      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-5";
     }
   }
 
@@ -6831,7 +7242,7 @@ function updateAccessUI(data){
       if(mDaysIcon) mDaysIcon.textContent = uDays <= 2 ? "⚠️" : "⏳";
       if(mNotice) mNotice.style.display = "block";
     } else {
-      mDaysBadge.textContent = "មិនទាន់ចុះឈ្មោះ (Guest)";
+      mDaysBadge.textContent = "មិនទាន់ចូលគណនី";
       mDaysBadge.style.background = "rgba(255,255,255,0.08)";
       mDaysBadge.style.color = "var(--muted)";
       if(mDaysIcon) mDaysIcon.textContent = "👤";
@@ -6852,10 +7263,8 @@ const uabBtn = $("#userAccessBadge");
 if(uabBtn) uabBtn.onclick = () => {
   if(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin' || window.userAccess.role === 'dev')){
     openUserControl();
-  } else if(window.userAccess && window.userAccess.authenticated && !window.userAccess.is_vip){
-    openUserRegisterModal('vip');
   } else {
-    openUserRegisterModal('login');
+    openUserRegisterModal('login', false);
   }
 };
 
@@ -6864,33 +7273,63 @@ if(topVipBtn) topVipBtn.onclick = () => {
   openUserRegisterModal('vip');
 };
 
-const topLogoutBtn = $("#topLogoutBtn");
-if(topLogoutBtn) topLogoutBtn.onclick = () => {
-  if(confirm("តើអ្នកពិតជាចង់ចាកចេញពីគណនីមែនទេ?")){
-    localStorage.removeItem('syd_auth_token');
-    localStorage.removeItem('syd_auth_user');
-    sessionStorage.removeItem('hg_admin_pin');
-    currentAdminPin = '';
+window.doExplicitLogout = async function(){
+  if(!confirm("តើអ្នកពិតជាចង់ចាកចេញពីគណនីមែនទេ?")) return;
+  const oldTok = localStorage.getItem('syd_auth_token') || '';
+  const devId = (window.userAccess && window.userAccess.device_id) || '';
 
-    if(window.history && window.history.replaceState){
-      const cleanUrl = window.location.pathname + window.location.hash;
-      window.history.replaceState({}, document.title, cleanUrl);
-    }
+  localStorage.removeItem('syd_auth_token');
+  localStorage.removeItem('syd_auth_user');
+  sessionStorage.removeItem('syd_auth_token');
+  sessionStorage.removeItem('hg_admin_pin');
+  currentAdminPin = '';
 
-    toast("🚪 បានចាកចេញពីគណនីជោគជ័យ");
+  try {
+    await fetch('/dl/access/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: oldTok, device_id: devId })
+    });
+  } catch(e){}
 
-    // Immediately switch to guest and FORCE mandatory Login modal
-    window.userAccess = { authenticated: false, role: 'guest', status: 'guest' };
-    updateAccessUI(window.userAccess);
-    openUserRegisterModal('login', true);
-
-    fetchAccessStatus();
+  if(window.history && window.history.replaceState){
+    const cleanUrl = window.location.pathname + window.location.hash;
+    window.history.replaceState({}, document.title, cleanUrl);
   }
+
+  localStorage.removeItem('syd_auth_token');
+  sessionStorage.removeItem('syd_auth_token');
+  sessionStorage.removeItem('hg_admin_pin');
+
+  toast("🚪 បានចាកចេញពីគណនីជោគជ័យ! សូមចូលគណនីដើម្បីបន្តប្រើប្រាស់");
+
+  window.userAccess = { 
+    authenticated: false, 
+    role: 'unauthenticated', 
+    status: 'login_required', 
+    must_register: true, 
+    must_login: true, 
+    username: 'មិនទាន់ចូលគណនី' 
+  };
+  updateAccessUI(window.userAccess);
+  isMandatoryAuth = true;
+  openUserRegisterModal('login', true);
 };
 
-const regCl = $("#regCloseBtn"); if(regCl) regCl.onclick = closeUserRegisterModal;
-const regCl2 = $("#regCloseBtn2"); if(regCl2) regCl2.onclick = closeUserRegisterModal;
-const regMod = $("#userRegisterModal"); if(regMod) regMod.addEventListener('click', e => { if(e.target === regMod && !isMandatoryAuth) closeUserRegisterModal(); });
+const topLogoutBtn = $("#topLogoutBtn");
+if(topLogoutBtn) topLogoutBtn.onclick = window.doExplicitLogout;
+
+const regCl = $("#regCloseBtn"); if(regCl) regCl.onclick = () => closeUserRegisterModal(false);
+const regCl2 = $("#regCloseBtn2"); if(regCl2) regCl2.onclick = () => closeUserRegisterModal(false);
+const regMod = $("#userRegisterModal"); if(regMod) regMod.addEventListener('click', e => { if(e.target === regMod) closeUserRegisterModal(false); });
+document.addEventListener("keydown", e => {
+  if(e.key === "Escape"){
+    const m = $("#userRegisterModal");
+    if(m && !m.hidden){
+      closeUserRegisterModal(false);
+    }
+  }
+});
 
 const regCopyBtn = $("#regCopyDevId");
 if(regCopyBtn){
@@ -6946,15 +7385,19 @@ async function executeLogin(user, pass){
   const btn = $("#authLoginSubmitBtn");
   if(btn){ btn.disabled = true; btn.innerHTML = "<span>កំពុងពិនិត្យ...</span>"; }
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     const res = await fetch("/dl/access/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         identity: ident,
         password: pw,
         device_id: (window.userAccess && window.userAccess.device_id) || ''
       })
     });
+    clearTimeout(timeoutId);
     const j = await res.json();
     if(j.ok){
       localStorage.setItem('syd_auth_token', j.token || '');
@@ -6963,25 +7406,27 @@ async function executeLogin(user, pass){
         sessionStorage.setItem('hg_admin_pin', '8888');
         currentAdminPin = (j.token || '8888');
         toast("🛡️ ស្វាគមន៍ការចូលប្រើប្រាស់ ADMIN (Full Control គ្មានការ Lock)!", false);
-        closeUserRegisterModal();
+        closeUserRegisterModal(true);
         await fetchAccessStatus();
       } else if(j.user && j.user.is_vip){
         toast(`👑 ស្វាគមន៍ VIP! ${j.user.name || j.user.username} (ដោះសោរគ្រប់ភាគ)`);
-        closeUserRegisterModal();
+        closeUserRegisterModal(true);
         await fetchAccessStatus();
       } else {
-        // REGULAR USER (Free Tier 1-10)
-        // USER REQUIREMENT:
-        // user ធម្មតា Login ចូលទៅ ប្រព័ន្ធនឹងបង្ហាញ ការស្នើសុំ កញ្ចប់ VIP
+        // REGULAR USER (Free Tier 1-5)
         toast(`✅ ចូលប្រើប្រាស់ជោគជ័យ! សូមស្វាគមន៍ ${j.user.name || j.user.username}`);
+        closeUserRegisterModal(true);
         await fetchAccessStatus();
-        openUserRegisterModal('vip', false);
       }
     } else {
       toast("⚠️ " + (j.error || "ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ"), true);
     }
   } catch(e){
-    toast("⚠️ កំហុសបណ្តាញ៖ " + e, true);
+    if(e.name === 'AbortError'){
+      toast("⚠️ ការតភ្ជាប់យឺតពេក (Network Timeout) សូមព្យាយាមម្តងទៀត!", true);
+    } else {
+      toast("⚠️ កំហុសបណ្តាញ៖ " + e, true);
+    }
   } finally {
     if(btn){ btn.disabled = false; btn.innerHTML = "<span>🚀 ចូលគណនី (Login)</span>"; }
   }
@@ -7050,8 +7495,9 @@ if(authRegSubmitBtn){
         if($("#regNameInput")) $("#regNameInput").value = j.user.name || name;
         if($("#regContactInput")) $("#regContactInput").value = j.user.contact || contact;
 
-        toast("🎉 ចុះឈ្មោះជោគជ័យ! អ្នកជា User ធម្មតា (ភាគ 1-10 ឥតគិតថ្លៃ)។ សូមស្នើសុំ VIP ដើម្បីដោះសោរគ្រប់ភាគ!", false);
-        openUserRegisterModal('vip', false);
+        toast(`🎉 ចុះឈ្មោះជោគជ័យ! សូមស្វាគមន៍ ${j.user.name || username} (ទស្សនាភាគ 1 ដល់ 5 ឥតគិតថ្លៃ)`, false);
+        closeUserRegisterModal(true);
+        await fetchAccessStatus();
       } else {
         toast("⚠️ " + (j.error || "បរាជ័យក្នុងការចុះឈ្មោះ"), true);
       }
@@ -7272,7 +7718,7 @@ function renderAdminUserList(users){
     } else if(isPend){
       stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(241,196,15,0.2);color:var(--gold)">⏳ PENDING VIP [${esc(u.requested_package || '1_year')}]</span>`;
     } else {
-      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(255,106,43,0.2);color:var(--accent)">👤 ធម្មតា (ភាគ 1-10)</span>`;
+      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(255,106,43,0.2);color:var(--accent)">👤 ធម្មតា (ភាគ 1-5)</span>`;
     }
     
     const reqPkg = u.requested_package || '1_year';
@@ -9281,6 +9727,315 @@ if(new URLSearchParams(location.search).has("open_first_drama")){
 
 
 
+
+
+// ====================================================
+// SYD COIN WALLET & PURCHASE DRAMA LOGIC
+// ====================================================
+
+function updateDramaDetailCoinUI(item){
+  const sid = item ? (item.id || item.series_id) : (ddCurrentDrama ? (ddCurrentDrama.id || ddCurrentDrama.series_id) : null);
+  if(!sid) return;
+
+  const coinBadge = $("#ddCoinPriceBadge");
+  const buyBtn = $("#ddBuyDramaBtn");
+  const isPurchased = !!(window.userAccess && window.userAccess.purchased_series && (window.userAccess.purchased_series[sid] || (Array.isArray(window.userAccess.purchased_series) && window.userAccess.purchased_series.includes(sid))));
+  const isVipOrAdmin = !!(window.userAccess && (window.userAccess.is_vip || window.userAccess.is_admin || window.userAccess.role === 'admin' || window.userAccess.role === 'dev'));
+
+  if(coinBadge){
+    if(isPurchased){
+      coinBadge.textContent = "✅ បានទិញរួចរាល់ (Unlocked)";
+      coinBadge.style.background = "rgba(34,197,94,0.18)";
+      coinBadge.style.color = "#22c55e";
+      coinBadge.style.border = "1px solid rgba(34,197,94,0.4)";
+      coinBadge.title = "អ្នកបានទិញរឿងនេះរួចរាល់ អាចទស្សនា & ដោនឡូតគ្រប់ភាគដោយសេរី";
+    } else if(isVipOrAdmin){
+      coinBadge.textContent = "🎁 Free សម្រាប់អ្នក (VIP)";
+      coinBadge.style.background = "rgba(56,189,248,0.15)";
+      coinBadge.style.color = "#38bdf8";
+      coinBadge.style.border = "1px solid rgba(56,189,248,0.4)";
+      coinBadge.title = "គណនី VIP/Admin មានសិទ្ធិទស្សនា & ដោនឡូតឥតគិត Coin";
+    } else {
+      coinBadge.textContent = "🪙 2 Coins (1,000៛)";
+      coinBadge.style.background = "rgba(234,179,8,0.15)";
+      coinBadge.style.color = "#eab308";
+      coinBadge.style.border = "1px solid rgba(234,179,8,0.4)";
+      coinBadge.title = "1 Coin = 500៛ | ដោះសោររឿងនេះគ្រប់ភាគទាំងអស់ជាអចិន្ត្រៃយ៍";
+    }
+  }
+
+  if(buyBtn){
+    if(isPurchased){
+      buyBtn.style.display = "inline-flex";
+      buyBtn.disabled = true;
+      buyBtn.style.background = "rgba(34,197,94,0.2)";
+      buyBtn.style.color = "#22c55e";
+      buyBtn.style.boxShadow = "none";
+      buyBtn.style.cursor = "default";
+      buyBtn.innerHTML = "<span>✅ បានទិញរួចរាល់</span>";
+      buyBtn.title = "រឿងនេះត្រូវបានដោះសោរគ្រប់ភាគរួចរាល់ហើយ";
+    } else if(isVipOrAdmin){
+      buyBtn.style.display = "none";
+    } else {
+      buyBtn.style.display = "inline-flex";
+      buyBtn.disabled = false;
+      buyBtn.style.background = "linear-gradient(135deg,#eab308,#ca8a04)";
+      buyBtn.style.color = "#000";
+      buyBtn.style.boxShadow = "0 3px 12px rgba(234,179,8,0.35)";
+      buyBtn.style.cursor = "pointer";
+      buyBtn.innerHTML = "<span>🛒 ទិញរឿងនេះ (2 Coins)</span>";
+      buyBtn.title = "ទិញដោះសោររឿងនេះដោយប្រើ 2 Coins (1,000៛)";
+    }
+  }
+}
+
+window.openCoinModal = function(){
+  if(!window.userAccess || !window.userAccess.authenticated){
+    toast("សូមចូលគណនីជាមុនសិន ដើម្បីទិញ Coin!", true);
+    if(typeof openUserRegisterModal === 'function') openUserRegisterModal('login', true);
+    return;
+  }
+  const modal = $("#coinModal");
+  if(!modal) return;
+  const coins = Number((window.userAccess && window.userAccess.coins) || 0);
+  const coinsEl = $("#coinModalUserCoins");
+  const rielEl = $("#coinModalUserRiel");
+  const nameEl = $("#coinModalUserAccountName");
+  if(coinsEl) coinsEl.textContent = coins;
+  if(rielEl) rielEl.textContent = (coins * 500).toLocaleString();
+  if(nameEl) nameEl.textContent = `គណនី: ${window.userAccess.username || window.userAccess.name || window.userAccess.device_id || 'User'}`;
+  
+  modal.hidden = false;
+  loadMyCoinRequests();
+};
+
+window.closeCoinModal = function(){
+  const modal = $("#coinModal");
+  if(modal) modal.hidden = true;
+};
+
+window.selectCoinPackage = function(coins, riel){
+  const inp = $("#coinReqInput");
+  const dsp = $("#coinReqRielDisplay");
+  if(inp) inp.value = coins;
+  if(dsp) dsp.value = Number(riel).toLocaleString() + ' ៛';
+};
+
+window.onCoinReqInputChange = function(){
+  const inp = $("#coinReqInput");
+  const dsp = $("#coinReqRielDisplay");
+  if(!inp || !dsp) return;
+  const coins = Math.max(1, parseInt(inp.value || '0', 10));
+  dsp.value = (coins * 500).toLocaleString() + ' ៛';
+};
+
+window.submitCoinRequest = function(){
+  if(!window.userAccess || !window.userAccess.authenticated){
+    toast("សូមចូលគណនីជាមុនសិន!", true);
+    if(typeof openUserRegisterModal === 'function') openUserRegisterModal('login', true);
+    return;
+  }
+  const inp = $("#coinReqInput");
+  const noteInp = $("#coinReqNoteInput");
+  const msgEl = $("#coinReqStatusMsg");
+  const btn = $("#coinReqSubmitBtn");
+  const coins = parseInt((inp && inp.value) || '0', 10);
+  const note = (noteInp && noteInp.value.trim()) || '';
+
+  if(coins < 1){
+    toast("សូមបញ្ចូលចំនួន Coin យ៉ាងតិច 1 Coin!", true);
+    return;
+  }
+
+  if(btn) btn.disabled = true;
+  if(msgEl){
+    msgEl.style.display = "block";
+    msgEl.style.background = "rgba(56,189,248,0.15)";
+    msgEl.style.color = "#38bdf8";
+    msgEl.textContent = "⏳ កំពុងផ្ញើសំណើទិញ Coin ទៅ Admin...";
+  }
+
+  const payload = {
+    amount_coins: coins,
+    note: note,
+    device_id: window.userAccess.device_id || '',
+    token: localStorage.getItem('syd_auth_token') || ''
+  };
+
+  fetch("/dl/coins/request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(j => {
+    if(btn) btn.disabled = false;
+    if(j.ok){
+      if(msgEl){
+        msgEl.style.background = "rgba(46,204,113,0.15)";
+        msgEl.style.color = "var(--good)";
+        msgEl.textContent = `✅ បានផ្ញើសំណើទិញ ${coins} Coin រួចរាល់! Admin នឹងពិនិត្យនិងបញ្ចូលជូនភ្លាមៗ។`;
+      }
+      toast(`✅ បានផ្ញើសំណើទិញ ${coins} Coin!`, false);
+      if(noteInp) noteInp.value = '';
+      loadMyCoinRequests();
+    } else {
+      if(msgEl){
+        msgEl.style.background = "rgba(255,46,99,0.15)";
+        msgEl.style.color = "var(--bad)";
+        msgEl.textContent = "❌ បរាជ័យ: " + (j.error || "មិនអាចផ្ញើសំណើបានទេ");
+      }
+      toast("❌ " + (j.error || "បរាជ័យ"), true);
+    }
+  })
+  .catch(e => {
+    if(btn) btn.disabled = false;
+    if(msgEl){
+      msgEl.style.background = "rgba(255,46,99,0.15)";
+      msgEl.style.color = "var(--bad)";
+      msgEl.textContent = "⚠️ កំហុស: " + e;
+    }
+    toast("⚠️ កំហុសបណ្តាញ: " + e, true);
+  });
+};
+
+window.loadMyCoinRequests = function(){
+  if(!window.userAccess || !window.userAccess.device_id) return;
+  const list = $("#coinMyRequestsList");
+  if(!list) return;
+  const devId = window.userAccess.device_id;
+  const tok = localStorage.getItem('syd_auth_token') || '';
+
+  fetch(`/dl/coins/my_requests?device_id=${encodeURIComponent(devId)}&token=${encodeURIComponent(tok)}`)
+  .then(r => r.json())
+  .then(j => {
+    if(!j.ok || !j.requests || !j.requests.length){
+      list.innerHTML = '<div style="text-align:center;padding:12px;color:var(--muted);font-size:11.5px">មិនទាន់មានសំណើទិញ Coin ទេ</div>';
+      return;
+    }
+    list.innerHTML = j.requests.map(r => {
+      let stBadge = '';
+      if(r.status === 'approved'){
+        stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(46,204,113,0.2);color:var(--good)">✅ បានអនុម័ត (+${r.amount_coins} Coins)</span>`;
+      } else if(r.status === 'rejected'){
+        stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(255,46,99,0.2);color:var(--bad)">❌ បានបដិសេធ</span>`;
+      } else {
+        stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(241,196,15,0.2);color:var(--gold)">⏳ កំពុងរង់ចាំ Admin</span>`;
+      }
+      return `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;font-size:11.5px">
+        <div>
+          <b style="color:#eab308;font-size:13px">${r.amount_coins} Coins</b>
+          <span style="color:var(--muted);margin-left:6px">(${Number(r.amount_riel || 0).toLocaleString()} ៛)</span>
+          <div style="color:var(--muted);font-size:10.5px;margin-top:2px">${r.note ? esc(r.note) + ' · ' : ''}${r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : ''}</div>
+        </div>
+        <div>${stBadge}</div>
+      </div>`;
+    }).join('');
+  })
+  .catch(e => {
+    list.innerHTML = '<div style="text-align:center;padding:12px;color:var(--muted);font-size:11.5px">មិនអាចទាញយកប្រវត្តិសំណើបានទេ</div>';
+  });
+};
+
+window.buyCurrentDramaWithCoins = function(){
+  if(!ddCurrentDrama){
+    toast("⚠️ សូមជ្រើសរើសរឿងជាមុនសិន!", true);
+    return;
+  }
+  const sid = ddCurrentDrama.id || ddCurrentDrama.series_id;
+  const title = ddCurrentDrama.title_km || ddCurrentDrama.title;
+  buyDramaWithCoins(sid, title);
+};
+
+window.buyDramaWithCoins = async function(sid, title){
+  if(!window.userAccess || !window.userAccess.authenticated){
+    toast("សូមចូលគណនីជាមុនសិន ដើម្បីទិញរឿងដោះសោរ!", true);
+    if(typeof openUserRegisterModal === 'function') openUserRegisterModal('login', true);
+    return;
+  }
+
+  const sidStr = String(sid || '').trim();
+  if(!sidStr){
+    toast("⚠️ មិនមានលេខសម្គាល់រឿង (Series ID) ទេ!", true);
+    return;
+  }
+
+  const dramaTitle = title || sidStr;
+  const currentCoins = Number((window.userAccess && window.userAccess.coins) || 0);
+
+  const purchased = window.userAccess.purchased_series || {};
+  if(purchased[sidStr] || (Array.isArray(purchased) && purchased.includes(sidStr))){
+    toast(`✅ អ្នកបានទិញរឿង 《${dramaTitle}》 រួចរាល់ហើយ!`, false);
+    return;
+  }
+
+  if(!confirm(`🛒 តើអ្នកពិតជាចង់ប្រើ 2 Coins (1,000៛) ដើម្បីដោះសោររឿង 《${dramaTitle}》 គ្រប់ភាគទាំងអស់ជាអចិន្ត្រៃយ៍មែនទេ?\\n\\nសមតុល្យ Coin បច្ចុប្បន្ន: ${currentCoins} Coins`)){
+    return;
+  }
+
+  if(currentCoins < 2){
+    toast(`🪙 Coins មិនគ្រប់គ្រាន់ទេ! រឿងនេះត្រូវការ 2 Coins (1,000៛) ប៉ុន្តែអ្នកមានត្រឹម ${currentCoins} Coins។`, true);
+    if(typeof openCoinModal === 'function') openCoinModal();
+    return;
+  }
+
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  const devId = (window.userAccess && window.userAccess.device_id) || '';
+
+  toast(`⏳ កំពុងដំណើរការទិញរឿង 《${dramaTitle}》...`, false);
+
+  try {
+    const res = await fetch("/dl/access/purchase-series", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: tok,
+        device_id: devId,
+        series_id: sidStr,
+        series_title: dramaTitle
+      })
+    });
+    const j = await res.json();
+    if(j.ok){
+      if(!window.userAccess.purchased_series) window.userAccess.purchased_series = {};
+      window.userAccess.purchased_series[sidStr] = {
+        series_id: sidStr,
+        title: dramaTitle,
+        coins: 2,
+        purchased_at: Date.now() / 1000
+      };
+      if(j.coins !== undefined) window.userAccess.coins = Number(j.coins);
+      if(j.coins_riel !== undefined) window.userAccess.coins_riel = Number(j.coins_riel);
+
+      const topCoinsVal = $("#topCoinsVal");
+      const topCoinsRiel = $("#topCoinsRiel");
+      if(topCoinsVal) topCoinsVal.textContent = window.userAccess.coins;
+      if(topCoinsRiel) topCoinsRiel.textContent = (window.userAccess.coins * 500).toLocaleString();
+
+      if(typeof updateDramaDetailCoinUI === 'function' && ddCurrentDrama){
+        updateDramaDetailCoinUI(ddCurrentDrama);
+      }
+      if(typeof renderDramaDetailEpisodes === 'function' && ddCurrentDrama){
+        renderDramaDetailEpisodes();
+      }
+
+      toast(`🎉 ${j.message || "ទិញដោះសោររឿងជោគជ័យ! អ្នកអាចទស្សនា និងដោនឡូតគ្រប់ភាគទាំងអស់ដោយសេរី"}`, false);
+    } else {
+      if(j.reason === 'insufficient_coins'){
+        toast(`❌ ${j.error || "Coins មិនគ្រប់គ្រាន់ទេ"}`, true);
+        if(typeof openCoinModal === 'function') openCoinModal();
+      } else if(j.reason === 'login_required'){
+        toast(`⚠️ ${j.error || "សូមចូលគណនីជាមុនសិន!"}`, true);
+        if(typeof openUserRegisterModal === 'function') openUserRegisterModal('login', true);
+      } else {
+        toast(`❌ បរាជ័យ: ${j.error || "មិនអាចទិញរឿងបានទេ"}`, true);
+      }
+    }
+  } catch(e){
+    toast(`⚠️ កំហុសបណ្តាញ: ${e.message}`, true);
+  }
+};
+
 </script>
 <script>
 /* Display size — scale the whole UI to fit the user's monitor / Windows display scaling
@@ -9298,6 +10053,35 @@ if(new URLSearchParams(location.search).has("open_first_drama")){
     else if(t.id==='uiZoomOut'){ var i=STEPS.indexOf(cur()); if(i>0) set(STEPS[i-1]); }
   });
 })();
+
+window.adminToggleVipRequestButton = async function(explicitState){
+  try {
+    const pin = currentAdminPin || (window.userAccess && window.userAccess.pin) || localStorage.getItem('syd_auth_token') || 'syd@168';
+    const bodyObj = { pin: pin };
+    if(explicitState !== undefined && explicitState !== null){
+      bodyObj.enabled = explicitState;
+    }
+    const res = await (await fetch('/dl/access/admin/vip-button-toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyObj)
+    })).json();
+
+    if(res.ok){
+      const isNowOn = !!res.vip_request_enabled;
+      if(isNowOn){
+        toast("🟢 បានបើកប៊ូតុង 'ស្នើសុំ VIP' ជូន User (បានរក្សាទុកក្នុង Firebase RTDB)", false);
+      } else {
+        toast("🔴 បានបិទប៊ូតុង 'ស្នើសុំ VIP' មិនឱ្យ User ឃើញទេ (បានរក្សាទុកក្នុង Firebase RTDB)", false);
+      }
+      await fetchAccessStatus();
+    } else {
+      toast("❌ " + (res.error || "មិនអាចកែប្រែបានទេ"), true);
+    }
+  } catch(e){
+    toast("⚠️ កំហុស: " + e, true);
+  }
+};
 </script>
 </body>
 </html>

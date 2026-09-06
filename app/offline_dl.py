@@ -1274,7 +1274,7 @@ def get_concurrency(fallback=None):
     with _CURRENT_CONC_LOCK:
         return _CURRENT_CONC if _CURRENT_CONC else (fallback or 8)
 
-def dl_batch(series_ids, concurrency=4, retry_rounds=2, quality='best', ranges=None, series_at_once=3, ranks=None):
+def dl_batch(series_ids, concurrency=4, retry_rounds=2, quality='best', ranges=None, series_at_once=3, ranks=None, user_token=None):
     if concurrency:
         set_concurrency(concurrency)
     ranges = ranges or {}
@@ -1300,14 +1300,24 @@ def dl_batch(series_ids, concurrency=4, retry_rounds=2, quality='best', ranges=N
         okn = summ.get('ok', 0)
         tot = summ.get('total', 0)
         p_file = os.path.join(ctx.folder, 'poster.jpg') if hasattr(ctx, 'folder') and ctx.folder else None
+        is_completed = bool(okn >= tot and tot > 0)
         record_download_history(
             ctx.sid,
             title=ctx.title,
             total=tot,
             downloaded=okn,
-            completed=(okn >= tot and tot > 0),
+            completed=is_completed,
             poster_file=p_file if p_file and os.path.isfile(p_file) else None
         )
+        if user_token:
+            try:
+                import access_manager as ACC
+                if is_completed and not CANCEL.is_set():
+                    ACC.finalize_series_purchase(user_token, ctx.sid, getattr(ctx, 'title', ctx.sid))
+                else:
+                    ACC.cancel_pending_purchase(user_token, ctx.sid, reason='cancelled' if CANCEL.is_set() else 'incomplete')
+            except Exception as _cex:
+                log(f'[coin] purchase completion hook error: {_cex}')
         return summ
     results = []
     if par <= 1:

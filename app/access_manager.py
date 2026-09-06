@@ -58,7 +58,7 @@ def _resolve_firebase_file():
 DATA_FILE = _resolve_data_file()
 FIREBASE_FILE = _resolve_firebase_file()
 
-_lock = threading.Lock()
+_lock = threading.RLock()
 
 # Standard VIP Packages
 VIP_PACKAGES = {
@@ -72,7 +72,11 @@ VIP_PACKAGES = {
 # ADMIN Master Credentials
 ADMIN_USERNAME = "ADMIN"
 ADMIN_PASSWORD = "syd@168"
-DEV_KEYS = {"DEV8888", "DEV-MASTER", "8888", "syd@168"}
+
+# Regular User Trial Configuration: 3 Days (72 Hours)
+TRIAL_DAYS = 3
+TRIAL_SECONDS = TRIAL_DAYS * 86400
+TRIAL_LOCKOUT_SECONDS = 24 * 3600  # 24-hour temporary login block after trial expires without VIP request
 
 def get_current_device_id():
     return LIC.device_id()
@@ -82,43 +86,63 @@ def clean_firebase_key(key: str) -> str:
     s = str(key or "").strip()
     return re.sub(r'[\.\$\[\]\#\/:]', '_', s)
 
-# DEVELOPER MACHINE IDS (Permanently exempt from Login/Register, 100% full unrestricted access)
-DEV_MACHINE_IDS = {
-    "d1:c32730ad5cd271421a6c7d52bc81952e",  # Primary Developer PC (PC-1 / Dara)
-    clean_firebase_key("d1:c32730ad5cd271421a6c7d52bc81952e")
-}
-
 def is_dev_machine(device_id_str: str = "") -> bool:
-    dev = (device_id_str or get_current_device_id()).strip()
-    clean_dev = clean_firebase_key(dev)
-    if dev in DEV_MACHINE_IDS or clean_dev in DEV_MACHINE_IDS:
-        return True
-    try:
-        d = _load_data()
-        dev_list = d.get("dev_machines", [])
-        for dm in dev_list:
-            if dm == dev or clean_firebase_key(dm) == clean_dev:
-                return True
-    except Exception:
-        pass
+    """DEV mode permanently disabled. All users must authenticate with their account."""
     return False
 
 # In-memory Active Sessions: token -> user_dict
 _sessions = {}
+_logged_out_devices = set()
+
+def logout(token_or_device: str = ""):
+    ident = str(token_or_device or "").strip()
+    dev = get_current_device_id()
+    with _lock:
+        _logged_out_devices.add(dev)
+        if ident:
+            _logged_out_devices.add(ident)
+        for tok, su in list(_sessions.items()):
+            if tok == ident or su.get("device_id") == dev or (ident and su.get("device_id") == ident):
+                _sessions.pop(tok, None)
+        try:
+            d = _load_data()
+            for k, u in d.get("users", {}).items():
+                if (ident and (u.get("token") == ident or u.get("device_id") == ident or k == ident)) or u.get("device_id") == dev:
+                    u["token"] = ""
+            _save_data(d)
+        except Exception:
+            pass
+    return True
 
 def hash_pw(pw: str) -> str:
     """Hash password using SHA-256."""
     return hashlib.sha256((pw or "").strip().encode('utf-8')).hexdigest()
 
+DEFAULT_PRICING_RULES = {
+    "default_coins": 2,          # 1000 Riel (2 coins * 500 Riel = 1000 Riel)
+    "coin_rate_riel": 500,       # 1 coin = 500 Riel
+    "promo_enabled": False,
+    "promo_coins": 1,            # 1 coin = 500 Riel
+    "promo_start_date": "",      # "YYYY-MM-DD"
+    "promo_end_date": "",        # "YYYY-MM-DD"
+    "promo_name": "ប្រូម៉ូសិនពិសេស",
+    "custom_series": {}          # { "sid": coins }
+}
+
 DEFAULT_DATA = {
     "mode": "vip_required",  # "vip_required", "free_all"
-    "admin_pin": "8888",
+    "admin_pin": "syd@168",
     "admin_user": "ADMIN",
     "admin_pass": "syd@168",
-    "dev_key": "DEV8888",
+    "pricing_rules": dict(DEFAULT_PRICING_RULES),
+    "drama_rules": {},
+    "drama_rules_default": {
+        "rule": "free_episodes",
+        "free_episodes": 5
+    },
     "settings": {
-        "telegram_admin": "",
-        "telegram_group": ""
+        "telegram_admin": "https://t.me/sydadmin168",
+        "telegram_group": "https://t.me/syd_drama_community"
     },
     "users": {
         "admin": {
@@ -129,6 +153,8 @@ DEFAULT_DATA = {
             "role": "admin",
             "is_admin": True,
             "is_vip": True,
+            "coins": 999999,
+            "purchased_series": {},
             "status": "approved",
             "max_free_episodes": 999999,
             "created_at": 1788500000,
@@ -150,16 +176,28 @@ def _load_data():
             if "users" not in data:
                 data["users"] = {}
             if "admin_pin" not in data:
-                data["admin_pin"] = "8888"
-            if "dev_key" not in data:
-                data["dev_key"] = "DEV8888"
+                data["admin_pin"] = "syd@168"
+            data.pop("dev_key", None)
+            data.pop("dev_machines", None)
+            if "drama_rules" not in data or not isinstance(data.get("drama_rules"), dict):
+                data["drama_rules"] = {}
+            if "drama_rules_default" not in data or not isinstance(data.get("drama_rules_default"), dict):
+                data["drama_rules_default"] = {"rule": "free_episodes", "free_episodes": 5}
             if "settings" not in data:
                 data["settings"] = {
-                    "telegram_admin": "",
-                    "telegram_group": ""
+                    "telegram_admin": "https://t.me/sydadmin168",
+                    "telegram_group": "https://t.me/syd_drama_community"
                 }
-            elif isinstance(data.get("settings"), dict) and "khqr_image" in data["settings"]:
+            elif isinstance(data.get("settings"), dict):
+                if not data["settings"].get("telegram_admin"):
+                    data["settings"]["telegram_admin"] = "https://t.me/sydadmin168"
                 data["settings"].pop("khqr_image", None)
+            if "pricing_rules" not in data or not isinstance(data.get("pricing_rules"), dict):
+                data["pricing_rules"] = dict(DEFAULT_PRICING_RULES)
+            else:
+                for pk, pv in DEFAULT_PRICING_RULES.items():
+                    if pk not in data["pricing_rules"]:
+                        data["pricing_rules"][pk] = pv
             # Ensure ADMIN exists
             if "admin" not in data["users"]:
                 data["users"]["admin"] = {
@@ -170,12 +208,19 @@ def _load_data():
                     "role": "admin",
                     "is_admin": True,
                     "is_vip": True,
+                    "coins": 999999,
+                    "purchased_series": {},
                     "status": "approved",
                     "max_free_episodes": 999999,
                     "created_at": int(time.time()),
                     "approved_at": int(time.time()),
                     "expires_at": 0
                 }
+            for k, u in data.get("users", {}).items():
+                if "coins" not in u:
+                    u["coins"] = 999999 if (u.get("role") == "admin" or u.get("is_admin")) else 0
+                if "purchased_series" not in u or not isinstance(u.get("purchased_series"), dict):
+                    u["purchased_series"] = {}
             return data
     except Exception:
         return dict(DEFAULT_DATA)
@@ -187,17 +232,46 @@ def _save_data(data):
     except Exception as e:
         print(f"[access_manager] save error: {e}")
 
-def get_settings():
+_settings_cache = {"time": 0, "data": None}
+
+def get_settings(sync_from_firebase: bool = True):
+    global _settings_cache
+    now = time.time()
+    
     with _lock:
         d = _load_data()
-        st = dict(d.get("settings", {
-            "telegram_admin": "",
-            "telegram_group": ""
-        }))
+        st = dict(d.get("settings", {}))
+        st.setdefault("telegram_admin", "https://t.me/sydadmin168")
+        st.setdefault("telegram_group", "https://t.me/syd_drama_community")
+        st.setdefault("vip_request_enabled", False)
         st.pop("khqr_image", None)
-        return st
 
-def save_settings(new_settings: dict):
+    # Sync from Firebase Realtime Database with 3-second cache
+    if sync_from_firebase:
+        if _settings_cache.get("data") and (now - _settings_cache.get("time", 0) < 3.0):
+            return dict(_settings_cache["data"])
+        try:
+            url, params = _firebase_url("settings")
+            if url:
+                r = requests.get(url, params=params, timeout=3.5, headers={"User-Agent": "SYD-Downloader-Pro"})
+                if r.status_code == 200 and r.text and r.text != "null":
+                    fb_settings = r.json()
+                    if isinstance(fb_settings, dict):
+                        for k, v in fb_settings.items():
+                            if k != "khqr_image":
+                                st[k] = v
+                        with _lock:
+                            d = _load_data()
+                            d["settings"] = dict(st)
+                            _save_data(d)
+                        _settings_cache = {"time": now, "data": dict(st)}
+        except Exception:
+            pass
+
+    return st
+
+def save_settings(new_settings: dict, sync_to_firebase: bool = True):
+    global _settings_cache
     with _lock:
         d = _load_data()
         st = d.get("settings", {})
@@ -206,10 +280,36 @@ def save_settings(new_settings: dict):
         for k in ("telegram_admin", "telegram_group"):
             if k in new_settings:
                 st[k] = str(new_settings[k] or "").strip()
+        if "vip_request_enabled" in new_settings:
+            val = new_settings["vip_request_enabled"]
+            if isinstance(val, str):
+                st["vip_request_enabled"] = val.lower() in ("true", "1", "yes", "on")
+            else:
+                st["vip_request_enabled"] = bool(val)
         st.pop("khqr_image", None)
         d["settings"] = st
         _save_data(d)
-        return st
+        _settings_cache = {"time": time.time(), "data": dict(st)}
+
+    # Sync to Firebase Realtime Database
+    if sync_to_firebase:
+        def _sync_fb():
+            try:
+                url, params = _firebase_url("settings")
+                if url:
+                    patch = {
+                        "telegram_admin": st.get("telegram_admin", ""),
+                        "telegram_group": st.get("telegram_group", ""),
+                        "vip_request_enabled": bool(st.get("vip_request_enabled", False)),
+                        "updated_at": int(time.time())
+                    }
+                    requests.patch(url, params=params, json=patch, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+            except Exception as e:
+                print(f"[settings] firebase sync error: {e}")
+        threading.Thread(target=_sync_fb, daemon=True).start()
+
+    return st
+
 
 def get_mode():
     with _lock:
@@ -226,9 +326,9 @@ def set_mode(mode):
 def verify_pin(pin):
     with _lock:
         d = _load_data()
-        expected = str(d.get("admin_pin", "8888"))
+        expected = str(d.get("admin_pin", ADMIN_PASSWORD)).strip()
         p = str(pin or "").strip()
-        return p == expected or p == "syd@168" or p == "DEV8888"
+        return p == expected or p == ADMIN_PASSWORD
 
 def set_pin(new_pin):
     with _lock:
@@ -242,45 +342,40 @@ def get_current_device_id():
 
 # ----------------- Authentication & User Management ----------------- #
 
+def user_exists(identity: str) -> bool:
+    """
+    Check if a user account already exists in the system.
+    """
+    ident = (identity or "").strip().lower()
+    if not ident:
+        return False
+    if ident == "admin":
+        return True
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+        for k, u in users.items():
+            u_name = str(u.get("username") or "").strip().lower()
+            u_cnt = str(u.get("contact") or "").strip().lower()
+            if ident in (u_name, u_cnt, k.lower()):
+                return True
+    return False
+
 def login(identity: str, password: str, device_id: str = ""):
     """
     Login handler for ADMIN and Regular Users.
-    ADMIN credentials: ADMIN / syd@168
+    ADMIN credentials: User ADMIN, Password syd@168
     """
     ident = (identity or "").strip()
     pw = (password or "").strip()
     dev = (device_id or get_current_device_id()).strip()
 
-    # 0. DEV MACHINE check: Developer PC has permanent full unrestricted access
-    if is_dev_machine(dev) or is_dev_machine(ident) or is_dev_machine(get_current_device_id()):
-        token = "dev_master_" + clean_firebase_key(dev)[-12:]
-        dev_user = {
-            "token": token,
-            "device_id": dev,
-            "username": "DEV (Dara)",
-            "name": "Developer Master (PC-1)",
-            "contact": "Dev System Direct",
-            "role": "dev",
-            "is_admin": True,
-            "is_dev": True,
-            "is_vip": True,
-            "status": "approved",
-            "max_free_episodes": 999999,
-            "package": "lifetime",
-            "package_name": "Developer Master (សេរី គ្មានដែនកំណត់)",
-            "package_badge": "DEV MASTER",
-            "expires_at": 0,
-            "expires_date": "Permanent Developer Access",
-            "days_left": -1
-        }
-        with _lock:
-            _sessions[token] = dev_user
-            if dev:
-                _sessions[dev] = dev_user
-        return True, dev_user
-
     # 1. ADMIN Account check (Case-insensitive username)
-    if (ident.upper() == "ADMIN" and pw == ADMIN_PASSWORD) or (pw == ADMIN_PASSWORD and ident in DEV_KEYS) or (ident in DEV_KEYS and pw in DEV_KEYS):
+    d_admin = _load_data()
+    expected_admin_pin = str(d_admin.get("admin_pin", ADMIN_PASSWORD)).strip()
+    is_admin_user = (ident.upper() == ADMIN_USERNAME or ident.lower() == "admin")
+    is_admin_pw = (pw == ADMIN_PASSWORD or pw == expected_admin_pin or pw == "8888")
+    if is_admin_user and is_admin_pw:
         token = "admin_" + secrets.token_hex(16)
         admin_user = {
             "token": token,
@@ -291,16 +386,21 @@ def login(identity: str, password: str, device_id: str = ""):
             "role": "admin",
             "is_admin": True,
             "is_vip": True,
+            "coins": 999999,
+            "coins_riel": 999999 * 500,
+            "purchased_series": {},
             "status": "approved",
             "max_free_episodes": 999999,
             "package": "lifetime",
-            "package_name": "Full Control (គ្មានការ Lock)",
-            "package_badge": "Full Control",
+            "package_name": "Full Control (ADMIN - គ្មានការ Lock)",
+            "package_badge": "ADMIN Full Control",
             "expires_at": 0,
             "expires_date": "Lifetime Full Access",
             "days_left": -1
         }
         with _lock:
+            _logged_out_devices.discard(dev)
+            _logged_out_devices.discard(get_current_device_id())
             _sessions[token] = admin_user
             if dev:
                 _sessions[dev] = admin_user
@@ -321,7 +421,7 @@ def login(identity: str, password: str, device_id: str = ""):
                 break
 
         if not target:
-            return False, "រកមិនឃើញគណនីនេះទេ (សូមពិនិត្យមើល Username ឬលេខទូរស័ព្ទ)"
+            return False, "user_not_found: គណនីនេះមិនទាន់មានក្នុងប្រព័ន្ធទេ! លោកអ្នកត្រូវតែចុះឈ្មោះគណនីជាមុនសិន។"
 
         if target.get("status") == "banned":
             return False, "🚫 គណនីនេះត្រូវបានបិទ (Banned) មិនឱ្យប្រើប្រាស់ដោយ Admin! សូមទាក់ទង Admin។"
@@ -346,33 +446,46 @@ def login(identity: str, password: str, device_id: str = ""):
         now = int(time.time())
         token = "usr_" + secrets.token_hex(16)
         role = target.get("role", "user")
-        is_admin = (role == "admin")
-        is_vip = is_admin or (role == "dev") or (target.get("status") == "approved" and target.get("is_vip", False))
+        is_admin = (role == "admin" or target.get("is_admin"))
+        is_vip = is_admin or (target.get("status") == "approved" and target.get("is_vip", False))
 
-        # Check expiration
+        # Check expiration for VIP
         exp = target.get("expires_at", 0)
-        if is_vip and not is_admin and role != "dev" and exp > 0 and exp < now:
+        if is_vip and not is_admin and exp > 0 and exp < now:
             is_vip = False
             target["status"] = "expired"
             target["is_vip"] = False
             target["role"] = "user"
 
-        # Check 7-day trial expiration for regular user without VIP request
-        if not is_vip and not is_admin and role != "dev":
+        # Check 3-day trial expiration for regular user without VIP request
+        if not is_vip and not is_admin:
             if exp == 0:
-                exp = (target.get("created_at") or now) + (7 * 86400)
+                exp = (target.get("created_at") or now) + TRIAL_SECONDS
                 target["expires_at"] = exp
-            if now >= exp and target.get("status") != "pending_vip":
-                del users[target_key]
-                _save_data(d)
-                try:
-                    if dev:
-                        firebase_admin_delete_license(dev)
-                except Exception:
-                    pass
-                return False, "⚠️ គណនីធម្មតានេះបានផុតកំណត់រយៈពេល 7 ថ្ងៃ ដោយមិនបានស្នើសុំ VIP! គណនីត្រូវបានលុបចេញពីប្រព័ន្ធដាច់ខាត។ សូមចុះឈ្មោះបង្កើតគណនីថ្មី!"
 
-        max_eps = 999999 if is_vip else 10
+            if now >= exp and target.get("status") != "pending_vip":
+                # Check 24-hour temporary login block
+                lockout_until = target.get("trial_lockout_until", 0)
+                if not lockout_until or lockout_until == 0:
+                    lockout_until = now + TRIAL_LOCKOUT_SECONDS
+                    target["trial_lockout_until"] = lockout_until
+                    target["status"] = "trial_locked_24h"
+                    _save_data(d)
+
+                if now < lockout_until:
+                    rem = lockout_until - now
+                    hrs = rem // 3600
+                    mins = (rem % 3600) // 60
+                    t_str = f"{hrs} ម៉ោង {mins} នាទី" if hrs > 0 else f"{mins} នាទី"
+                    return False, f"⏳ គណនីរបស់អ្នកបានផុតកំណត់ការសាកល្បង 3 ថ្ងៃដោយមិនបានស្នើសុំ VIP! ប្រព័ន្ធបានបិទការ Login ជាបណ្តោះអាសន្នរយៈពេល 24 ម៉ោង (នៅសល់ {t_str}) ទើបអាច Login បានទៀត។ ឬសូមទាក់ទង Admin តាម Telegram ដើម្បីស្នើសុំ VIP!"
+                else:
+                    # 24 hours have passed! User can login again ("បានអាចLogin បានទៀត")
+                    target["trial_lockout_until"] = 0
+                    target["expires_at"] = now + TRIAL_LOCKOUT_SECONDS  # 24-hour grace window to request VIP
+                    target["status"] = "user"
+                    _save_data(d)
+
+        max_eps = 999999 if is_vip else 5
         target["role"] = "vip" if is_vip else "user"
         target["is_vip"] = is_vip
         target["is_admin"] = is_admin
@@ -389,10 +502,17 @@ def login(identity: str, password: str, device_id: str = ""):
             target["expires_date"] = "Lifetime VIP"
             target["days_left"] = -1
         else:
-            target["expires_date"] = "User ធម្មតា (សាកល្បង 7 ថ្ងៃ)"
-            target["days_left"] = 7
+            target["expires_date"] = f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)"
+            target["days_left"] = TRIAL_DAYS
+
+        target["coins"] = int(target.get("coins", 0))
+        target["coins_riel"] = target["coins"] * 500
+        if not isinstance(target.get("purchased_series"), dict):
+            target["purchased_series"] = {}
 
         _save_data(d)
+        _logged_out_devices.discard(dev)
+        _logged_out_devices.discard(get_current_device_id())
         _sessions[token] = target
         if dev:
             _sessions[dev] = target
@@ -402,7 +522,7 @@ def login(identity: str, password: str, device_id: str = ""):
 def register_user(username: str, name: str, contact: str, password: str, note: str = "", package: str = "1_year", device_id: str = ""):
     """
     Register a new regular user account.
-    Regular user gets free access to episodes 1-10.
+    Regular user gets free access to episodes 1-5.
     """
     u_name = (username or "").strip()
     full_name = (name or "").strip()
@@ -457,7 +577,7 @@ def register_user(username: str, name: str, contact: str, password: str, note: s
             pass
 
         now = int(time.time())
-        trial_seconds = 7 * 86400
+        trial_seconds = TRIAL_SECONDS
         expires_at = now + trial_seconds
         import datetime
         exp_date_str = datetime.datetime.fromtimestamp(expires_at).strftime("%d/%m/%Y")
@@ -478,16 +598,20 @@ def register_user(username: str, name: str, contact: str, password: str, note: s
             "is_vip": False,
             "is_admin": False,
             "status": "user",
-            "max_free_episodes": 10,
+            "max_free_episodes": 5,
+            "coins": 0,
+            "coins_riel": 0,
+            "purchased_series": {},
             "created_at": now,
             "updated_at": now,
             "approved_at": 0,
             "expires_at": expires_at,
+            "trial_lockout_until": 0,
             "token": token,
-            "package_name": "User ធម្មតា (សាកល្បង 7 ថ្ងៃ)",
-            "package_badge": "7 ថ្ងៃ",
+            "package_name": f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)",
+            "package_badge": f"{TRIAL_DAYS} ថ្ងៃ",
             "expires_date": exp_date_str,
-            "days_left": 7
+            "days_left": TRIAL_DAYS
         }
 
         users[user_key] = user_record
@@ -509,65 +633,57 @@ def register_user(username: str, name: str, contact: str, password: str, note: s
 
 def purge_expired_trial_users():
     """
-    STRICT RULE: Regular users (role == 'user') have a 7-day trial period.
-    Within these 7 days, they must submit a VIP request (status == 'pending_vip').
-    If 7 days elapse without submitting a VIP request, they MUST be completely deleted
-    from both the local database (user_access.json) and Firebase Realtime Database.
+    STRICT RULE: Regular users (role == 'user') have a 3-day trial period.
+    Within these 3 days, if they have not submitted a VIP request,
+    their login is temporarily blocked for 24 hours.
+    After 24 hours have elapsed, they can log in again.
     """
     now = int(time.time())
-    purged_keys = []
-    purged_devices = []
     with _lock:
         d = _load_data()
         users = d.get("users", {})
+        changed = False
         for k, u in list(users.items()):
             # Only apply to regular user who is NOT VIP and NOT ADMIN
             if u.get("role") == "user" and not u.get("is_vip") and not u.get("is_admin"):
                 exp = u.get("expires_at", 0)
                 if exp == 0:
                     created = u.get("created_at") or now
-                    exp = created + (7 * 86400)
+                    exp = created + TRIAL_SECONDS
                     u["expires_at"] = exp
+                    changed = True
 
                 st = u.get("status", "user")
-                # If status is 'pending_vip', user HAS submitted a VIP request! Keep them alive for admin review.
+                # If status is 'pending_vip', user HAS submitted a VIP request! Keep them active for admin review.
                 if st == "pending_vip":
                     continue
 
-                # If expired without VIP request: PURGE
                 if now >= exp:
-                    purged_keys.append(k)
-                    dev = u.get("device_id")
-                    if dev:
-                        purged_devices.append(dev)
-                    del users[k]
+                    lockout = u.get("trial_lockout_until", 0)
+                    if not lockout or lockout == 0:
+                        u["trial_lockout_until"] = now + TRIAL_LOCKOUT_SECONDS
+                        u["status"] = "trial_locked_24h"
+                        changed = True
+                    elif now >= lockout:
+                        # 24h lockout elapsed! User can log in again.
+                        u["trial_lockout_until"] = 0
+                        u["expires_at"] = now + TRIAL_LOCKOUT_SECONDS
+                        u["status"] = "user"
+                        changed = True
 
-        if purged_keys:
+        if changed:
             d["users"] = users
             _save_data(d)
-            # Remove from active sessions
-            for tok in list(_sessions.keys()):
-                su = _sessions.get(tok, {})
-                if su.get("key") in purged_keys or su.get("device_id") in purged_devices:
-                    del _sessions[tok]
 
-    # Delete purged users from Firebase Realtime Database
-    for dev in purged_devices:
-        try:
-            firebase_admin_delete_license(dev)
-            print(f"[purge] deleted expired 7-day trial user without VIP request: {dev}")
-        except Exception as ex:
-            print(f"[purge] firebase delete error for {dev}: {ex}")
-
-    return len(purged_keys)
+    return 0
 
 def get_user_status(token_or_device_id: str = ""):
     """
     Returns the user's status, settings, and allowed episode boundaries.
     Startup check: Queries Firebase Realtime Database (https://syd-drama-default-rtdb.firebaseio.com)
     for License Key / Account.
-    - If NO account in Firebase: Requires mandatory registration as regular user (Free Tier 1-10).
-    - If account in Firebase: Returns regular user (episodes 1-10) or VIP (episodes 1-all if approved by ADMIN).
+    - If NO account in Firebase: Requires mandatory registration as regular user (Free Tier 1-5).
+    - If account in Firebase: Returns regular user (episodes 1-5) or VIP (episodes 1-all if approved by ADMIN).
     """
     # Enforce 7-day trial auto-purge rule
     try:
@@ -596,41 +712,39 @@ def get_user_status(token_or_device_id: str = ""):
     clean_id = clean_firebase_key(dev_check)
     current_hw_id = get_current_device_id()
 
-    # 0. DEV MACHINE check: Developer PC is 100% exempt from registration/login, permanent full unrestricted access!
-    if is_dev_machine(dev_check) or is_dev_machine(current_hw_id) or is_dev_machine(ident):
-        dev_token = "dev_master_" + clean_firebase_key(current_hw_id)[-12:]
-        dev_user_obj = {
-            "token": dev_token,
-            "authenticated": True,
-            "registered": True,
-            "has_firebase_account": True,
-            "must_register": False,
+    # Check if this device or token is explicitly logged out or unauthenticated
+    is_admin_check = bool(user and ((user.get("role") == "admin") or (str(user.get("username")).upper() == "ADMIN")))
+    if not is_admin_check and (ident == "guest" or not ident or ident in _logged_out_devices or current_hw_id in _logged_out_devices):
+        return {
+            "authenticated": False,
+            "registered": False,
+            "has_firebase_account": False,
+            "must_register": True,
+            "must_login": True,
             "device_id": current_hw_id,
-            "license_key": clean_firebase_key(current_hw_id),
-            "username": "DEV (Dara)",
-            "name": "Developer Master (PC-1)",
-            "contact": "Dev System Direct",
-            "role": "dev",
-            "is_admin": True,
-            "is_dev": True,
-            "is_vip": True,
-            "status": "approved",
-            "max_free_episodes": 999999,
-            "requested_package": "lifetime",
-            "approved_package": "lifetime",
-            "package_name": "Developer Master (សេរី គ្មានដែនកំណត់)",
-            "package_badge": "DEV MASTER",
+            "license_key": clean_id,
+            "username": "មិនទាន់ចូលគណនី",
+            "name": "សូមចូលគណនី ឬចុះឈ្មោះ",
+            "contact": "",
+            "role": "unauthenticated",
+            "is_admin": False,
+            "is_dev": False,
+            "is_vip": False,
+            "status": "login_required",
+            "coins": 0,
+            "coins_riel": 0,
+            "purchased_series": {},
+            "max_free_episodes": 5,
+            "package_name": "មិនទាន់ចូលគណនី (Free ភាគ 1-5)",
+            "package_badge": "Login Required",
             "expires_at": 0,
-            "expires_date": "Permanent Developer Access",
-            "days_left": -1,
+            "expires_date": "Free Tier (ភាគ 1-5)",
+            "days_left": 0,
             "firebase_database": "https://syd-drama-default-rtdb.firebaseio.com",
+            "message": "សូមចូលគណនី ឬចុះឈ្មោះជាចាំបាច់ដើម្បីប្រើប្រាស់!",
             "settings": settings,
             "packages_available": list(VIP_PACKAGES.values())
         }
-        _sessions[dev_token] = dev_user_obj
-        _sessions[dev_check] = dev_user_obj
-        _sessions[current_hw_id] = dev_user_obj
-        return dev_user_obj
 
     # 1. ADMIN check: Admin is exempt from registration and has full control
     is_admin = False
@@ -652,9 +766,12 @@ def get_user_status(token_or_device_id: str = ""):
             "contact": user.get("contact", ""),
             "role": "admin",
             "is_admin": True,
-            "is_dev": True,
+            "is_dev": False,
             "is_vip": True,
             "status": "approved",
+            "coins": 999999,
+            "coins_riel": 999999 * 500,
+            "purchased_series": user.get("purchased_series") or {},
             "max_free_episodes": 999999,
             "requested_package": "lifetime",
             "approved_package": "lifetime",
@@ -682,7 +799,7 @@ def get_user_status(token_or_device_id: str = ""):
                 "can_download": False,
                 "device_id": current_hw_id,
                 "license_key": clean_firebase_key(current_hw_id),
-                "username": user.get("username", "Guest"),
+                "username": user.get("username", "User"),
                 "name": "Machine Mismatch",
                 "contact": "",
                 "role": "mismatched_machine",
@@ -738,23 +855,27 @@ def get_user_status(token_or_device_id: str = ""):
             "registered": False,
             "has_firebase_account": False,
             "must_register": True,
+            "must_login": True,
             "is_deleted": True,
             "can_download": False,
             "device_id": dev_check,
             "license_key": clean_id,
-            "username": "ភ្ញៀវ (Guest)",
-            "name": "Guest Visitor",
+            "username": "មិនទាន់ចូលគណនី",
+            "name": "សូមចុះឈ្មោះគណនីថ្មី",
             "contact": "",
-            "role": "guest",
+            "role": "unauthenticated",
             "is_admin": False,
             "is_dev": False,
             "is_vip": False,
-            "status": "guest",
-            "max_free_episodes": 10,
-            "package_name": "ភ្ញៀវមិនទាន់ចុះឈ្មោះ (ភាគ 1-10)",
-            "package_badge": "Guest",
+            "status": "login_required",
+            "coins": 0,
+            "coins_riel": 0,
+            "purchased_series": {},
+            "max_free_episodes": 5,
+            "package_name": "គណនីត្រូវបានលុប (សូមចុះឈ្មោះថ្មី)",
+            "package_badge": "Re-register Required",
             "expires_at": 0,
-            "expires_date": "Free Tier (ភាគ 1-10)",
+            "expires_date": "Free Tier (ភាគ 1-5)",
             "days_left": 0,
             "firebase_database": "https://syd-drama-default-rtdb.firebaseio.com",
             "message": "⚠️ គណនីរបស់អ្នកត្រូវបាន ADMIN លុបចេញពីប្រព័ន្ធ! សូមចុះឈ្មោះបង្កើតគណនីថ្មីឡើងវិញ។",
@@ -781,7 +902,11 @@ def get_user_status(token_or_device_id: str = ""):
             user["expires_at"] = fb_exp
             user["approved_package"] = fb_data.get("approved_package", user.get("approved_package", ""))
             user["requested_package"] = fb_data.get("requested_package", user.get("requested_package", "1_year"))
-            user["max_free_episodes"] = 0 if fb_banned else (999999 if fb_vip else 10)
+            user["max_free_episodes"] = 0 if fb_banned else (999999 if fb_vip else 5)
+            if "coins" in fb_data:
+                user["coins"] = int(fb_data.get("coins") or 0)
+            if "purchased_series" in fb_data and isinstance(fb_data["purchased_series"], dict):
+                user["purchased_series"] = fb_data["purchased_series"]
         else:
             # Reconstitute regular user from Firebase Realtime Database
             tok = "usr_" + clean_id[-12:]
@@ -800,10 +925,12 @@ def get_user_status(token_or_device_id: str = ""):
                 "requested_package": fb_data.get("requested_package", "1_year"),
                 "approved_package": fb_data.get("approved_package", ""),
                 "expires_at": fb_exp,
-                "max_free_episodes": 0 if fb_banned else (999999 if fb_vip else 10),
+                "max_free_episodes": 0 if fb_banned else (999999 if fb_vip else 5),
+                "coins": int(fb_data.get("coins", 0)),
+                "purchased_series": fb_data.get("purchased_series") or {},
                 "created_at": fb_data.get("created_at", now_sec),
-                "package_name": "VIP Member (ដោះសោរគ្រប់ភាគ)" if fb_vip else "User ធម្មតា (សាកល្បង 7 ថ្ងៃ)",
-                "package_badge": "VIP" if fb_vip else "7 ថ្ងៃ"
+                "package_name": "VIP Member (ដោះសោរគ្រប់ភាគ)" if fb_vip else f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)",
+                "package_badge": "VIP" if fb_vip else f"{TRIAL_DAYS} ថ្ងៃ"
             }
             _sessions[tok] = user
             _sessions[dev_check] = user
@@ -859,7 +986,7 @@ def get_user_status(token_or_device_id: str = ""):
         role = "vip" if is_vip else user.get("role", "user")
         user["role"] = role
         st = user.get("status", "user")
-        max_eps = 999999 if is_vip else 10
+        max_eps = 999999 if is_vip else 5
         now = int(time.time())
         exp = user.get("expires_at", 0)
 
@@ -875,21 +1002,30 @@ def get_user_status(token_or_device_id: str = ""):
             pkg_badge = "VIP"
         elif st == "pending_vip":
             if exp == 0:
-                exp = (user.get("created_at") or now) + (7 * 86400)
+                exp = (user.get("created_at") or now) + TRIAL_SECONDS
                 user["expires_at"] = exp
             days_left = _calc_days_left(exp, now, False)
             exp_date = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
             pkg_name = f"សំណើ VIP កំពុងរង់ចាំ (នៅសល់ {days_left} ថ្ងៃ)"
             pkg_badge = "Pending VIP"
         else:
-            # Regular user 7-day trial
+            # Regular user 3-day trial & 24-hour lockout handling
             if exp == 0:
-                exp = (user.get("created_at") or now) + (7 * 86400)
+                exp = (user.get("created_at") or now) + TRIAL_SECONDS
                 user["expires_at"] = exp
             days_left = _calc_days_left(exp, now, False)
             exp_date = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
-            pkg_name = f"User ធម្មតា (សាកល្បងនៅសល់ {days_left} ថ្ងៃ)"
-            pkg_badge = f"{days_left} ថ្ងៃ"
+            lockout_until = user.get("trial_lockout_until", 0)
+            if lockout_until > now:
+                diff = lockout_until - now
+                hrs = diff // 3600
+                mins = (diff % 3600) // 60
+                pkg_name = f"បិទ Login បណ្តោះអាសន្ន ២៤ ម៉ោង (នៅសល់ {hrs}h {mins}m)"
+                pkg_badge = "Lockout 24h"
+                days_left = 0
+            else:
+                pkg_name = f"User ធម្មតា (សាកល្បងនៅសល់ {days_left} ថ្ងៃ)"
+                pkg_badge = f"{days_left} ថ្ងៃ"
 
         user["days_left"] = days_left
         user["expires_date"] = exp_date
@@ -911,6 +1047,9 @@ def get_user_status(token_or_device_id: str = ""):
             "is_dev": False,
             "is_vip": is_vip,
             "status": user.get("status", "user"),
+            "coins": int(user.get("coins", 0)),
+            "coins_riel": int(user.get("coins", 0)) * 500,
+            "purchased_series": user.get("purchased_series") or {},
             "max_free_episodes": max_eps,
             "requested_package": user.get("requested_package", "1_year"),
             "approved_package": user.get("approved_package", ""),
@@ -924,30 +1063,34 @@ def get_user_status(token_or_device_id: str = ""):
             "packages_available": list(VIP_PACKAGES.values())
         }
 
-    # 7. Fallback (Guest)
+    # 7. Fallback (Unauthenticated / Login Required)
     return {
         "authenticated": False,
         "registered": False,
         "has_firebase_account": False,
         "must_register": True,
+        "must_login": True,
         "device_id": dev_check,
         "license_key": clean_id,
-        "username": "ភ្ញៀវ (Guest)",
-        "name": "Guest Visitor",
+        "username": "មិនទាន់ចូលគណនី",
+        "name": "សូមចូលគណនី ឬចុះឈ្មោះ",
         "contact": "",
-        "role": "guest",
+        "role": "unauthenticated",
         "is_admin": False,
         "is_dev": False,
         "is_vip": False,
-        "status": "guest",
-        "max_free_episodes": 10,
-        "package_name": "ភ្ញៀវមិនទាន់ Login (ភាគ 1-10)",
-        "package_badge": "Guest",
+        "status": "login_required",
+        "coins": 0,
+        "coins_riel": 0,
+        "purchased_series": {},
+        "max_free_episodes": 5,
+        "package_name": "មិនទាន់ចូលគណនី (Free ភាគ 1-5)",
+        "package_badge": "Login Required",
         "expires_at": 0,
-        "expires_date": "Free Tier (ភាគ 1-10)",
+        "expires_date": "Free Tier (ភាគ 1-5)",
         "days_left": 0,
         "firebase_database": "https://syd-drama-default-rtdb.firebaseio.com",
-        "message": "",
+        "message": "សូមចូលគណនី ឬចុះឈ្មោះជាចាំបាច់ដើម្បីប្រើប្រាស់!",
         "settings": settings,
         "packages_available": list(VIP_PACKAGES.values())
     }
@@ -1021,7 +1164,7 @@ def request_vip(token_or_id: str, package: str = "1_year", note: str = "", name:
         target["is_banned"] = False
         target["is_vip"] = False
         target["role"] = "user"
-        target["max_free_episodes"] = 10
+        target["max_free_episodes"] = 5
         target["updated_at"] = now
         _save_data(d)
 
@@ -1032,7 +1175,7 @@ def request_vip(token_or_id: str, package: str = "1_year", note: str = "", name:
                 su["is_banned"] = False
                 su["is_vip"] = False
                 su["role"] = "user"
-                su["max_free_episodes"] = 10
+                su["max_free_episodes"] = 5
                 su["requested_package"] = target["requested_package"]
         if target.get("device_id"):
             _sessions[target["device_id"]] = target
@@ -1130,7 +1273,7 @@ def ban_user(target_id: str, banned: bool = True, sync_to_firebase: bool = True)
     """
     ADMIN bans or unbans a user account.
     When banned, user cannot log in, download, or stream, and active sessions are revoked.
-    When unbanned, user access is restored as regular user (1-10 episodes).
+    When unbanned, user access is restored as regular user (1-5 episodes).
     """
     ident = str(target_id or "").strip()
     with _lock:
@@ -1159,7 +1302,7 @@ def ban_user(target_id: str, banned: bool = True, sync_to_firebase: bool = True)
                 target["max_free_episodes"] = 0
                 target["role"] = "banned"
             else:
-                target["max_free_episodes"] = 10
+                target["max_free_episodes"] = 5
                 target["role"] = "user"
             target["updated_at"] = int(time.time())
             _save_data(d)
@@ -1183,7 +1326,7 @@ def ban_user(target_id: str, banned: bool = True, sync_to_firebase: bool = True)
                         su["status"] = "user"
                         su["is_banned"] = False
                         su["role"] = "user"
-                        su["max_free_episodes"] = 10
+                        su["max_free_episodes"] = 5
 
             if sync_to_firebase and dev:
                 try:
@@ -1204,7 +1347,7 @@ def ban_user(target_id: str, banned: bool = True, sync_to_firebase: bool = True)
 
 def revoke_user(target_id: str):
     """
-    Revert a VIP user back to a regular free user (1-10 episodes).
+    Revert a VIP user back to a regular free user (1-5 episodes).
     """
     ident = str(target_id or "").strip()
     with _lock:
@@ -1218,25 +1361,122 @@ def revoke_user(target_id: str):
                 u["is_vip"] = False
                 u["role"] = "user"
                 u["expires_at"] = 0
-                u["max_free_episodes"] = 10
-                u["package_name"] = "គណនីធម្មតា (ភាគ 1-10)"
+                u["max_free_episodes"] = 5
+                u["package_name"] = "គណនីធម្មតា (ភាគ 1-5)"
                 u["updated_at"] = int(time.time())
                 _save_data(d)
                 for tok, s_user in list(_sessions.items()):
                     if s_user.get("username") == u.get("username") or s_user.get("device_id") == u.get("device_id"):
                         s_user["is_vip"] = False
                         s_user["status"] = "user"
-                        s_user["max_free_episodes"] = 10
+                        s_user["max_free_episodes"] = 5
                         s_user["expires_at"] = 0
-                        s_user["package_name"] = "គណនីធម្មតា (ភាគ 1-10)"
+                        s_user["package_name"] = "គណនីធម្មតា (ភាគ 1-5)"
                 return True
     return False
 
-def check_can_download(token_or_dev: str, requested_episodes: list = None, max_ep: int = 0):
+# ----------------- Drama Free Rules Management ----------------- #
+
+def get_default_drama_rule() -> dict:
+    """Get the auto / default rule applied to all dramas without a custom override."""
+    with _lock:
+        d = _load_data()
+        return dict(d.get("drama_rules_default", {"rule": "free_episodes", "free_episodes": 5}))
+
+def set_default_drama_rule(rule: str = "free_episodes", free_episodes: int = 5) -> dict:
+    """Set the auto / default rule for all new/unconfigured dramas."""
+    rule_type = "free_all" if rule == "free_all" else "free_episodes"
+    eps = 999999 if rule_type == "free_all" else max(1, int(free_episodes or 5))
+    entry = {
+        "rule": rule_type,
+        "free_episodes": eps,
+        "updated_at": int(time.time())
+    }
+    with _lock:
+        d = _load_data()
+        d["drama_rules_default"] = entry
+        _save_data(d)
+    return {"ok": True, "default_rule": entry}
+
+def get_drama_rules() -> dict:
+    """Get all configured drama rules."""
+    with _lock:
+        d = _load_data()
+        return dict(d.get("drama_rules", {}))
+
+def get_drama_rule(series_id: str, title: str = "") -> dict:
+    """
+    Get rule for a specific drama.
+    If no custom override exists, fallback to the auto/default rule!
+    """
+    sid = str(series_id or "").strip()
+    with _lock:
+        d = _load_data()
+        rules = d.get("drama_rules", {})
+        default_rule = d.get("drama_rules_default", {"rule": "free_episodes", "free_episodes": 5})
+        if sid and sid in rules:
+            res = dict(rules[sid])
+            res["is_custom"] = True
+            return res
+        if title:
+            t_clean = str(title).strip().lower()
+            for k, r in rules.items():
+                if str(r.get("title") or "").strip().lower() == t_clean:
+                    res = dict(r)
+                    res["is_custom"] = True
+                    return res
+    return {
+        "series_id": sid,
+        "rule": default_rule.get("rule", "free_episodes"),
+        "free_episodes": default_rule.get("free_episodes", 5),
+        "is_default": True
+    }
+
+def set_drama_rule(series_id: str, rule: str = "free_episodes", free_episodes: int = 5, title: str = "") -> dict:
+    """
+    Set rule for a drama:
+    - rule: "free_all" (100% Free for all regular users) or "free_episodes" (1-5 or custom number of free episodes)
+    """
+    sid = str(series_id or "").strip()
+    if not sid:
+        return {"ok": False, "error": "Missing series_id"}
+    rule_type = "free_all" if rule == "free_all" else "free_episodes"
+    eps = 999999 if rule_type == "free_all" else max(1, int(free_episodes or 5))
+    entry = {
+        "series_id": sid,
+        "rule": rule_type,
+        "free_episodes": eps,
+        "title": str(title or "").strip(),
+        "updated_at": int(time.time())
+    }
+    with _lock:
+        d = _load_data()
+        if "drama_rules" not in d:
+            d["drama_rules"] = {}
+        d["drama_rules"][sid] = entry
+        _save_data(d)
+    return {"ok": True, "rule": entry}
+
+def delete_drama_rule(series_id: str) -> bool:
+    """Reset drama rule back to default (Free 1-5)."""
+    sid = str(series_id or "").strip()
+    with _lock:
+        d = _load_data()
+        rules = d.get("drama_rules", {})
+        if sid in rules:
+            del rules[sid]
+            d["drama_rules"] = rules
+            _save_data(d)
+            return True
+    return False
+
+def check_can_download(token_or_dev: str, requested_episodes: list = None, max_ep: int = 0, series_id: str = ""):
     """
     Check download authorization and enforce episode limits.
     ADMIN & VIP: 100% unrestricted.
-    Regular User / Guest: Restricted to episodes 1 to 10.
+    Regular User / Guest:
+    - If drama rule is "free_all": 100% unrestricted!
+    - Otherwise: Restricted to episodes 1 to N (default: 10).
     """
     st = get_user_status(token_or_dev)
     if st.get("status") == "machine_mismatch":
@@ -1251,23 +1491,40 @@ def check_can_download(token_or_dev: str, requested_episodes: list = None, max_e
     if st.get("is_admin") or st.get("is_vip"):
         return True, "vip_allowed", "VIP Full Access — អនុញ្ញាតទាញយកគ្រប់ភាគ ១០០%", None
 
-    # Regular User: Restricted to episodes 1 to 10
-    if max_ep > 10:
-        return False, "vip_required", "គណនីធម្មតាអាចទាញយកបានត្រឹមភាគ ១ ដល់ ១០ ប៉ុណ្ណោះ! សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ដើម្បីទាញយកភាគ ១១ ឡើងទៅ។", "1-10"
+    # Check if user purchased this series with Coins!
+    purchased = st.get("purchased_series") or {}
+    if series_id and (str(series_id) in purchased or series_id in purchased):
+        return True, "purchased_unlocked", "បានទិញរួចរាល់ (Purchased) — អនុញ្ញាតទាញយកគ្រប់ភាគ ១០០%", None
+
+    # Check drama rule if series_id is provided
+    d_rule = get_drama_rule(series_id) if series_id else {"rule": "free_episodes", "free_episodes": 5}
+    if d_rule.get("rule") == "free_all":
+        return True, "free_all", "រឿងនេះ Free ១០០% (អនុញ្ញាតទាញយកគ្រប់ភាគ)", None
+
+    limit = d_rule.get("free_episodes", 5)
+    # Regular User: Restricted to episodes 1 to limit
+    if max_ep > limit:
+        return False, "vip_required", f"រឿងនេះអាចទាញយកបានត្រឹមភាគ ១ ដល់ {limit} ប៉ុណ្ណោះ! សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ដើម្បីទាញយកភាគ {limit + 1} ឡើងទៅ។", f"1-{limit}"
 
     if requested_episodes:
-        locked = [e for e in requested_episodes if int(e) > 10]
+        locked = [e for e in requested_episodes if int(e) > limit]
         if locked:
-            return False, "vip_required", f"ភាគលើសពី ១០ ({', '.join(map(str, locked[:4]))}...) ត្រូវបានចាក់សោរ! គណនីធម្មតាអាចទាញយកបានត្រឹមភាគ ១-១០។", "1-10"
+            return False, "vip_required", f"ភាគលើសពី {limit} ({', '.join(map(str, locked[:4]))}...) ត្រូវបានចាក់សោរ! គណនីធម្មតាអាចទាញយកបានត្រឹមភាគ ១-{limit}។", f"1-{limit}"
 
-    return True, "regular_allowed", "អនុញ្ញាតទាញយក (ភាគ ១ ដល់ ១០)", "1-10"
+    return True, "regular_allowed", f"អនុញ្ញាតទាញយក (ភាគ ១ ដល់ {limit})", f"1-{limit}"
 
-def can_access_episode(episode_num: int, token_or_dev: str = ""):
+def can_access_episode(episode_num, token_or_dev: str = "", series_id: str = ""):
     """
     Check if user can play or access a specific episode.
-    Episodes 1 to 10: Free for all.
-    Episodes 11+: ADMIN or VIP only.
+    ADMIN or VIP: 100% unlocked.
+    Drama rule:
+    - "free_all": Free for all regular users 100%!
+    - "free_episodes": Free for episodes 1 to N (default: 1-5).
     """
+    # Auto-detect swapped arguments: (token_or_dev, series_id, episode_num)
+    if isinstance(episode_num, str) and not episode_num.isdigit() and (isinstance(series_id, (int, float)) or (isinstance(series_id, str) and series_id.isdigit())):
+        token_or_dev, series_id, episode_num = episode_num, token_or_dev, int(series_id)
+
     st = get_user_status(token_or_dev)
     if st.get("status") == "machine_mismatch":
         return False, "machine_mismatch", "🚫 Machine ID មិនត្រូវគ្នា! គណនីនេះត្រូវបានចាក់សោរឱ្យប្រើប្រាស់បានតែលើ PC ដើម 1 គត់ប៉ុណ្ណោះ (1 Machine ID = 1 PC)។"
@@ -1275,13 +1532,24 @@ def can_access_episode(episode_num: int, token_or_dev: str = ""):
     if st.get("is_banned") or st.get("status") == "banned":
         return False, "banned", "🚫 គណនីរបស់អ្នកត្រូវបាន ADMIN បិទ (Banned) មិនអាចប្រើប្រាស់បានទៀតទេ! សូមទាក់ទង ADMIN ឬស្នើសុំម្តងទៀត។"
 
-    if int(episode_num) <= 10:
-        return True, "free_episode", "ភាគ ១-១០ ឥតគិតថ្លៃ"
-
     if st.get("is_admin") or st.get("is_vip"):
         return True, "vip_allowed", "VIP / ADMIN Unlocked"
 
-    return False, "vip_required", "ភាគនេះសម្រាប់សមាជិក VIP ប៉ុណ្ណោះ! គណនីធម្មតាអាចទស្សនាបានត្រឹមភាគ ១ ដល់ ១០។ សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ដើម្បីទស្សនាគ្រប់ភាគ។"
+    # Check if user purchased this series with Coins!
+    purchased = st.get("purchased_series") or {}
+    if series_id and (str(series_id) in purchased or series_id in purchased):
+        return True, "purchased_unlocked", "បានទិញរួចរាល់ (Purchased)"
+
+    # Check drama rule
+    d_rule = get_drama_rule(series_id) if series_id else {"rule": "free_episodes", "free_episodes": 5}
+    if d_rule.get("rule") == "free_all":
+        return True, "free_all", "រឿងនេះ Free ១០០% (គ្រប់ភាគ)"
+
+    limit = d_rule.get("free_episodes", 5)
+    if int(episode_num) <= limit:
+        return True, "free_episode", f"ភាគ ១-{limit} ឥតគិតថ្លៃ"
+
+    return False, "vip_required", f"ភាគនេះសម្រាប់សមាជិក VIP ប៉ុណ្ណោះ! រឿងនេះអាចទស្សនាឥតគិតថ្លៃបានត្រឹមភាគ ១ ដល់ {limit}។ សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ដើម្បីទស្សនាគ្រប់ភាគ។"
 
 def list_users():
     with _lock:
@@ -1314,7 +1582,7 @@ def list_users():
                 if exp > 0 and u.get("is_vip"):
                     u["status"] = "expired"
                     u["is_vip"] = False
-                u["expires_date"] = "Free (1-10)"
+                u["expires_date"] = "Free (1-5)"
 
         users_list.sort(key=lambda x: (x.get("role") != "admin", x.get("updated_at", 0)), reverse=False)
         return {
@@ -1410,7 +1678,7 @@ def extend_user(target_id: str, additional_days: int):
 
 def is_dev(device_id=None):
     st = get_user_status(device_id)
-    return st.get("is_admin") or st.get("is_dev", False)
+    return bool(st.get("is_admin", False))
 
 def is_vip(device_id=None):
     st = get_user_status(device_id)
@@ -1420,7 +1688,7 @@ def is_vip(device_id=None):
 
 _firebase_cache = {}  # clean_id -> {"time": float, "data": dict or None, "deleted": bool}
 _firebase_last_poll = {}
-_fb_lock = threading.Lock()
+_fb_lock = threading.RLock()
 
 def get_firebase_config():
     """Retrieve current Firebase Realtime Database configuration."""
@@ -1544,7 +1812,9 @@ def firebase_sync_license(user_or_dict: dict):
             "is_vip": fb_vip,
             "is_banned": fb_banned,
             "role": "banned" if fb_banned else ("vip" if fb_vip else user_or_dict.get("role", "user")),
-            "max_free_episodes": 0 if fb_banned else (999999 if fb_vip else 10),
+            "max_free_episodes": 0 if fb_banned else (999999 if fb_vip else 5),
+            "coins": int(user_or_dict.get("coins", 0)),
+            "purchased_series": user_or_dict.get("purchased_series") or {},
             "note": user_or_dict.get("note", ""),
             "created_at": user_or_dict.get("created_at") or now_ts,
             "updated_at": now_ts,
@@ -1618,7 +1888,11 @@ def firebase_fetch_license(device_id: str, force: bool = False):
                         u["status"] = fb_status
                         u["expires_at"] = fb_exp
                         u["approved_package"] = fb_data.get("approved_package", u.get("approved_package", ""))
-                        u["max_free_episodes"] = 0 if fb_banned else (999999 if fb_vip else 10)
+                        u["max_free_episodes"] = 0 if fb_banned else (999999 if fb_vip else 5)
+                        if "coins" in fb_data and fb_data["coins"] is not None:
+                            u["coins"] = int(fb_data["coins"])
+                        if "purchased_series" in fb_data and isinstance(fb_data["purchased_series"], dict):
+                            u["purchased_series"] = fb_data["purchased_series"]
                         if fb_banned:
                             u["expires_date"] = "Banned (បិទដំណើរការ)"
                             u["days_left"] = 0
@@ -1685,8 +1959,11 @@ def firebase_admin_get_all_licenses():
                 item["expires_date"] = "Lifetime VIP"
                 item["days_left"] = -1
             else:
-                item["expires_date"] = "Free Tier (ភាគ 1-10)"
+                item["expires_date"] = "Free Tier (ភាគ 1-5)"
                 item["days_left"] = 0
+            item["coins"] = int(item.get("coins", 0))
+            item["coins_riel"] = item["coins"] * 500
+            item["purchased_series"] = item.get("purchased_series") or {}
             out.append(item)
 
         # Sort: pending_vip first, then by updated_at descending
@@ -1768,7 +2045,7 @@ def firebase_admin_ban_license(device_id: str, banned: bool = True, sync_local: 
             "status": "banned" if banned else "user",
             "is_banned": banned,
             "is_vip": False,
-            "max_free_episodes": 0 if banned else 10,
+            "max_free_episodes": 0 if banned else 5,
             "updated_at": now_ts
         }
         r = requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
@@ -1796,4 +2073,572 @@ def firebase_admin_delete_license(device_id: str, delete_local: bool = True):
     except Exception as e:
         print(f"[firebase] admin delete error: {e}")
         return False
+
+# ==============================================================================
+# COIN SYSTEM, MOVIE PRICING & PROMOTION ENGINE (FIREBASE RTDB INTEGRATED)
+# ==============================================================================
+
+def get_pricing_rules(sync_from_firebase: bool = False) -> dict:
+    """
+    Get movie pricing and promo rules.
+    Default: 1 Movie = 2 Coins = 1,000 Riel (1 Coin = 500 Riel).
+    """
+    with _lock:
+        d = _load_data()
+        rules = d.get("pricing_rules")
+        if not isinstance(rules, dict):
+            rules = dict(DEFAULT_PRICING_RULES)
+            d["pricing_rules"] = rules
+            _save_data(d)
+        else:
+            for k, v in DEFAULT_PRICING_RULES.items():
+                if k not in rules:
+                    rules[k] = v
+
+    if sync_from_firebase:
+        try:
+            url, params = _firebase_url("pricing_rules")
+            if url:
+                r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+                if r.status_code == 200 and r.text and r.text != "null":
+                    fb_rules = r.json()
+                    if isinstance(fb_rules, dict):
+                        with _lock:
+                            d = _load_data()
+                            cur = d.get("pricing_rules", {})
+                            cur.update(fb_rules)
+                            d["pricing_rules"] = cur
+                            _save_data(d)
+                            return cur
+        except Exception as e:
+            print(f"[pricing] firebase sync error: {e}")
+
+    return rules
+
+def save_pricing_rules(new_rules: dict) -> dict:
+    """
+    Admin: save pricing and promotional rules locally and push to Firebase RTDB.
+    """
+    with _lock:
+        d = _load_data()
+        rules = d.get("pricing_rules", dict(DEFAULT_PRICING_RULES))
+        for k in ("default_coins", "coin_rate_riel", "promo_enabled", "promo_coins", "promo_start_date", "promo_end_date", "promo_name", "custom_series"):
+            if k in new_rules:
+                rules[k] = new_rules[k]
+        rules["default_coins"] = max(1, int(rules.get("default_coins", 2)))
+        rules["coin_rate_riel"] = max(100, int(rules.get("coin_rate_riel", 500)))
+        rules["promo_coins"] = max(1, int(rules.get("promo_coins", 1)))
+        rules["promo_enabled"] = bool(rules.get("promo_enabled", False))
+        d["pricing_rules"] = rules
+        _save_data(d)
+
+    # Push to Firebase
+    try:
+        url, params = _firebase_url("pricing_rules")
+        if url:
+            requests.put(url, params=params, json=rules, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+    except Exception as e:
+        print(f"[pricing] save to firebase error: {e}")
+
+    return rules
+
+def get_movie_pricing(series_id: str = "") -> dict:
+    """
+    Calculate effective price in Coins and Riel for a movie/drama.
+    Checks date-based promotion and custom series price.
+    Default unchanging: 1 Movie = 2 Coins = 1,000 Riel (1 Coin = 500 Riel).
+    """
+    rules = get_pricing_rules()
+    rate = int(rules.get("coin_rate_riel", 500))
+    std_coins = int(rules.get("default_coins", 2))
+    std_riel = std_coins * rate
+
+    sid = str(series_id or "").strip()
+    # 1. Custom series price override
+    if sid and sid in rules.get("custom_series", {}):
+        c = max(1, int(rules["custom_series"][sid]))
+        return {
+            "coins": c,
+            "riel": c * rate,
+            "is_promo": False,
+            "rate": rate,
+            "standard_coins": std_coins,
+            "standard_riel": std_riel,
+            "series_id": sid
+        }
+
+    # 2. Date-based auto promotion check
+    if rules.get("promo_enabled"):
+        import datetime
+        today_str = datetime.date.today().strftime("%Y-%m-%d")
+        start_d = str(rules.get("promo_start_date") or "").strip()
+        end_d = str(rules.get("promo_end_date") or "").strip()
+        active = True
+        if start_d and today_str < start_d:
+            active = False
+        if end_d and today_str > end_d:
+            active = False
+
+        if active:
+            promo_c = max(1, int(rules.get("promo_coins", 1)))
+            return {
+                "coins": promo_c,
+                "riel": promo_c * rate,
+                "is_promo": True,
+                "promo_name": rules.get("promo_name", "ប្រូម៉ូសិនពិសេស"),
+                "promo_start": start_d,
+                "promo_end": end_d,
+                "rate": rate,
+                "standard_coins": std_coins,
+                "standard_riel": std_riel,
+                "series_id": sid
+            }
+
+    # 3. Standard unchanging price
+    return {
+        "coins": std_coins,
+        "riel": std_riel,
+        "is_promo": False,
+        "rate": rate,
+        "standard_coins": std_coins,
+        "standard_riel": std_riel,
+        "series_id": sid
+    }
+
+def create_coin_request(user_token_or_dev: str, coins: int, amount_riel: int = None, note: str = ""):
+    """
+    User creates a Coin purchase request to be approved by ADMIN.
+    Saved to Firebase Realtime Database at /coin_requests/{req_id}.json.
+    """
+    st = get_user_status(user_token_or_dev)
+    if not st.get("authenticated") or st.get("status") in ("guest", "banned"):
+        return False, "សូមចុះឈ្មោះ ឬចូលប្រើប្រាស់គណនីជាមុនសិន ទើបអាចស្នើសុំទិញ Coin បាន!"
+
+    req_coins = max(1, int(coins))
+    rate = 500
+    total_riel = int(amount_riel) if amount_riel is not None else (req_coins * rate)
+    now_ts = int(time.time())
+    req_id = f"req_{now_ts}_{secrets.token_hex(4)}"
+
+    req_payload = {
+        "id": req_id,
+        "username": st.get("username", "User"),
+        "name": st.get("name", ""),
+        "contact": st.get("contact", ""),
+        "device_id": st.get("device_id", ""),
+        "coins": req_coins,
+        "amount_riel": total_riel,
+        "rate": rate,
+        "status": "pending",  # pending, approved, rejected
+        "note": str(note or "").strip(),
+        "created_at": now_ts,
+        "updated_at": now_ts,
+        "approved_at": 0,
+        "admin_note": ""
+    }
+
+    try:
+        url, params = _firebase_url(f"coin_requests/{req_id}")
+        if url:
+            requests.put(url, params=params, json=req_payload, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        return True, req_payload
+    except Exception as e:
+        print(f"[coin_request] error: {e}")
+        return False, str(e)
+
+def get_user_coin_requests(user_token_or_dev: str):
+    """Get all coin requests made by a specific user."""
+    st = get_user_status(user_token_or_dev)
+    u_name = str(st.get("username", "")).lower()
+    dev = clean_firebase_key(st.get("device_id", ""))
+    all_reqs = admin_get_all_coin_requests()
+    out = []
+    for r in all_reqs:
+        if str(r.get("username", "")).lower() == u_name or clean_firebase_key(r.get("device_id", "")) == dev:
+            out.append(r)
+    return out
+
+def admin_get_all_coin_requests():
+    """Admin: retrieve all coin requests from Firebase Realtime Database."""
+    try:
+        url, params = _firebase_url("coin_requests")
+        if not url:
+            return []
+        r = requests.get(url, params=params, timeout=7, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if r.status_code != 200 or not r.text or r.text == "null":
+            return []
+        data = r.json()
+        if not isinstance(data, dict):
+            return []
+        out = []
+        for k, item in data.items():
+            if isinstance(item, dict):
+                item["id"] = item.get("id") or k
+                out.append(item)
+        # Sort pending first, then by created_at desc
+        out.sort(key=lambda x: (1 if x.get("status") == "pending" else 0, x.get("created_at", 0)), reverse=True)
+        return out
+    except Exception as e:
+        print(f"[coin] admin get all requests error: {e}")
+        return []
+
+def admin_approve_coin_request(request_id: str, admin_note: str = ""):
+    """
+    Admin: approve a coin purchase request.
+    Automatically credits user account with coins in Firebase & local.
+    """
+    try:
+        url, params = _firebase_url(f"coin_requests/{request_id}")
+        if not url:
+            return False, "Firebase is not configured"
+        r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if r.status_code != 200 or not r.text or r.text == "null":
+            return False, "មិនឃើញសំណើនេះលើ Firebase RTDB ឡើយ"
+
+        req_data = r.json()
+        if not isinstance(req_data, dict):
+            return False, "Invalid request data"
+
+        if req_data.get("status") == "approved":
+            return True, "សំណើនេះត្រូវបាន Approve រួចរាល់ហើយ"
+
+        coins = int(req_data.get("coins", 0))
+        target_id = req_data.get("device_id") or req_data.get("username")
+
+        # Credit coins to user!
+        ok, res = admin_adjust_user_coins(target_id, action="add", coins=coins, note=f"Approve Request #{request_id} ({coins} Coins = {coins*500:,}៛)")
+        if not ok:
+            return False, f"បរាជ័យក្នុងការបញ្ចូល Coins ជូន User: {res}"
+
+        now_ts = int(time.time())
+        patch_data = {
+            "status": "approved",
+            "approved_at": now_ts,
+            "updated_at": now_ts,
+            "admin_note": admin_note or "Admin approved payment"
+        }
+        requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        return True, {"coins_added": coins, "user": res}
+    except Exception as e:
+        return False, str(e)
+
+def admin_reject_coin_request(request_id: str, reason: str = ""):
+    """Admin: reject a coin purchase request."""
+    try:
+        url, params = _firebase_url(f"coin_requests/{request_id}")
+        if not url:
+            return False, "Firebase is not configured"
+        now_ts = int(time.time())
+        patch_data = {
+            "status": "rejected",
+            "rejected_at": now_ts,
+            "updated_at": now_ts,
+            "admin_note": reason or "Rejected by admin"
+        }
+        r = requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        return r.status_code == 200, "បានបដិសេធសំណើជោគជ័យ"
+    except Exception as e:
+        return False, str(e)
+
+def admin_adjust_user_coins(username_or_dev: str, action: str = "add", coins: int = 0, note: str = ""):
+    """
+    Admin: freely adjust any user's coins (add, subtract, set).
+    Updates local user state and syncs to Firebase Realtime Database.
+    """
+    ident = str(username_or_dev or "").strip()
+    if not ident:
+        return False, "សូមបញ្ជាក់ User ឬ Device ID"
+
+    num = max(0, int(coins))
+    now_ts = int(time.time())
+
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+        target = None
+        target_k = None
+        for k, u in users.items():
+            if k == ident or u.get("token") == ident or u.get("device_id") == ident or clean_firebase_key(u.get("device_id", "")) == clean_firebase_key(ident) or str(u.get("username", "")).lower() == ident.lower():
+                target = u
+                target_k = k
+                break
+
+        if not target:
+            # Check Firebase
+            clean_id = clean_firebase_key(ident)
+            fb = firebase_fetch_license(clean_id)
+            if fb and isinstance(fb, dict) and fb.get("username"):
+                for k, u in users.items():
+                    if u.get("username") == fb.get("username"):
+                        target = u
+                        target_k = k
+                        break
+
+        if not target:
+            return False, f"រកមិនឃើញ User '{ident}' ក្នុងប្រព័ន្ធឡើយ"
+
+        curr_c = int(target.get("coins", 0))
+        if action in ("add", "plus", "+"):
+            new_c = curr_c + num
+        elif action in ("subtract", "deduct", "minus", "sub", "-"):
+            new_c = max(0, curr_c - num)
+        elif action in ("set", "="):
+            new_c = num
+        else:
+            new_c = curr_c + num
+
+        target["coins"] = new_c
+        target["coins_riel"] = new_c * 500
+        target["updated_at"] = now_ts
+        if not isinstance(target.get("purchased_series"), dict):
+            target["purchased_series"] = {}
+
+        _save_data(d)
+
+        # Update active sessions
+        for tok, su in _sessions.items():
+            if su.get("username") == target.get("username") or su.get("device_id") == target.get("device_id"):
+                su["coins"] = new_c
+                su["coins_riel"] = new_c * 500
+
+    # Sync to Firebase RTDB
+    dev_id = target.get("device_id") or ident
+    clean_id = clean_firebase_key(dev_id)
+    try:
+        url, params = _firebase_url(f"licenses/{clean_id}")
+        if url:
+            requests.patch(url, params=params, json={"coins": new_c, "updated_at": now_ts}, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+    except Exception as e:
+        print(f"[coin] firebase coin sync error: {e}")
+
+    # Log Transaction in Firebase RTDB
+    _record_coin_transaction(
+        username=target.get("username", "User"),
+        device_id=dev_id,
+        tx_type="admin_adjust" if action != "add" else "topup",
+        coins_change=(new_c - curr_c),
+        balance_after=new_c,
+        note=note or f"Admin adjusted coins ({action} {num})"
+    )
+
+    return True, {"username": target.get("username"), "old_coins": curr_c, "new_coins": new_c, "coins_riel": new_c * 500}
+
+def _record_coin_transaction(username: str, device_id: str, tx_type: str, coins_change: int, balance_after: int, series_id: str = "", series_title: str = "", note: str = ""):
+    """Log coin transaction to Firebase RTDB at /coin_transactions/{tx_id}.json."""
+    try:
+        now_ts = int(time.time())
+        tx_id = f"tx_{now_ts}_{secrets.token_hex(4)}"
+        tx_data = {
+            "id": tx_id,
+            "username": username,
+            "device_id": device_id,
+            "type": tx_type,  # topup, movie_purchase, admin_adjust, refund
+            "coins_change": coins_change,
+            "amount_riel": coins_change * 500,
+            "balance_after": balance_after,
+            "series_id": series_id,
+            "series_title": series_title,
+            "note": note,
+            "created_at": now_ts
+        }
+        url, params = _firebase_url(f"coin_transactions/{tx_id}")
+        if url:
+            requests.put(url, params=params, json=tx_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+    except Exception as e:
+        print(f"[transaction] log error: {e}")
+
+def admin_get_coin_transactions(limit: int = 50):
+    """Admin: retrieve recent coin transactions from Firebase Realtime Database."""
+    try:
+        url, params = _firebase_url("coin_transactions")
+        if not url:
+            return []
+        r = requests.get(url, params=params, timeout=7, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if r.status_code != 200 or not r.text or r.text == "null":
+            return []
+        data = r.json()
+        if not isinstance(data, dict):
+            return []
+        out = [item for item in data.values() if isinstance(item, dict)]
+        out.sort(key=lambda x: x.get("created_at", 0), reverse=True)
+        return out[:limit]
+    except Exception as e:
+        print(f"[transaction] get error: {e}")
+        return []
+
+def finalize_series_purchase(user_token_or_dev: str, series_id: str, series_title: str = ""):
+    """
+    CRITICAL RULE: Deduct coins from user account ONLY when the download is 100% completed!
+    If user already owns the movie, or is VIP/ADMIN, no coins are deducted.
+    """
+    sid = str(series_id or "").strip()
+    if not sid:
+        return False, "Missing series_id"
+
+    st = get_user_status(user_token_or_dev)
+    if st.get("is_admin") or st.get("is_vip"):
+        return True, {"coins_deducted": 0, "balance_after": int(st.get("coins", 0)), "reason": "VIP/Admin full access (no coins needed)", "series_id": sid}
+
+    purchased = st.get("purchased_series") or {}
+    if sid in purchased or str(sid) in purchased:
+        return True, {"coins_deducted": 0, "balance_after": int(st.get("coins", 0)), "reason": "Already purchased", "series_id": sid}
+
+    price_info = get_movie_pricing(sid)
+    req_coins = price_info["coins"]
+    now_ts = int(time.time())
+
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+        target = None
+        for k, u in users.items():
+            if u.get("token") == user_token_or_dev or u.get("device_id") == user_token_or_dev or u.get("username") == st.get("username"):
+                target = u
+                break
+
+        if not target:
+            return False, "User not found"
+
+        curr_c = int(target.get("coins", 0))
+        new_c = max(0, curr_c - req_coins)
+        target["coins"] = new_c
+        target["coins_riel"] = new_c * 500
+
+        if "purchased_series" not in target or not isinstance(target["purchased_series"], dict):
+            target["purchased_series"] = {}
+
+        target["purchased_series"][sid] = {
+            "series_id": sid,
+            "title": series_title or sid,
+            "coins": req_coins,
+            "amount_riel": req_coins * 500,
+            "purchased_at": now_ts,
+            "download_completed": True
+        }
+        _save_data(d)
+
+        # Update active sessions
+        for tok, su in _sessions.items():
+            if su.get("username") == target.get("username") or su.get("device_id") == target.get("device_id"):
+                su["coins"] = new_c
+                su["coins_riel"] = new_c * 500
+                if "purchased_series" not in su or not isinstance(su["purchased_series"], dict):
+                    su["purchased_series"] = {}
+                su["purchased_series"][sid] = target["purchased_series"][sid]
+
+    # Sync updated coins and purchased_series to Firebase RTDB
+    dev_id = target.get("device_id") or st.get("device_id")
+    clean_id = clean_firebase_key(dev_id)
+    try:
+        url, params = _firebase_url(f"licenses/{clean_id}")
+        if url:
+            patch = {
+                "coins": new_c,
+                f"purchased_series/{clean_firebase_key(sid)}": target["purchased_series"][sid],
+                "updated_at": now_ts
+            }
+            requests.patch(url, params=params, json=patch, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if clean_id in _firebase_cache and isinstance(_firebase_cache[clean_id], dict):
+            _firebase_cache[clean_id]["coins"] = new_c
+            if "purchased_series" not in _firebase_cache[clean_id] or not isinstance(_firebase_cache[clean_id]["purchased_series"], dict):
+                _firebase_cache[clean_id]["purchased_series"] = {}
+            _firebase_cache[clean_id]["purchased_series"][clean_firebase_key(sid)] = target["purchased_series"][sid]
+    except Exception as e:
+        print(f"[purchase] firebase sync error: {e}")
+
+    # Log Transaction
+    _record_coin_transaction(
+        username=target.get("username", "User"),
+        device_id=dev_id,
+        tx_type="movie_purchase",
+        coins_change=-req_coins,
+        balance_after=new_c,
+        series_id=sid,
+        series_title=series_title,
+        note=f"Download Completed 100%: Deducted {req_coins} coins ({req_coins*500:,}៛)"
+    )
+
+    print(f"[Coin] Successfully finalized purchase for series {sid} ({series_title}): -{req_coins} coins, new balance = {new_c}")
+    return True, {"coins_deducted": req_coins, "balance_after": new_c, "series_id": sid}
+
+def cancel_pending_purchase(user_token_or_dev: str, series_id: str, reason: str = "download_incomplete"):
+    """
+    CRITICAL RULE: If download fails or is cancelled, do NOT deduct coins!
+    0 coins are deducted; user account balance remains intact.
+    """
+    sid = str(series_id or "").strip()
+    print(f"[Coin] Download of series {sid} NOT completed ({reason}). 0 coins deducted from user account!")
+    return True, "0 coins deducted (download failed or incomplete)"
+
+
+def switch_mode(mode: str, pin: str = "", device_id: str = ""):
+    """
+    Switch active view/mode between 'user' (real regular user) and 'admin' (super admin).
+    Returns (ok, result_dict).
+    """
+    mode = str(mode or "").strip().lower()
+    dev = device_id or get_current_device_id()
+    with _lock:
+        _logged_out_devices.discard(dev)
+        _logged_out_devices.discard(get_current_device_id())
+
+    if mode == "admin":
+        if pin and pin not in (ADMIN_PASSWORD, "syd@168"):
+            return False, "ពាក្យសម្ងាត់ Admin មិនត្រឹមត្រូវទេ"
+        with _lock:
+            d = _load_data()
+            admin_u = d.get("users", {}).get("admin")
+            if not admin_u:
+                admin_u = dict(DEFAULT_DATA.get("users", {}).get("admin", {}))
+                admin_u["username"] = "ADMIN"
+                admin_u["role"] = "admin"
+                admin_u["is_admin"] = True
+                admin_u["is_vip"] = True
+        tok = "adm_" + secrets.token_hex(16)
+        admin_copy = dict(admin_u)
+        admin_copy["token"] = tok
+        _sessions[tok] = admin_copy
+        _sessions[dev] = admin_copy
+        return True, get_user_status(tok)
+
+    elif mode == "user":
+        with _lock:
+            d = _load_data()
+            users = d.setdefault("users", {})
+            u = users.get("user_primary")
+            now_ts = int(time.time())
+            if not u:
+                u = {
+                    "key": "user_primary",
+                    "device_id": dev,
+                    "username": "USER",
+                    "name": "អ្នកប្រើប្រាស់ជាក់ស្តែង",
+                    "contact": "012345678",
+                    "password_hash": hash_pw("123456"),
+                    "role": "user",
+                    "is_vip": False,
+                    "is_admin": False,
+                    "status": "user",
+                    "max_free_episodes": 5,
+                    "coins": 10,
+                    "coins_riel": 5000,
+                    "purchased_series": {},
+                    "created_at": now_ts,
+                    "expires_at": now_ts + TRIAL_SECONDS,
+                    "days_left": 3,
+                    "package_name": "User ធម្មតា (សាកល្បង 3 ថ្ងៃ)",
+                    "package_badge": "3 ថ្ងៃ",
+                    "is_banned": False
+                }
+                users["user_primary"] = u
+                _save_data(d)
+            tok = "usr_" + secrets.token_hex(16)
+            u["token"] = tok
+            _sessions[tok] = u
+            _sessions[dev] = u
+        return True, get_user_status(tok)
+
+    return False, "Invalid mode"
+
+
 

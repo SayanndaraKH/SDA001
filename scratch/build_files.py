@@ -1,0 +1,325 @@
+import os
+import shutil
+
+TARGET_DIR = r"C:\Users\Administrator\Desktop\SYD-8Move"
+
+# ==========================================
+# 1. app/scraper_8movie.py
+# ==========================================
+scraper_code = '''# -*- coding: utf-8 -*-
+import re
+import json
+import urllib.request
+import urllib.parse
+from typing import List, Dict, Any, Optional
+
+BASE_URL = "https://8movie.com"
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    'Referer': 'https://8movie.com/',
+    'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7'
+}
+
+CATEGORIES = [
+    {"id": "all", "name_zh": "全部", "name_km": "ទាំងអស់ (All)", "code": "all"},
+    {"id": "1", "name_zh": "穿越古代", "name_km": "ឆ្លងភពបុរាណ", "code": "ancient"},
+    {"id": "4", "name_zh": "都市情愛", "name_km": "ស្នេហាទីក្រុង", "code": "urban"},
+    {"id": "5", "name_zh": "復仇爽劇", "name_km": "សងសឹកបោកផ្ទុះ", "code": "revenge"},
+    {"id": "2", "name_zh": "玄幻武俠", "name_km": "ក្បាច់គុនអភិនីហារ", "code": "fantasy"},
+    {"id": "3", "name_zh": "奇幻懸疑", "name_km": "អាថ៌កំបាំងវេទមន្ត", "code": "mystery"},
+    {"id": "6", "name_zh": "其他短劇", "name_km": "រឿងភាគផ្សេងៗ", "code": "other"},
+    {"id": "update", "name_zh": "最新更新", "name_km": "រឿងទើបអាប់ដេត", "code": "latest"},
+    {"id": "rank", "name_zh": "熱門排行", "name_km": "ចំណាត់ថ្នាក់កំពូល", "code": "rank"}
+]
+
+def _fetch_html(url: str, timeout: int = 15) -> str:
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return response.read().decode('utf-8', errors='ignore')
+
+def _clean_text(text: str) -> str:
+    if not text:
+        return ""
+    text = re.sub(r'<[^>]+>', '', text)
+    return text.strip()
+
+def _parse_cards(html: str) -> List[Dict[str, Any]]:
+    results = []
+    seen_ids = set()
+
+    card_blocks = re.findall(
+        r'<div[^>]*class=["\'][^"\']*picsize[^"\']*["\'][^>]*>(.*?)</div>\s*<div[^>]*class=["\']row["\'][^>]*>(.*?)</div>\s*</div>\s*</div>',
+        html,
+        re.DOTALL
+    )
+
+    for block_pic, block_info in card_blocks:
+        m_link = re.search(r'href=[\'"](/movies/(\d+))[\'"]', block_pic)
+        if not m_link:
+            m_link = re.search(r'href=[\'"](/movies/(\d+))[\'"]', block_info)
+        if not m_link:
+            continue
+        drama_id = m_link.group(2)
+        if drama_id in seen_ids:
+            continue
+
+        m_title = re.search(r'title=[\'"]([^\'"]+)[\'"]', block_pic)
+        if not m_title:
+            m_title = re.search(r'<h[1-6][^>]*>(.*?)</h[1-6]>', block_info)
+            title = _clean_text(m_title.group(1)) if m_title else f"Drama {drama_id}"
+        else:
+            title = m_title.group(1).strip()
+
+        m_img = re.search(r'src=[\'"](/p/[^\'"]+)[\'"]', block_pic)
+        if not m_img:
+            m_img = re.search(r'src=[\'"](https?://[^\'"]+)[\'"]', block_pic)
+            poster_url = m_img.group(1) if m_img else ""
+        else:
+            poster_url = BASE_URL + m_img.group(1)
+
+        m_eps = re.search(r'<eps>(\d+)&#38598;?</eps>', block_pic)
+        if not m_eps:
+            m_eps = re.search(r'<eps>(\d+)集?</eps>', block_pic)
+        eps_count = int(m_eps.group(1)) if m_eps else 0
+
+        seen_ids.add(drama_id)
+        results.append({
+            "id": str(drama_id),
+            "title": title,
+            "title_km": "",
+            "poster": poster_url,
+            "episodes_count": eps_count,
+            "rating": round(8.2 + (int(drama_id) % 17) * 0.1, 1),
+            "detail_url": f"{BASE_URL}/movies/{drama_id}",
+            "play_url": f"{BASE_URL}/play/{drama_id}"
+        })
+
+    if not results:
+        links = re.findall(r'<a[^>]+href=[\'"](/movies/(\d+))[\'"][^>]*title=[\'"]([^\'"]+)[\'"][^>]*>(.*?)</a>', html, re.DOTALL)
+        for link, drama_id, title, inner in links:
+            if drama_id in seen_ids:
+                continue
+            m_img = re.search(r'src=[\'"](/p/[^\'"]+)[\'"]', inner)
+            poster = (BASE_URL + m_img.group(1)) if m_img else ""
+            m_eps = re.search(r'(\d+)&#38598;?', inner)
+            eps = int(m_eps.group(1)) if m_eps else 0
+            seen_ids.add(drama_id)
+            results.append({
+                "id": str(drama_id),
+                "title": title.strip(),
+                "title_km": "",
+                "poster": poster,
+                "episodes_count": eps,
+                "rating": round(8.2 + (int(drama_id) % 17) * 0.1, 1),
+                "detail_url": f"{BASE_URL}/movies/{drama_id}",
+                "play_url": f"{BASE_URL}/play/{drama_id}"
+            })
+
+    return results
+
+def search_dramas(keyword: str) -> List[Dict[str, Any]]:
+    if not keyword or not keyword.strip():
+        return get_catalog("1")
+    url = f"{BASE_URL}/search/?key={urllib.parse.quote(keyword.strip())}"
+    html = _fetch_html(url)
+    return _parse_cards(html)
+
+def get_catalog(category_id: str = "1") -> List[Dict[str, Any]]:
+    if category_id in ("all", "home"):
+        url = f"{BASE_URL}/"
+    elif category_id == "update":
+        url = f"{BASE_URL}/movies/update/"
+    elif category_id == "rank":
+        url = f"{BASE_URL}/movies/rank/"
+    else:
+        url = f"{BASE_URL}/movies/{category_id}/"
+    
+    html = _fetch_html(url)
+    return _parse_cards(html)
+
+def get_drama_detail(drama_id: str) -> Dict[str, Any]:
+    play_url = f"{BASE_URL}/play/{drama_id}"
+    html = _fetch_html(play_url)
+
+    m_title = re.search(r'<title>(.*?)</title>', html)
+    raw_title = m_title.group(1) if m_title else f"Drama {drama_id}"
+    clean_title = re.split(r'[-–_|\s]+八影短劇', raw_title)[0].strip()
+
+    m_poster = re.search(rf'[\'"](/p/{drama_id}-[a-zA-Z0-9]+\.jpg)[\'"]', html)
+    if m_poster:
+        poster_url = BASE_URL + m_poster.group(1)
+    else:
+        m_poster_any = re.search(r'[\'"](/p/[a-zA-Z0-9_-]+\.jpg)[\'"]', html)
+        poster_url = (BASE_URL + m_poster_any.group(1)) if m_poster_any else ""
+
+    tags = []
+    m_tags = re.search(r'標籤[:：\s]*([^\n<]+)', html)
+    if m_tags:
+        parts = re.split(r'[/,、\s]+', m_tags.group(1))
+        tags = [p.strip() for p in parts if p.strip()]
+
+    m_desc = re.search(r'<meta[^>]*name=[\'"]description[\'"][^>]*content=[\'"]([^\'"]+)[\'"]', html, re.I)
+    description = m_desc.group(1).strip() if m_desc else ""
+
+    episodes = []
+    m_ep_data = re.search(r'var\s+ndEpisodeData\s*=\s*(\[.*?\]);', html, re.DOTALL)
+    if m_ep_data:
+        try:
+            raw_eps = json.loads(m_ep_data.group(1))
+            for item in raw_eps:
+                ep_num = str(item.get("episode", len(episodes) + 1))
+                hls_src = item.get("hlsSrc", "")
+                mp4_src = item.get("src", "")
+                episodes.append({
+                    "episode": int(ep_num) if ep_num.isdigit() else len(episodes) + 1,
+                    "title": f"ភាគ {ep_num}",
+                    "hls_url": hls_src,
+                    "mp4_url": mp4_src,
+                    "is_free": True
+                })
+        except Exception:
+            pass
+
+    if not episodes:
+        m3u8_urls = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', html)
+        for i, u in enumerate(sorted(set(m3u8_urls)), start=1):
+            episodes.append({
+                "episode": i,
+                "title": f"ភាគ {i}",
+                "hls_url": u,
+                "mp4_url": "",
+                "is_free": True
+            })
+
+    return {
+        "id": str(drama_id),
+        "title": clean_title,
+        "title_km": "",
+        "poster": poster_url,
+        "description": description,
+        "tags": tags,
+        "episodes_count": len(episodes),
+        "episodes": episodes,
+        "rating": round(8.2 + (int(drama_id) % 17) * 0.1, 1),
+        "detail_url": f"{BASE_URL}/movies/{drama_id}",
+        "play_url": play_url
+    }
+'''
+
+# ==========================================
+# 2. app/translator.py
+# ==========================================
+translator_code = '''# -*- coding: utf-8 -*-
+import os
+import json
+import re
+import html
+import threading
+import urllib.request
+import urllib.parse
+from typing import Dict, List
+
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+CACHE_FILE = os.path.join(DATA_DIR, 'translations_cache.json')
+
+_cache_lock = threading.Lock()
+_cache: Dict[str, str] = {}
+
+def _load_cache():
+    global _cache
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                _cache = json.load(f)
+        except Exception:
+            _cache = {}
+
+def _save_cache():
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        tmp = CACHE_FILE + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(_cache, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, CACHE_FILE)
+    except Exception:
+        pass
+
+_load_cache()
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+}
+
+def translate_to_khmer(text: str) -> str:
+    """Translates Chinese drama title or text to Khmer."""
+    if not text or not text.strip():
+        return ""
+    text = text.strip()
+
+    with _cache_lock:
+        if text in _cache:
+            return _cache[text]
+
+    result = ""
+
+    # Method 1: Google Translate Mobile API
+    try:
+        url = f"https://translate.google.com/m?sl=zh-TW&tl=km&q={urllib.parse.quote(text)}"
+        req = urllib.request.Request(url, headers=HEADERS)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            content = resp.read().decode('utf-8', errors='ignore')
+            m = re.search(r'class="result-container">([^<]+)<', content)
+            if m:
+                result = html.unescape(m.group(1).strip())
+    except Exception:
+        pass
+
+    # Method 2: Google Translate gtx fallback
+    if not result:
+        try:
+            url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=km&dt=t&q={urllib.parse.quote(text)}"
+            req = urllib.request.Request(url, headers=HEADERS)
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode('utf-8', errors='ignore'))
+                if data and isinstance(data, list) and data[0]:
+                    result = "".join(seg[0] for seg in data[0] if seg and seg[0]).strip()
+        except Exception:
+            pass
+
+    if not result:
+        result = text
+
+    with _cache_lock:
+        _cache[text] = result
+        _save_cache()
+
+    return result
+
+def translate_batch(texts: List[str]) -> Dict[str, str]:
+    output = {}
+    threads = []
+    
+    def worker(t):
+        output[t] = translate_to_khmer(t)
+
+    for t in texts:
+        if not t:
+            continue
+        th = threading.Thread(target=worker, args=(t,))
+        threads.append(th)
+        th.start()
+
+    for th in threads:
+        th.join(timeout=4)
+
+    return output
+'''
+
+# Write scraper & translator
+with open(os.path.join(TARGET_DIR, 'app', 'scraper_8movie.py'), 'w', encoding='utf-8') as f:
+    f.write(scraper_code)
+print("Written: app/scraper_8movie.py")
+
+with open(os.path.join(TARGET_DIR, 'app', 'translator.py'), 'w', encoding='utf-8') as f:
+    f.write(translator_code)
+print("Written: app/translator.py")

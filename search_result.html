@@ -1,0 +1,295 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<title>八影短劇網 - 抖音短劇,快手短劇,全球華人短劇應有盡有</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="Description" content="八影短劇網免費提供抖音、快手短劇線上觀看和下載。" />
+<meta name="Keywords" content="八影短劇網,youtube短劇,抖音短劇,快手短劇,全球華人短劇應有盡有" />
+<meta name="monetag" content="49d73518332a6b2096b7b4d10221275c">
+<link type="text/css" rel="stylesheet" href="/css/global.css?3923253115" />
+<link rel="stylesheet" href="/css/bootstrap.min.css">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+<meta name="msapplication-TileColor" content="#2d89ef">
+<meta name="theme-color" content="#ffffff">
+<script src="/js/jquery.min.js"></script>
+<script src="/js/bootstrap.bundle.min.js"></script>
+<script src="/js/jq.js?3923253115"></script>
+<script>
+$(function () {$('[data-toggle="tooltip"]').tooltip()});
+$(function () {$('.tooltip-toggle').tooltip();});
+function initTopModalFocusFix(selector,triggerSelector){
+	var $modal=$(selector);
+	if($modal.length==0) return;
+	var trigger=null;
+	$modal.on("show.bs.modal",function(e){
+		trigger=e.relatedTarget || document.activeElement || $(triggerSelector).get(0);
+	});
+	$modal.on("hide.bs.modal",function(){
+		var modal=this;
+		var active=document.activeElement;
+		if(active && (active===modal || $.contains(modal,active))){
+			try{active.blur();}catch(e){}
+		}
+	});
+	$modal.on("hidden.bs.modal",function(){
+		if(trigger && document.body.contains(trigger)){
+			try{trigger.focus({preventScroll:true});}
+			catch(e){try{trigger.focus();}catch(err){}}
+		}
+	});
+}
+$(function(){initTopModalFocusFix("#modal1","[data-target='#modal1']");});
+</script>
+</head>
+<body class="bodybk">
+<div class="d-block d-lg-none">
+<div class="menu_top_div">
+<div class="menu-top-mid"><a href="https://8movie.com" target="_top"><img src="/images/logo.png"></a></div>
+<div class="menu-top-right">
+<button type="button" class="btn btn-sm btn-outline-light btn_cricle_sm mx-1" data-toggle="modal" data-target="#modal1"><i class="icon-search"></i></button>
+</div>
+</div>		
+</div>
+
+
+<div class="modal fade" id="modal1" tabindex="-1" aria-labelledby="search" aria-hidden="true"><!-- Search Modal -->
+<div class="modal-dialog modal-lg">
+<div class="modal-content bg-dark">
+<div class="modal-header px-3 py-2">
+<h5 class="modal-title text-white" id="search">短劇檢索</h5>
+<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+<span aria-hidden="true">&times;</span>
+</button>
+</div>
+<div class="modal-body">
+<form class="site-search-form site-search-form-mobile" action="/search/" method="get">
+<div class="d-flex m-1 p-1 flex-nowrap flex-row justify-content-center align-items-center search-mobile">
+<div class="search_bar">
+<input class="form-control site-search-input" name="key" id="key_mobile" type="text" value="" placeholder="請鍵入短劇名檢索" required="">
+<button class="btn btn-danger bg-circle-color site-search-submit" type="submit" id="go_mobile">
+<i class="icon-search-b" aria-hidden="true"></i>
+</button>
+</div>
+</div>
+</form>
+</div>
+</div>
+</div>
+</div><!-- Search Modal -->
+
+
+
+<!-- container pc -->
+<div class="container-lg d-none d-lg-block">
+
+<form id="form1" class="site-search-form site-search-form-pc" role="search" name="form1" method="get" action="/search/">
+<div class="d-flex align-content-center align-items-center justify-content-between">
+<a href="https://8movie.com"><img src="/images/logo.png" class="logo" alt="八影短劇網" /></a><!--/pc-top-logo-->
+<div>
+
+<li class="search_bar">
+<input class="form-control d-inline w-75 me-1 site-search-input" placeholder="請鍵入短劇名檢索" type="text" name="key" id="key_pc" />
+<button class="btn btn-danger bg-circle-color site-search-submit" type="submit" id="go_pc">
+<i class="icon-search-b"></i>
+</button>
+</li>
+</div><!-- /pc-top-right -->
+</div><!--/pc-top-div-->
+</form>
+</div><!-- /container pc -->
+
+<button type="button" id="gotop" class="go-top-btn" aria-label="返回頂部" title="返回頂部"></button>
+
+<iframe id=ifr name=ifr width=1 height=1 style=display:none></iframe>
+
+<main>
+<div class="container">
+<div class="d-block mt-2"> <!-- /menu top -->
+<div class="menu_top_md p-2">
+<a class="top-menu-item top-menu-home" href="/"><div>
+<i class="icon-home"></i>
+<h6 class="text-orange mb-0 py-1">首頁</h6>
+</div></a>
+<a class="top-menu-item top-menu-new" href="/movies/update/"><div>
+<i class="icon-new"></i>
+<h6 class="text-orange mb-0 py-1">最新</h6>
+</div></a>
+<a class="top-menu-item top-menu-cat" href="/movies/1/"><div>
+<i class="icon-list"></i>
+<h6 class="text-orange mb-0 py-1">分類</h6>
+</div></a>
+<a class="top-menu-item top-menu-rank" href="/movies/rank/"><div>
+<i class="icon-rank"></i>
+<h6 class="text-orange mb-0 py-1">排行</h6>
+</div></a>
+<a class="top-menu-item top-menu-tag" href="/movies/tags/"><div>
+<i class="icon-tag"></i>
+<h6 class="text-orange mb-0 py-1">標籤</h6>
+</div></a>
+<a class="top-menu-item top-menu-bookmark" href="/bookmark/"><div>
+<i class="icon-bookmark"></i>
+<h6 class="text-orange mb-0 py-1">追劇</h6>
+</div></a>
+<a class="top-menu-item top-menu-user" href="/user/info/"><div>
+<i class="icon-user"></i>
+<h6 class="text-orange mb-0 py-1">會員</h6>
+</div></a>
+<a class="top-menu-item top-menu-setting" href="/user/info/"><div>
+<i class="icon-setting"></i>
+<h6 class="text-orange mb-0 py-1">設定</h6>
+</div></a>
+</div>
+</div> <!-- /menu top -->
+
+<div class="card mt-3 bg-black bordersm"> <!-- search -->
+<div class="row p-1 mx-1 text-white">
+<div class="col-12 my-1 px-2 py-1 def_title_bar">
+<h6 class="text-white mb-0 py-1"><i class="fa-solid fa-film mr-2"></i>檢索結果</h6>
+<div id="utfkey" class="d-none">狂野</div>
+</div>
+</div>
+<span id="lb"></span>
+<div class='pagemore row p-1 mx-1'><div class="col-4 col-sm-4 col-md-4 col-lg-2 p-2">
+<div class="mb-1">
+<div class="picsize">
+<a href='/movies/13101' title='狂野露娜，狼王獨寵'>
+<img class="img-fluid" src="/p/13101-klpq.jpg" />
+<bak></bak>
+<i class="isnew"></i>
+<eps>55&#38598;</eps>
+</a>
+</div>
+<div class="row">
+<div class="col-12 text-center pt-1">
+<a class="text-blue" href='/movies/13101' title='狂野露娜，狼王獨寵'>
+<h6>狂野露娜，狼王獨寵</h6></a>
+</div>
+</div>
+</div>
+</div>
+<div class="col-4 col-sm-4 col-md-4 col-lg-2 p-2">
+<div class="mb-1">
+<div class="picsize">
+<a href='/movies/12641' title='狂野小毒妃'>
+<img class="img-fluid" src="/p/12641-wmqc.jpg" />
+<bak></bak>
+<i class="isnew"></i>
+<eps>81&#38598;</eps>
+</a>
+</div>
+<div class="row">
+<div class="col-12 text-center pt-1">
+<a class="text-blue" href='/movies/12641' title='狂野小毒妃'>
+<h6>狂野小毒妃</h6></a>
+</div>
+</div>
+</div>
+</div>
+<div class="col-4 col-sm-4 col-md-4 col-lg-2 p-2">
+<div class="mb-1">
+<div class="picsize">
+<a href='/movies/2942' title='狂野小毒妃'>
+<img class="img-fluid" src="/p/2942-avmk.jpg" />
+<bak></bak>
+<i class="isnew"></i>
+<eps>87&#38598;</eps>
+</a>
+</div>
+<div class="row">
+<div class="col-12 text-center pt-1">
+<a class="text-blue" href='/movies/2942' title='狂野小毒妃'>
+<h6>狂野小毒妃</h6></a>
+</div>
+</div>
+</div>
+</div>
+<div class="col-4 col-sm-4 col-md-4 col-lg-2 p-2">
+<div class="mb-1">
+<div class="picsize">
+<a href='/movies/13183' title='拒當洩慾工具的狂野逆襲'>
+<img class="img-fluid" src="/p/13183-qfvr.jpg" />
+<bak></bak>
+<i class="isnew"></i>
+<eps>40&#38598;</eps>
+</a>
+</div>
+<div class="row">
+<div class="col-12 text-center pt-1">
+<a class="text-blue" href='/movies/13183' title='拒當洩慾工具的狂野逆襲'>
+<h6>拒當洩慾工具的狂野逆襲</h6></a>
+</div>
+</div>
+</div>
+</div>
+<div class="col-4 col-sm-4 col-md-4 col-lg-2 p-2">
+<div class="mb-1">
+<div class="picsize">
+<a href='/movies/12978' title='異形學院：馴服三位狂野伴侶'>
+<img class="img-fluid" src="/p/12978-kcho.jpg" />
+<bak></bak>
+<i class="isnew"></i>
+<eps>53&#38598;</eps>
+</a>
+</div>
+<div class="row">
+<div class="col-12 text-center pt-1">
+<a class="text-blue" href='/movies/12978' title='異形學院：馴服三位狂野伴侶'>
+<h6>異形學院：馴服三位狂野伴侶</h6></a>
+</div>
+</div>
+</div>
+</div>
+<div class="col-4 col-sm-4 col-md-4 col-lg-2 p-2">
+<div class="mb-1">
+<div class="picsize">
+<a href='/movies/10884' title='這個王妃太狂野'>
+<img class="img-fluid" src="/p/10884-vceu.jpg" />
+<bak></bak>
+<i class="isnew"></i>
+<eps>99&#38598;</eps>
+</a>
+</div>
+<div class="row">
+<div class="col-12 text-center pt-1">
+<a class="text-blue" href='/movies/10884' title='這個王妃太狂野'>
+<h6>這個王妃太狂野</h6></a>
+</div>
+</div>
+</div>
+</div>
+<div class="col-4 col-sm-4 col-md-4 col-lg-2 p-2">
+<div class="mb-1">
+<div class="picsize">
+<a href='/movies/1476' title='離婚後洛少寵我太狂野'>
+<img class="img-fluid" src="/p/1476-ylwq.jpg" />
+<bak></bak>
+<i class="isnew"></i>
+<eps>86&#38598;</eps>
+</a>
+</div>
+<div class="row">
+<div class="col-12 text-center pt-1">
+<a class="text-blue" href='/movies/1476' title='離婚後洛少寵我太狂野'>
+<h6>離婚後洛少寵我太狂野</h6></a>
+</div>
+</div>
+</div>
+</div>
+</div><div class='loadmore' total='5' load='2'></div>
+</div> <!-- search -->
+</div><!--container-->
+</main>
+
+<script src="/js/bottom.js?20260807001"></script>
+<div class="footer">
+<li class="px-3 text-gray text-center">
+本站内容由會員自行上載,版權屬於作者.如涉及權益，請聯絡: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="95f8fae3fcf0d5adf8fae3fcf0bbf6faf8">[email&#160;protected]</a>
+</li>
+</div>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"5c0ec645d0aa458eb44d0f088dfb7cd6","r":1,"spa":2}' crossorigin="anonymous"></script>

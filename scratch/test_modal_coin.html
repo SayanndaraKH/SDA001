@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;background:#110b07">
+<iframe id="appFrame" src="http://127.0.0.1:8000/" style="width:1280px;height:900px;border:none"></iframe>
+<script>
+const frame = document.getElementById('appFrame');
+frame.onload = () => {
+  setTimeout(() => {
+    try {
+      const win = frame.contentWindow;
+      win.userAccess = {
+        authenticated: true,
+        username: 'test_user_777',
+        name: 'Test User',
+        contact: '012345678',
+        role: 'user',
+        is_admin: false,
+        is_vip: false,
+        coins: 8,
+        coins_riel: 4000,
+        purchased_series: {},
+        max_free_episodes: 5
+      };
+      win.updateAccessUI(win.userAccess);
+      win.openCoinModal();
+      document.title = "COIN_MODAL_READY";
+    } catch(e){
+      console.error(e);
+    }
+  }, 1200);
+};
+</script>
+</body>
+</html>
