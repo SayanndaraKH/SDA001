@@ -1187,7 +1187,8 @@ def dl_access_admin_settings(payload: dict=Body(...)):
 def dl_access_admin_vip_button_toggle(payload: dict=Body(...)):
     pin = (payload or {}).get('pin', '')
     tok = (payload or {}).get('token', '')
-    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+    is_admin = ACC.verify_pin(pin) or (tok and ACC.get_user_status(tok).get('is_admin')) or (pin and ACC.get_user_status(pin).get('is_admin'))
+    if not is_admin:
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     enabled = (payload or {}).get('enabled')
     if enabled is None:
@@ -1379,9 +1380,10 @@ def dl_coins_packages():
 
 @app.post('/dl/coins/request')
 def dl_coins_request(payload: dict=Body(...)):
-    """User submits a coin purchase request to Firebase RTDB."""
+    """User submits a coin purchase request to Firebase RTDB & local database."""
     tok = (payload or {}).get('token') or (payload or {}).get('device_id', '')
-    coins = int((payload or {}).get('coins', 10) or 10)
+    coins_val = (payload or {}).get('coins') or (payload or {}).get('amount_coins') or 10
+    coins = max(1, int(coins_val))
     amount = (payload or {}).get('amount_riel')
     note = (payload or {}).get('note', '')
     ok, res = ACC.create_coin_request(tok, coins=coins, amount_riel=amount, note=note)
@@ -1390,18 +1392,18 @@ def dl_coins_request(payload: dict=Body(...)):
     return {'ok': True, 'request': res, 'message': 'សំណើសុំទិញ Coin ត្រូវបានបញ្ជូនទៅ Admin ជោគជ័យ! សូមរង់ចាំ Admin ពិនិត្យ និងបញ្ជាក់...'}
 
 @app.get('/dl/coins/my_requests')
-def dl_coins_my_requests(token: str = ''):
+def dl_coins_my_requests(token: str = '', device_id: str = ''):
     """User views their submitted coin requests."""
-    reqs = ACC.get_user_coin_requests(token)
+    ident = token or device_id
+    reqs = ACC.get_user_coin_requests(ident, device_id=device_id)
     return {'ok': True, 'requests': reqs}
 
 @app.get('/dl/admin/coins/requests')
 def dl_admin_coins_requests(pin: str='', admin_pin: str='', token: str=''):
-    """Admin: view all coin requests from Firebase Realtime Database."""
+    """Admin: view all coin requests from local & Firebase Realtime Database."""
     eff_pin = pin or admin_pin
-    is_valid_pin = ACC.verify_pin(eff_pin)
-    is_admin_token = token and ACC.get_user_status(token).get('is_admin')
-    if not is_valid_pin and not is_admin_token:
+    is_admin = ACC.verify_pin(eff_pin) or ACC.verify_pin(token) or (token and ACC.get_user_status(token).get('is_admin')) or (eff_pin and ACC.get_user_status(eff_pin).get('is_admin'))
+    if not is_admin:
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     reqs = ACC.admin_get_all_coin_requests()
     return {'ok': True, 'requests': reqs, 'total': len(reqs)}
@@ -1411,14 +1413,15 @@ def dl_admin_coins_approve(payload: dict=Body(...)):
     """Admin: approve coin request and automatically credit user balance."""
     pin = (payload or {}).get('pin') or (payload or {}).get('admin_pin', '')
     tok = (payload or {}).get('token', '')
-    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+    is_admin = ACC.verify_pin(pin) or ACC.verify_pin(tok) or (tok and ACC.get_user_status(tok).get('is_admin')) or (pin and ACC.get_user_status(pin).get('is_admin'))
+    if not is_admin:
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     req_id = (payload or {}).get('request_id', '')
     admin_note = (payload or {}).get('admin_note', '')
     ok, res = ACC.admin_approve_coin_request(req_id, admin_note=admin_note)
     if not ok:
         return {'ok': False, 'error': str(res)}
-    credited = res.get('coins_credited', 0) if isinstance(res, dict) else 0
+    credited = res.get('coins_credited', 0) if isinstance(res, dict) else (res.get('coins_added', 0) if isinstance(res, dict) else 0)
     return {'ok': True, 'result': res, 'credited_coins': credited}
 
 @app.post('/dl/admin/coins/reject')
@@ -1426,7 +1429,8 @@ def dl_admin_coins_reject(payload: dict=Body(...)):
     """Admin: reject a coin request."""
     pin = (payload or {}).get('pin') or (payload or {}).get('admin_pin', '')
     tok = (payload or {}).get('token', '')
-    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+    is_admin = ACC.verify_pin(pin) or ACC.verify_pin(tok) or (tok and ACC.get_user_status(tok).get('is_admin')) or (pin and ACC.get_user_status(pin).get('is_admin'))
+    if not is_admin:
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     req_id = (payload or {}).get('request_id', '')
     reason = (payload or {}).get('reason', '')
@@ -1438,7 +1442,8 @@ def dl_admin_coins_adjust(payload: dict=Body(...)):
     """Admin: freely adjust user coins (add, subtract, set)."""
     pin = (payload or {}).get('pin') or (payload or {}).get('admin_pin', '')
     tok = (payload or {}).get('token', '')
-    if not ACC.verify_pin(pin) and not (tok and ACC.get_user_status(tok).get('is_admin')):
+    is_admin = ACC.verify_pin(pin) or ACC.verify_pin(tok) or (tok and ACC.get_user_status(tok).get('is_admin')) or (pin and ACC.get_user_status(pin).get('is_admin'))
+    if not is_admin:
         return {'ok': False, 'error': 'PIN មិនត្រឹមត្រូវ'}
     target = (payload or {}).get('username') or (payload or {}).get('device_id') or (payload or {}).get('target_id', '')
     adjustment = str((payload or {}).get('adjustment', '')).strip()

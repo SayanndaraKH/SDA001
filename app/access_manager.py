@@ -97,13 +97,11 @@ _logged_out_devices = set()
 
 def logout(token_or_device: str = ""):
     ident = str(token_or_device or "").strip()
-    dev = get_current_device_id()
     with _lock:
-        _logged_out_devices.add(dev)
         if ident:
             _logged_out_devices.add(ident)
         for tok, su in list(_sessions.items()):
-            if tok == ident or su.get("device_id") == dev or (ident and su.get("device_id") == ident):
+            if (ident and tok == ident) or (ident and su.get("device_id") == ident) or (ident and su.get("username") == ident):
                 _sessions.pop(tok, None)
         try:
             d = _load_data()
@@ -112,7 +110,7 @@ def logout(token_or_device: str = ""):
             if d.get("users", {}).get("admin", {}).get("token") == ident:
                 d["users"]["admin"]["token"] = ""
             for k, u in d.get("users", {}).items():
-                if (ident and (u.get("token") == ident or u.get("device_id") == ident or k == ident)) or u.get("device_id") == dev:
+                if ident and (u.get("token") == ident or u.get("device_id") == ident or k == ident or u.get("username") == ident):
                     u["token"] = ""
             _save_data(d)
         except Exception:
@@ -2633,6 +2631,7 @@ def create_coin_request(user_token_or_dev: str, coins: int, amount_riel: int = N
         "contact": st.get("contact", ""),
         "device_id": st.get("device_id", ""),
         "coins": req_coins,
+        "amount_coins": req_coins,
         "amount_riel": total_riel,
         "rate": rate,
         "status": "pending",  # pending, approved, rejected
@@ -2643,108 +2642,187 @@ def create_coin_request(user_token_or_dev: str, coins: int, amount_riel: int = N
         "admin_note": ""
     }
 
-    try:
-        url, params = _firebase_url(f"coin_requests/{req_id}")
-        if url:
-            requests.put(url, params=params, json=req_payload, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
-        return True, req_payload
-    except Exception as e:
-        print(f"[coin_request] error: {e}")
-        return False, str(e)
+    # 1. Always save to local database
+    with _lock:
+        d = _load_data()
+        if "coin_requests" not in d:
+            d["coin_requests"] = {}
+        d["coin_requests"][req_id] = dict(req_payload)
+        _save_data(d)
 
-def get_user_coin_requests(user_token_or_dev: str):
-    """Get all coin requests made by a specific user."""
-    st = get_user_status(user_token_or_dev)
+    # 2. Sync to Firebase Realtime Database
+    def _sync_fb_new():
+        try:
+            url, params = _firebase_url(f"coin_requests/{req_id}")
+            if url:
+                requests.put(url, params=params, json=req_payload, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        except Exception as e:
+            print(f"[coin_request] firebase put error: {e}")
+
+    threading.Thread(target=_sync_fb_new, daemon=True).start()
+    return True, req_payload
+
+def get_user_coin_requests(user_token_or_dev: str, device_id: str = ""):
+    """Get all coin requests made by a specific user (by token, username, or device_id)."""
+    ident = user_token_or_dev or device_id
+    st = get_user_status(ident)
     u_name = str(st.get("username", "")).lower()
-    dev = clean_firebase_key(st.get("device_id", ""))
+    dev = clean_firebase_key(st.get("device_id", "") or device_id or user_token_or_dev)
     all_reqs = admin_get_all_coin_requests()
     out = []
     for r in all_reqs:
-        if str(r.get("username", "")).lower() == u_name or clean_firebase_key(r.get("device_id", "")) == dev:
+        r_user = str(r.get("username", "")).lower()
+        r_dev = clean_firebase_key(r.get("device_id", ""))
+        if (u_name and r_user and r_user == u_name) or (dev and r_dev and r_dev == dev):
             out.append(r)
     return out
 
 def admin_get_all_coin_requests():
-    """Admin: retrieve all coin requests from Firebase Realtime Database."""
+    """Admin: retrieve all coin requests from local database & Firebase Realtime Database."""
+    all_dict = {}
+
+    # 1. Read local requests
+    with _lock:
+        d = _load_data()
+        local_reqs = d.get("coin_requests", {})
+        if isinstance(local_reqs, dict):
+            for k, v in local_reqs.items():
+                if isinstance(v, dict):
+                    item = dict(v)
+                    item["id"] = item.get("id") or k
+                    all_dict[item["id"]] = item
+
+    # 2. Merge with Firebase Realtime Database
     try:
         url, params = _firebase_url("coin_requests")
-        if not url:
-            return []
-        r = requests.get(url, params=params, timeout=7, headers={"User-Agent": "SYD-Downloader-Pro"})
-        if r.status_code != 200 or not r.text or r.text == "null":
-            return []
-        data = r.json()
-        if not isinstance(data, dict):
-            return []
-        out = []
-        for k, item in data.items():
-            if isinstance(item, dict):
-                item["id"] = item.get("id") or k
-                out.append(item)
-        # Sort pending first, then by created_at desc
-        out.sort(key=lambda x: (1 if x.get("status") == "pending" else 0, x.get("created_at", 0)), reverse=True)
-        return out
+        if url:
+            r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+            if r.status_code == 200 and r.text and r.text != "null":
+                fb_data = r.json()
+                if isinstance(fb_data, dict):
+                    updated_local = False
+                    for k, item in fb_data.items():
+                        if isinstance(item, dict):
+                            item_id = item.get("id") or k
+                            item["id"] = item_id
+                            all_dict[item_id] = item
+                            if item_id not in local_reqs:
+                                local_reqs[item_id] = item
+                                updated_local = True
+                    if updated_local:
+                        with _lock:
+                            d["coin_requests"] = local_reqs
+                            _save_data(d)
     except Exception as e:
-        print(f"[coin] admin get all requests error: {e}")
-        return []
+        print(f"[coin] admin get all requests firebase error: {e}")
+
+    out = list(all_dict.values())
+    out.sort(key=lambda x: (1 if x.get("status") == "pending" else 0, x.get("created_at", 0)), reverse=True)
+    return out
 
 def admin_approve_coin_request(request_id: str, admin_note: str = ""):
     """
     Admin: approve a coin purchase request.
-    Automatically credits user account with coins in Firebase & local.
+    Automatically credits user account with coins in local & Firebase.
     """
-    try:
-        url, params = _firebase_url(f"coin_requests/{request_id}")
-        if not url:
-            return False, "Firebase is not configured"
-        r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
-        if r.status_code != 200 or not r.text or r.text == "null":
-            return False, "មិនឃើញសំណើនេះលើ Firebase RTDB ឡើយ"
+    req_data = None
+    with _lock:
+        d = _load_data()
+        reqs = d.get("coin_requests", {})
+        if request_id in reqs:
+            req_data = dict(reqs[request_id])
 
-        req_data = r.json()
-        if not isinstance(req_data, dict):
-            return False, "Invalid request data"
+    if not req_data:
+        try:
+            url, params = _firebase_url(f"coin_requests/{request_id}")
+            if url:
+                r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+                if r.status_code == 200 and r.text and r.text != "null":
+                    req_data = r.json()
+        except Exception:
+            pass
 
-        if req_data.get("status") == "approved":
-            return True, "សំណើនេះត្រូវបាន Approve រួចរាល់ហើយ"
+    if not req_data or not isinstance(req_data, dict):
+        return False, "រកមិនឃើញសំណើទិញ Coin នេះក្នុងប្រព័ន្ធឡើយ"
 
-        coins = int(req_data.get("coins", 0))
-        target_id = req_data.get("device_id") or req_data.get("username")
+    if req_data.get("status") == "approved":
+        return True, "សំណើនេះត្រូវបាន Approve រួចរាល់ហើយ"
 
-        # Credit coins to user!
-        ok, res = admin_adjust_user_coins(target_id, action="add", coins=coins, note=f"Approve Request #{request_id} ({coins} Coins = {coins*500:,}៛)")
-        if not ok:
-            return False, f"បរាជ័យក្នុងការបញ្ចូល Coins ជូន User: {res}"
+    coins = int(req_data.get("coins") or req_data.get("amount_coins") or 0)
+    target_id = req_data.get("device_id") or req_data.get("username")
 
-        now_ts = int(time.time())
-        patch_data = {
-            "status": "approved",
-            "approved_at": now_ts,
-            "updated_at": now_ts,
-            "admin_note": admin_note or "Admin approved payment"
-        }
-        requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
-        return True, {"coins_added": coins, "user": res}
-    except Exception as e:
-        return False, str(e)
+    # Credit coins to user!
+    ok, res = admin_adjust_user_coins(target_id, action="add", coins=coins, note=f"Approve Request #{request_id} ({coins} Coins = {coins*500:,}៛)")
+    if not ok:
+        return False, f"បរាជ័យក្នុងការបញ្ចូល Coins ជូន User: {res}"
+
+    now_ts = int(time.time())
+    patch_data = {
+        "status": "approved",
+        "approved_at": now_ts,
+        "updated_at": now_ts,
+        "admin_note": admin_note or "Admin approved payment"
+    }
+
+    # Update local
+    with _lock:
+        d = _load_data()
+        if "coin_requests" not in d:
+            d["coin_requests"] = {}
+        if request_id in d["coin_requests"]:
+            d["coin_requests"][request_id].update(patch_data)
+        else:
+            req_data.update(patch_data)
+            d["coin_requests"][request_id] = req_data
+        _save_data(d)
+
+    # Sync patch to Firebase
+    def _sync_fb_patch():
+        try:
+            url, params = _firebase_url(f"coin_requests/{request_id}")
+            if url:
+                requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        except Exception as e:
+            print(f"[coin_approve] firebase patch error: {e}")
+
+    threading.Thread(target=_sync_fb_patch, daemon=True).start()
+    return True, {"coins_added": coins, "user": res}
 
 def admin_reject_coin_request(request_id: str, reason: str = ""):
     """Admin: reject a coin purchase request."""
-    try:
-        url, params = _firebase_url(f"coin_requests/{request_id}")
-        if not url:
-            return False, "Firebase is not configured"
-        now_ts = int(time.time())
-        patch_data = {
-            "status": "rejected",
-            "rejected_at": now_ts,
-            "updated_at": now_ts,
-            "admin_note": reason or "Rejected by admin"
-        }
-        r = requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
-        return r.status_code == 200, "បានបដិសេធសំណើជោគជ័យ"
-    except Exception as e:
-        return False, str(e)
+    now_ts = int(time.time())
+    patch_data = {
+        "status": "rejected",
+        "rejected_at": now_ts,
+        "updated_at": now_ts,
+        "admin_note": reason or "Rejected by admin"
+    }
+
+    # Update local
+    with _lock:
+        d = _load_data()
+        if "coin_requests" not in d:
+            d["coin_requests"] = {}
+        if request_id in d["coin_requests"]:
+            d["coin_requests"][request_id].update(patch_data)
+        else:
+            d["coin_requests"][request_id] = {
+                "id": request_id,
+                **patch_data
+            }
+        _save_data(d)
+
+    # Sync patch to Firebase
+    def _sync_fb_reject():
+        try:
+            url, params = _firebase_url(f"coin_requests/{request_id}")
+            if url:
+                requests.patch(url, params=params, json=patch_data, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        except Exception as e:
+            print(f"[coin_reject] firebase patch error: {e}")
+
+    threading.Thread(target=_sync_fb_reject, daemon=True).start()
+    return True, "បានបដិសេធសំណើជោគជ័យ"
 
 def admin_adjust_user_coins(username_or_dev: str, action: str = "add", coins: int = 0, note: str = ""):
     """
@@ -2810,12 +2888,27 @@ def admin_adjust_user_coins(username_or_dev: str, action: str = "add", coins: in
     # Sync to Firebase RTDB
     dev_id = target.get("device_id") or ident
     clean_id = clean_firebase_key(dev_id)
+    u_name = target.get("username")
+    clean_u = clean_firebase_key(u_name) if u_name else ""
     try:
         url, params = _firebase_url(f"licenses/{clean_id}")
         if url:
             requests.patch(url, params=params, json={"coins": new_c, "updated_at": now_ts}, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        if clean_u:
+            url_u, params_u = _firebase_url(f"users/{clean_u}")
+            if url_u:
+                requests.patch(url_u, params=params_u, json={"coins": new_c, "updated_at": now_ts}, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
     except Exception as e:
         print(f"[coin] firebase coin sync error: {e}")
+
+    # Immediately refresh in-memory Firebase cache to avoid stale read-back
+    if clean_id in _firebase_cache:
+        if isinstance(_firebase_cache[clean_id].get("data"), dict):
+            _firebase_cache[clean_id]["data"]["coins"] = new_c
+            _firebase_cache[clean_id]["data"]["updated_at"] = now_ts
+            _firebase_cache[clean_id]["time"] = time.time()
+        else:
+            _firebase_cache.pop(clean_id, None)
 
     # Log Transaction in Firebase RTDB
     _record_coin_transaction(
@@ -3041,7 +3134,6 @@ def switch_mode(mode: str, pin: str = "", device_id: str = ""):
             tok = "usr_" + secrets.token_hex(16)
             u["token"] = tok
             _sessions[tok] = u
-            _sessions[dev] = u
         return True, get_user_status(tok)
 
     return False, "Invalid mode"

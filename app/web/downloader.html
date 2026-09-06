@@ -2397,15 +2397,15 @@
   </div>
 </div>
 
-<!-- User Coin Modal: Top-up / Buy Coins with 1 Coin = 500 Riel -->
+<!-- User & Admin Coin Modal: Top-up / Buy Coins with 1 Coin = 500 Riel (Admin has Approval & Direct Grant Hub) -->
 <div class="modal" id="coinModal" hidden style="z-index:115;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px)">
-  <div class="modal-card" style="max-width:620px;width:min(620px,95vw);max-height:90vh;padding:24px;background:var(--surface,#18110b);border:1.5px solid rgba(234,179,8,0.4);border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,0.9),0 0 25px rgba(234,179,8,0.15);display:flex;flex-direction:column;overflow:hidden">
+  <div class="modal-card" id="coinModalCard" style="max-width:620px;width:min(620px,95vw);max-height:90vh;padding:24px;background:var(--surface,#18110b);border:1.5px solid rgba(234,179,8,0.4);border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,0.9),0 0 25px rgba(234,179,8,0.15);display:flex;flex-direction:column;overflow:hidden">
     <div class="modal-head" style="padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line,#3a2c20);display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div class="modal-title" style="font-size:18px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px">
-          <span>🪙 កាបូប Coin (SYD COIN WALLET)</span>
+          <span id="coinModalTitle">🪙 កាបូប Coin (SYD COIN WALLET)</span>
         </div>
-        <div class="modal-sub" style="color:#eab308;font-weight:600;margin-top:3px;font-size:12px">
+        <div class="modal-sub" id="coinModalSub" style="color:#eab308;font-weight:600;margin-top:3px;font-size:12px">
           1 Coin = 500៛ | 1 រឿង = 2 Coins (1,000៛) | ដោះសោរគ្រប់ភាគទាំងអស់ជាអចិន្ត្រៃយ៍
         </div>
       </div>
@@ -2413,101 +2413,176 @@
     </div>
 
     <div class="modal-scroll" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding-right:4px">
-      <!-- User Current Coin Balance Card -->
-      <div style="background:linear-gradient(135deg,rgba(234,179,8,0.15),rgba(245,158,11,0.05));border:1px solid rgba(234,179,8,0.4);border-radius:14px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
-        <div>
-          <div style="font-size:11.5px;color:var(--muted);font-weight:700">សមតុល្យ COIN របស់អ្នក</div>
-          <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px">
-            <span style="font-size:28px;font-weight:900;color:#eab308;font-family:var(--font-mono)" id="coinModalUserCoins">0</span>
-            <span style="font-size:14px;font-weight:700;color:#eab308">Coins</span>
-            <span style="font-size:13px;color:var(--muted)">≈ <span id="coinModalUserRiel">0</span> ៛</span>
-          </div>
-          <div style="font-size:11.5px;color:var(--ink-2);margin-top:2px" id="coinModalUserAccountName">គណនី: ...</div>
-        </div>
-        <div style="text-align:right">
-          <a href="https://t.me/sydadmin168" target="_blank" class="btn ghost sm" style="font-size:11px;border-radius:20px;border-color:rgba(56,189,248,0.5);color:#38bdf8;padding:4px 10px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
-            <span>✈️ Chat ជាមួយ Admin</span>
-          </a>
-        </div>
-      </div>
-
-      <!-- Quick Package Select -->
-      <div>
-        <div style="font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:8px">📦 ជ្រើសរើសកញ្ចប់ទិញ Coin:</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">
-          <div class="coin-pkg-card" onclick="selectCoinPackage(10, 5000)" style="cursor:pointer;padding:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;transition:all .2s ease">
-            <div style="font-size:15px;font-weight:900;color:#eab308">10 Coins</div>
-            <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">5,000 ៛</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:2px">បាន 5 រឿង</div>
-          </div>
-          <div class="coin-pkg-card" onclick="selectCoinPackage(20, 10000)" style="cursor:pointer;padding:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.4);border-radius:10px;text-align:center;transition:all .2s ease">
-            <div style="font-size:15px;font-weight:900;color:#eab308">20 Coins</div>
-            <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">10,000 ៛</div>
-            <div style="font-size:10px;color:#22c55e;font-weight:700;margin-top:2px">★ ពេញនិយម (10 រឿង)</div>
-          </div>
-          <div class="coin-pkg-card" onclick="selectCoinPackage(50, 25000)" style="cursor:pointer;padding:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;transition:all .2s ease">
-            <div style="font-size:15px;font-weight:900;color:#eab308">50 Coins</div>
-            <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">25,000 ៛</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:2px">បាន 25 រឿង</div>
-          </div>
-          <div class="coin-pkg-card" onclick="selectCoinPackage(100, 50000)" style="cursor:pointer;padding:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;transition:all .2s ease">
-            <div style="font-size:15px;font-weight:900;color:#eab308">100 Coins</div>
-            <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">50,000 ៛</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:2px">បាន 50 រឿង</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Payment & QR Code Section -->
-      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
-        <div style="text-align:center;flex-shrink:0;margin:0 auto">
-          <img src="/dl/qr_payment.png" alt="Admin QR Payment" style="width:140px;height:auto;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);box-shadow:0 4px 15px rgba(0,0,0,0.5)">
-          <div style="font-size:10.5px;color:var(--muted);margin-top:4px;font-weight:700">QR ផ្លូវការរបស់ ADMIN</div>
-        </div>
-        <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:6px;font-size:12px">
-          <div style="font-weight:800;color:var(--accent);font-size:12.5px">📌 របៀបទូទាត់ប្រាក់ &amp; ទទួល Coin:</div>
-          <div style="color:var(--ink);line-height:1.5">
-            1. ស្កេន QR Code ខាងឆ្វេង ដើម្បីផ្ទេរប្រាក់ទៅកាន់ Admin<br>
-            2. អត្រាប្តូរប្រាក់: <b>1 Coin = 500៛</b> (1 រឿង = 2 Coins = 1,000៛)<br>
-            3. បន្ទាប់ពីផ្ទេរប្រាក់រួច បញ្ចូលព័ត៌មានខាងក្រោម រួចចុច "ផ្ញើសំណើទិញ Coin"<br>
-            4. Admin នឹងពិនិត្យ និងបញ្ចូល Coin ជូនគណនីរបស់អ្នកភ្លាមៗ!
-          </div>
-        </div>
-      </div>
-
-      <!-- Coin Request Form -->
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <!-- SECTION 1: USER COIN PURCHASE & TOP-UP SECTION (Shown to regular users) -->
+      <div id="coinUserSection" style="display:flex;flex-direction:column;gap:16px">
+        <!-- User Current Coin Balance Card -->
+        <div style="background:linear-gradient(135deg,rgba(234,179,8,0.15),rgba(245,158,11,0.05));border:1px solid rgba(234,179,8,0.4);border-radius:14px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
           <div>
-            <label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">ចំនួន Coin ចង់ទិញ:</label>
-            <input type="number" id="coinReqInput" value="20" min="2" max="10000" oninput="onCoinReqInputChange()" style="width:100%;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:#eab308;font:800 15px var(--font-mono)">
+            <div style="font-size:11.5px;color:var(--muted);font-weight:700">សមតុល្យ COIN របស់អ្នក</div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px">
+              <span style="font-size:28px;font-weight:900;color:#eab308;font-family:var(--font-mono)" id="coinModalUserCoins">0</span>
+              <span style="font-size:14px;font-weight:700;color:#eab308">Coins</span>
+              <span style="font-size:13px;color:var(--muted)">≈ <span id="coinModalUserRiel">0</span> ៛</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--ink-2);margin-top:2px" id="coinModalUserAccountName">គណនី: ...</div>
           </div>
-          <div>
-            <label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">ទឹកប្រាក់ត្រូវទូទាត់ (៛):</label>
-            <input type="text" id="coinReqRielDisplay" value="10,000 ៛" readonly style="width:100%;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--good);font:800 15px var(--font-mono)">
+          <div style="text-align:right">
+            <a href="https://t.me/sydadmin168" target="_blank" class="btn ghost sm" style="font-size:11px;border-radius:20px;border-color:rgba(56,189,248,0.5);color:#38bdf8;padding:4px 10px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+              <span>✈️ Chat ជាមួយ Admin</span>
+            </a>
           </div>
         </div>
 
+        <!-- Quick Package Select -->
         <div>
-          <label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">ព័ត៌មានផ្ទេរប្រាក់ (លេខទូរស័ព្ទ / ឈ្មោះគណនីធនាគារ / ចំណាំ):</label>
-          <input type="text" id="coinReqNoteInput" placeholder="ឧ. ផ្ទេរពីគណនី ABA ឈ្មោះ SOK DARA ឬលេខ 012345678" style="width:100%;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--ink);font:600 12.5px var(--font-ui)">
+          <div style="font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:8px">📦 ជ្រើសរើសកញ្ចប់ទិញ Coin:</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">
+            <div class="coin-pkg-card" onclick="selectCoinPackage(10, 5000)" style="cursor:pointer;padding:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;transition:all .2s ease">
+              <div style="font-size:15px;font-weight:900;color:#eab308">10 Coins</div>
+              <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">5,000 ៛</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">បាន 5 រឿង</div>
+            </div>
+            <div class="coin-pkg-card" onclick="selectCoinPackage(20, 10000)" style="cursor:pointer;padding:10px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.4);border-radius:10px;text-align:center;transition:all .2s ease">
+              <div style="font-size:15px;font-weight:900;color:#eab308">20 Coins</div>
+              <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">10,000 ៛</div>
+              <div style="font-size:10px;color:#22c55e;font-weight:700;margin-top:2px">★ ពេញនិយម (10 រឿង)</div>
+            </div>
+            <div class="coin-pkg-card" onclick="selectCoinPackage(50, 25000)" style="cursor:pointer;padding:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;transition:all .2s ease">
+              <div style="font-size:15px;font-weight:900;color:#eab308">50 Coins</div>
+              <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">25,000 ៛</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">បាន 25 រឿង</div>
+            </div>
+            <div class="coin-pkg-card" onclick="selectCoinPackage(100, 50000)" style="cursor:pointer;padding:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;transition:all .2s ease">
+              <div style="font-size:15px;font-weight:900;color:#eab308">100 Coins</div>
+              <div style="font-size:12px;font-weight:700;color:var(--ink);margin-top:2px">50,000 ៛</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">បាន 50 រឿង</div>
+            </div>
+          </div>
         </div>
 
-        <div id="coinReqStatusMsg" style="display:none;font-size:12px;padding:8px 12px;border-radius:8px"></div>
+        <!-- Payment & QR Code Section -->
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+          <div style="text-align:center;flex-shrink:0;margin:0 auto">
+            <img src="/dl/qr_payment.png" alt="Admin QR Payment" style="width:140px;height:auto;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);box-shadow:0 4px 15px rgba(0,0,0,0.5)">
+            <div style="font-size:10.5px;color:var(--muted);margin-top:4px;font-weight:700">QR ផ្លូវការរបស់ ADMIN</div>
+          </div>
+          <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:6px;font-size:12px">
+            <div style="font-weight:800;color:var(--accent);font-size:12.5px">📌 របៀបទូទាត់ប្រាក់ &amp; ទទួល Coin:</div>
+            <div style="color:var(--ink);line-height:1.5">
+              1. ស្កេន QR Code ខាងឆ្វេង ដើម្បីផ្ទេរប្រាក់ទៅកាន់ Admin<br>
+              2. អត្រាប្តូរប្រាក់: <b>1 Coin = 500៛</b> (1 រឿង = 2 Coins = 1,000៛)<br>
+              3. បន្ទាប់ពីផ្ទេរប្រាក់រួច បញ្ចូលព័ត៌មានខាងក្រោម រួចចុច "ផ្ញើសំណើទិញ Coin"<br>
+              4. Admin នឹងពិនិត្យ និងបញ្ចូល Coin ជូនគណនីរបស់អ្នកភ្លាមៗ!
+            </div>
+          </div>
+        </div>
 
-        <button type="button" class="btn primary" id="coinReqSubmitBtn" onclick="submitCoinRequest()" style="height:40px;background:linear-gradient(135deg,#eab308,#ca8a04);color:#000;font-weight:800;font-size:13px;border-radius:8px;box-shadow:0 3px 12px rgba(234,179,8,0.35);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer">
-          <span>📤 ផ្ញើសំណើទិញ Coin ទៅ Admin</span>
-        </button>
+        <!-- Coin Request Form -->
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">ចំនួន Coin ចង់ទិញ:</label>
+              <input type="number" id="coinReqInput" value="20" min="2" max="10000" oninput="onCoinReqInputChange()" style="width:100%;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:#eab308;font:800 15px var(--font-mono)">
+            </div>
+            <div>
+              <label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">ទឹកប្រាក់ត្រូវទូទាត់ (៛):</label>
+              <input type="text" id="coinReqRielDisplay" value="10,000 ៛" readonly style="width:100%;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--good);font:800 15px var(--font-mono)">
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">ព័ត៌មានផ្ទេរប្រាក់ (លេខទូរស័ព្ទ / ឈ្មោះគណនីធនាគារ / ចំណាំ):</label>
+            <input type="text" id="coinReqNoteInput" placeholder="ឧ. ផ្ទេរពីគណនី ABA ឈ្មោះ SOK DARA ឬលេខ 012345678" style="width:100%;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--ink);font:600 12.5px var(--font-ui)">
+          </div>
+
+          <div id="coinReqStatusMsg" style="display:none;font-size:12px;padding:8px 12px;border-radius:8px"></div>
+
+          <button type="button" class="btn primary" id="coinReqSubmitBtn" onclick="submitCoinRequest()" style="height:40px;background:linear-gradient(135deg,#eab308,#ca8a04);color:#000;font-weight:800;font-size:13px;border-radius:8px;box-shadow:0 3px 12px rgba(234,179,8,0.35);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer">
+            <span>📤 ផ្ញើសំណើទិញ Coin ទៅ Admin</span>
+          </button>
+        </div>
+
+        <!-- User's My Coin Requests History -->
+        <div style="border-top:1px solid var(--line);padding-top:12px">
+          <div style="font-size:12.5px;font-weight:800;color:var(--ink);display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span>📋 ប្រវត្តិសំណើទិញ Coin របស់អ្នក</span>
+            <button type="button" class="btn ghost sm" onclick="loadMyCoinRequests()" style="font-size:11px;padding:2px 8px">🔄 Refresh</button>
+          </div>
+          <div id="coinMyRequestsList" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto">
+            <div style="text-align:center;padding:12px;color:var(--muted);font-size:11.5px">មិនទាន់មានសំណើទិញ Coin ទេ</div>
+          </div>
+        </div>
       </div>
 
-      <!-- User's My Coin Requests History -->
-      <div style="border-top:1px solid var(--line);padding-top:12px">
-        <div style="font-size:12.5px;font-weight:800;color:var(--ink);display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span>📋 ប្រវត្តិសំណើទិញ Coin របស់អ្នក</span>
-          <button type="button" class="btn ghost sm" onclick="loadMyCoinRequests()" style="font-size:11px;padding:2px 8px">🔄 Refresh</button>
+      <!-- SECTION 2: ADMIN COIN HUB SECTION (Shown exclusively when logged in as ADMIN) -->
+      <div id="coinAdminSection" hidden style="display:flex;flex-direction:column;gap:16px">
+        <!-- Admin Summary Card -->
+        <div style="background:linear-gradient(135deg,rgba(234,179,8,0.18),rgba(245,158,11,0.06));border:1px solid rgba(234,179,8,0.45);border-radius:14px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:11px;font-weight:800;color:#eab308;text-transform:uppercase;letter-spacing:0.5px">🛡️ ផ្ទាំងគ្រប់គ្រង COIN សម្រាប់ ADMIN (COIN CONTROL HUB)</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+              <span style="font-size:13px;color:var(--ink)">សំណើរង់ចាំអនុម័ត: <b id="adminPendingReqCount" style="color:#eab308;font-size:18px;font-family:var(--font-mono)">0</b></span>
+              <span style="color:var(--line)">|</span>
+              <span style="font-size:13px;color:var(--ink)">សំណើសរុប: <b id="adminTotalReqCount" style="color:var(--good);font-size:16px;font-family:var(--font-mono)">0</b></span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn ghost sm" onclick="loadAdminCoinHubData()" style="font-size:11.5px;padding:4px 12px;border-radius:8px">🔄 ផ្ទុកឡើងវិញ</button>
+          </div>
         </div>
-        <div id="coinMyRequestsList" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto">
-          <div style="text-align:center;padding:12px;color:var(--muted);font-size:11.5px">មិនទាន់មានសំណើទិញ Coin ទេ</div>
+
+        <!-- Direct Give / Adjust Coins Card -->
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:13px;font-weight:800;color:#eab308;display:flex;align-items:center;gap:6px">
+            <span>⚡ បញ្ចូល / កែប្រែ Coin ជូន User ដោយផ្ទាល់ (Direct Credit / Adjust)</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">ជ្រើសរើស ឬបញ្ចូល User / Device ID:</label>
+              <input type="text" id="adminCoinTargetInput" list="adminCoinUsersDatalist" placeholder="ឧ. USER, SYD-001..." style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--ink);font:600 12.5px var(--font-ui)">
+              <datalist id="adminCoinUsersDatalist"></datalist>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">សកម្មភាព (Action):</label>
+              <select id="adminCoinActionSelect" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 8px;color:var(--ink);font:700 12px var(--font-ui)">
+                <option value="add" selected>➕ បូកបន្ថែម (+ Add Coins)</option>
+                <option value="subtract">➖ ដកចេញ (- Deduct Coins)</option>
+                <option value="set">🟰 កំណត់ចំនួនជាក់លាក់ (= Set)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">ចំនួន Coin:</label>
+              <input type="number" id="adminCoinAmountInput" value="20" min="1" max="999999" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:#eab308;font:800 14px var(--font-mono)">
+            </div>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">ចំណាំ (Note / Reason - ស្រេចចិត្ត):</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="adminCoinNoteInput" placeholder="ឧ. ផ្ទេរប្រាក់ ABA, Promo ពិសេស, ឬដក..." style="flex:1;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--ink);font:12px var(--font-ui)">
+              <button type="button" class="btn primary sm" onclick="submitAdminDirectCoin()" style="height:36px;padding:0 16px;background:linear-gradient(135deg,#eab308,#ca8a04);color:#000;font-weight:800;font-size:12px;white-space:nowrap;cursor:pointer">
+                🪙 ផ្តល់ Coin ជូន User ភ្លាមៗ
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- User Purchase Requests Section -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div style="font-size:13px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:6px">
+              <span>📋 បញ្ជីសំណើទិញ Coin ពី User</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="btn ghost sm admin-req-filter on" data-filter="all" onclick="filterAdminReqs('all')" style="font-size:11px;padding:2px 8px;border-radius:14px">ទាំងអស់ (<span id="cntReqAll">0</span>)</button>
+              <button type="button" class="btn ghost sm admin-req-filter" data-filter="pending" onclick="filterAdminReqs('pending')" style="font-size:11px;padding:2px 8px;border-radius:14px;color:var(--gold);border-color:rgba(241,196,15,0.3)">⏳ រង់ចាំ (<span id="cntReqPend">0</span>)</button>
+              <button type="button" class="btn ghost sm admin-req-filter" data-filter="approved" onclick="filterAdminReqs('approved')" style="font-size:11px;padding:2px 8px;border-radius:14px;color:var(--good);border-color:rgba(46,204,113,0.3)">✅ បានអនុម័ត (<span id="cntReqApp">0</span>)</button>
+              <button type="button" class="btn ghost sm admin-req-filter" data-filter="rejected" onclick="filterAdminReqs('rejected')" style="font-size:11px;padding:2px 8px;border-radius:14px;color:var(--bad);border-color:rgba(255,46,99,0.3)">❌ បានបដិសេធ (<span id="cntReqRej">0</span>)</button>
+            </div>
+          </div>
+
+          <div id="adminCoinRequestsList" style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;padding-right:2px">
+            <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">កំពុងទាញយកទិន្នន័យ...</div>
+          </div>
         </div>
       </div>
     </div>
@@ -2547,6 +2622,9 @@
       <div style="display:flex;gap:8px;background:var(--surface-2);padding:6px;border-radius:12px;border:1px solid var(--line);flex-wrap:wrap;align-items:center">
         <button type="button" class="btn sm uc-tab-btn on" id="ucTabBtnUsers" onclick="switchUcTab('users')" style="flex:1 1 auto;min-width:145px;font-weight:700;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px">
           👥 គ្រប់គ្រងអ្នកប្រើប្រាស់ &amp; VIP
+        </button>
+        <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnCoins" onclick="switchUcTab('coins')" style="flex:1 1 auto;min-width:145px;font-weight:800;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.5);color:#eab308">
+          🪙 សំណើទិញ Coin (<span id="ucPendingCoinBadge">0</span>)
         </button>
         <button type="button" class="btn sm uc-tab-btn" id="ucTabBtnSettings" onclick="switchUcTab('settings')" style="flex:1 1 auto;min-width:140px;font-weight:700;font-size:12.5px;border-radius:8px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px">
           💬 Telegram Settings
@@ -2607,6 +2685,66 @@
         <!-- User List Container -->
         <div id="adminUserListContainer" style="display:flex;flex-direction:column;gap:10px;min-height:100px">
           <div style="text-align:center;padding:24px;color:var(--muted);font-size:12.5px">កំពុងផ្ទុកបញ្ជីអ្នកប្រើប្រាស់...</div>
+        </div>
+      </div>
+
+      <!-- TAB: COIN MANAGEMENT & USER REQUESTS -->
+      <div id="ucTabCoinsSec" class="modal-scroll" style="display:none;flex-direction:column;gap:14px;padding-right:2px">
+        <!-- Direct Give / Adjust Coins Card -->
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:13px;font-weight:800;color:#eab308;display:flex;align-items:center;gap:6px">
+            <span>⚡ បញ្ចូល / កែប្រែ Coin ជូន User ដោយផ្ទាល់ (Direct Credit / Adjust)</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">ជ្រើសរើស ឬបញ្ចូល User / Device ID:</label>
+              <input type="text" id="ucAdminCoinTargetInput" list="adminCoinUsersDatalist" placeholder="ឧ. USER, SYD-001..." style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--ink);font:600 12.5px var(--font-ui)">
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">សកម្មភាព (Action):</label>
+              <select id="ucAdminCoinActionSelect" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 8px;color:var(--ink);font:700 12px var(--font-ui)">
+                <option value="add" selected>➕ បូកបន្ថែម (+ Add Coins)</option>
+                <option value="subtract">➖ ដកចេញ (- Deduct Coins)</option>
+                <option value="set">🟰 កំណត់ចំនួនជាក់លាក់ (= Set)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">ចំនួន Coin:</label>
+              <input type="number" id="ucAdminCoinAmountInput" value="20" min="1" max="999999" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:#eab308;font:800 14px var(--font-mono)">
+            </div>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px">ចំណាំ (Note / Reason - ស្រេចចិត្ត):</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="ucAdminCoinNoteInput" placeholder="ឧ. ផ្ទេរប្រាក់ ABA, Promo ពិសេស, ឬដក..." style="flex:1;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 10px;color:var(--ink);font:12px var(--font-ui)">
+              <button type="button" class="btn primary sm" onclick="submitUcDirectCoin()" style="height:36px;padding:0 16px;background:linear-gradient(135deg,#eab308,#ca8a04);color:#000;font-weight:800;font-size:12px;white-space:nowrap;cursor:pointer">
+                🪙 ផ្តល់ Coin ជូន User ភ្លាមៗ
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- User Purchase Requests Section -->
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div>
+              <div style="font-size:13.5px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:6px">
+                <span>📋 បញ្ជីសំណើទិញ Coin ពី User (Coin Purchase Requests)</span>
+              </div>
+              <div style="font-size:11.5px;color:var(--muted);margin-top:2px">សំណើរង់ចាំ: <b id="ucPendingReqCount" style="color:#eab308">0</b> | សរុប: <b id="ucTotalReqCount">0</b></div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="btn ghost sm admin-req-filter on" data-filter="all" onclick="filterAdminReqs('all')" style="font-size:11px;padding:2px 8px;border-radius:14px">ទាំងអស់</button>
+              <button type="button" class="btn ghost sm admin-req-filter" data-filter="pending" onclick="filterAdminReqs('pending')" style="font-size:11px;padding:2px 8px;border-radius:14px;color:var(--gold);border-color:rgba(241,196,15,0.3)">⏳ រង់ចាំ</button>
+              <button type="button" class="btn ghost sm admin-req-filter" data-filter="approved" onclick="filterAdminReqs('approved')" style="font-size:11px;padding:2px 8px;border-radius:14px;color:var(--good);border-color:rgba(46,204,113,0.3)">✅ បានអនុម័ត</button>
+              <button type="button" class="btn ghost sm admin-req-filter" data-filter="rejected" onclick="filterAdminReqs('rejected')" style="font-size:11px;padding:2px 8px;border-radius:14px;color:var(--bad);border-color:rgba(255,46,99,0.3)">❌ បានបដិសេធ</button>
+              <button type="button" class="btn ghost sm" onclick="loadAdminCoinHubData()" style="font-size:11px;padding:2px 8px">🔄 Refresh</button>
+            </div>
+          </div>
+
+          <div id="ucAdminCoinRequestsList" style="display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto;padding-right:2px">
+            <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">កំពុងទាញយកទិន្នន័យ...</div>
+          </div>
         </div>
       </div>
 
@@ -7989,8 +8127,18 @@ function updateVipPortalSettings(settings, userAccess){
   }
 }
 
+window.getClientDeviceId = function(){
+  let id = localStorage.getItem('syd_client_device_id');
+  if(!id){
+    id = 'web_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    localStorage.setItem('syd_client_device_id', id);
+  }
+  return id;
+};
+
 async function fetchAccessStatus(){
   try {
+    const clientDev = getClientDeviceId();
     const urlParams = new URLSearchParams(window.location.search);
     let tok = (urlParams.get('auth_token') || '').trim() || (urlParams.get('token') || '').trim() || (localStorage.getItem('syd_auth_token') || '').trim();
     if(urlParams.get('auth_token') && urlParams.get('auth_token').trim()){
@@ -8002,7 +8150,7 @@ async function fetchAccessStatus(){
     const isAdminMode = (tok && (tok.startsWith('admin_') || tok.startsWith('adm_'))) || (window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin')) || pin === '8888' || pin === 'syd@168';
     
     const pinQuery = isAdminMode ? `&pin=${encodeURIComponent(pin || '8888')}` : '';
-    const res = await fetch(`/dl/access/status?token=${encodeURIComponent(tok)}${pinQuery}`);
+    const res = await fetch(`/dl/access/status?token=${encodeURIComponent(tok)}&device_id=${encodeURIComponent(clientDev)}${pinQuery}`);
     if(res.ok){
       let data = await res.json();
       
@@ -8618,7 +8766,7 @@ async function executeLogin(user, pass){
       body: JSON.stringify({
         identity: ident,
         password: pw,
-        device_id: (window.userAccess && window.userAccess.device_id) || ''
+        device_id: (window.userAccess && window.userAccess.device_id) || getClientDeviceId()
       })
     });
     clearTimeout(timeoutId);
@@ -8710,7 +8858,7 @@ if(authRegSubmitBtn){
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username, name, contact, password, note, package: '1_year',
-          device_id: (window.userAccess && window.userAccess.device_id) || ''
+          device_id: (window.userAccess && window.userAccess.device_id) || getClientDeviceId()
         })
       });
       const j = await res.json();
@@ -8780,7 +8928,7 @@ async function doSubmitVipRequest() {
         note: note,
         name: name,
         contact: contact,
-        device_id: (window.userAccess && window.userAccess.device_id) || ''
+        device_id: (window.userAccess && window.userAccess.device_id) || getClientDeviceId()
       })
     });
     const j = await res.json();
@@ -8856,17 +9004,22 @@ window.checkAndUnlockAdmin = async function checkAndUnlockAdmin(pin){
 
 /* ---------- Tab Switcher for Admin Dashboard ---------- */
 window.switchUcTab = function(tab){
-  const bUsers = $("#ucTabBtnUsers"), bSet = $("#ucTabBtnSettings"), bSys = $("#ucTabBtnSys"), bFb = $("#ucTabBtnFirebase");
-  const sUsers = $("#ucTabUsersSec"), sSet = $("#ucTabSettingsSec"), sSys = $("#ucTabSysSec"), sFb = $("#ucTabFirebaseSec");
+  const bUsers = $("#ucTabBtnUsers"), bCoins = $("#ucTabBtnCoins"), bSet = $("#ucTabBtnSettings"), bSys = $("#ucTabBtnSys"), bFb = $("#ucTabBtnFirebase");
+  const sUsers = $("#ucTabUsersSec"), sCoins = $("#ucTabCoinsSec"), sSet = $("#ucTabSettingsSec"), sSys = $("#ucTabSysSec"), sFb = $("#ucTabFirebaseSec");
   if(bUsers) bUsers.classList.toggle('on', tab === 'users');
+  if(bCoins) bCoins.classList.toggle('on', tab === 'coins');
   if(bSet) bSet.classList.toggle('on', tab === 'settings');
   if(bSys) bSys.classList.toggle('on', tab === 'system');
   if(bFb) bFb.classList.toggle('on', tab === 'firebase');
   if(sUsers) sUsers.style.display = (tab === 'users') ? 'flex' : 'none';
+  if(sCoins) sCoins.style.display = (tab === 'coins') ? 'flex' : 'none';
   if(sSet) sSet.style.display = (tab === 'settings') ? 'flex' : 'none';
   if(sSys) sSys.style.display = (tab === 'system') ? 'flex' : 'none';
   if(sFb) sFb.style.display = (tab === 'firebase') ? 'flex' : 'none';
 
+  if(tab === 'coins'){
+    loadAdminCoinHubData();
+  }
   if(tab === 'firebase'){
     loadFirebaseConfig();
     refreshFirebaseLicenses();
@@ -9007,6 +9160,7 @@ function renderAdminUserList(users){
         <input type="number" id="customDays_${esc(targetKey)}" placeholder="ថ្ងៃ (Days)" min="1" max="9999" style="width:80px;height:30px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:0 6px;color:var(--ink);font:600 11.5px var(--font-mono);display:none">
 
         <button class="btn primary sm" style="padding:2px 12px;height:30px;font-size:11.5px;font-weight:700" onclick="adminApproveUser('${esc(targetKey)}')">✅ អនុញ្ញាត VIP</button>
+        <button type="button" class="btn sm" style="height:30px;padding:2px 10px;font-size:11.5px;font-weight:800;background:rgba(234,179,8,0.18);color:#eab308;border:1px solid rgba(234,179,8,0.4)" onclick="adminOpenCoinAdjust('${esc(targetKey)}', ${u.coins || 0})">🪙 ផ្តល់ Coin (${u.coins || 0})</button>
 
         <!-- Ban / Unban Account -->
         ${isBan ? `
@@ -9603,7 +9757,7 @@ let lastKnownVipState = null;
 async function backgroundFirebaseSync(){
   try {
     const tok = localStorage.getItem('syd_auth_token') || '';
-    const devId = (window.userAccess && window.userAccess.device_id) || '';
+    const devId = (window.userAccess && window.userAccess.device_id) || getClientDeviceId();
     if(!tok && !devId) return;
     
     // Only poll if not already confirmed admin
@@ -11049,24 +11203,51 @@ function updateDramaDetailCoinUI(item){
   }
 }
 
+let cachedAdminCoinRequests = [];
+let currentAdminCoinFilter = 'all';
+
 window.openCoinModal = function(){
   if(!window.userAccess || !window.userAccess.authenticated){
-    toast("សូមចូលគណនីជាមុនសិន ដើម្បីទិញ Coin!", true);
+    toast("សូមចូលគណនីជាមុនសិន ដើម្បីប្រើប្រាស់ Coin!", true);
     if(typeof openUserRegisterModal === 'function') openUserRegisterModal('login', true);
     return;
   }
   const modal = $("#coinModal");
   if(!modal) return;
-  const coins = Number((window.userAccess && window.userAccess.coins) || 0);
-  const coinsEl = $("#coinModalUserCoins");
-  const rielEl = $("#coinModalUserRiel");
-  const nameEl = $("#coinModalUserAccountName");
-  if(coinsEl) coinsEl.textContent = coins;
-  if(rielEl) rielEl.textContent = (coins * 500).toLocaleString();
-  if(nameEl) nameEl.textContent = `គណនី: ${window.userAccess.username || window.userAccess.name || window.userAccess.device_id || 'User'}`;
-  
-  modal.hidden = false;
-  loadMyCoinRequests();
+  const card = $("#coinModalCard");
+  const userSec = $("#coinUserSection");
+  const adminSec = $("#coinAdminSection");
+  const titleEl = $("#coinModalTitle");
+  const subEl = $("#coinModalSub");
+
+  const isAdmin = !!(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin' || window.userAccess.username === 'ADMIN'));
+
+  if(isAdmin){
+    // ADMIN VIEW: No self top-up/purchasing. Show request approval and direct coin granting hub!
+    if(card) card.style.maxWidth = '880px';
+    if(titleEl) titleEl.textContent = "🪙 ការគ្រប់គ្រង COIN (ADMIN HUB)";
+    if(subEl) subEl.textContent = "គ្រប់គ្រងសំណើទិញ Coin ពី User និងបញ្ចូល Coin ជូន User ដោយផ្ទាល់";
+    if(userSec) userSec.hidden = true;
+    if(adminSec) adminSec.hidden = false;
+    modal.hidden = false;
+    loadAdminCoinHubData();
+  } else {
+    // USER VIEW: Regular top-up packages, ABA QR, submit request, and user request history
+    if(card) card.style.maxWidth = '620px';
+    if(titleEl) titleEl.textContent = "🪙 កាបូប Coin (SYD COIN WALLET)";
+    if(subEl) subEl.textContent = "1 Coin = 500៛ | 1 រឿង = 2 Coins (1,000៛) | ដោះសោរគ្រប់ភាគទាំងអស់ជាអចិន្ត្រៃយ៍";
+    if(userSec) userSec.hidden = false;
+    if(adminSec) adminSec.hidden = true;
+    const coins = Number((window.userAccess && window.userAccess.coins) || 0);
+    const coinsEl = $("#coinModalUserCoins");
+    const rielEl = $("#coinModalUserRiel");
+    const nameEl = $("#coinModalUserAccountName");
+    if(coinsEl) coinsEl.textContent = coins;
+    if(rielEl) rielEl.textContent = (coins * 500).toLocaleString();
+    if(nameEl) nameEl.textContent = `គណនី: ${window.userAccess.username || window.userAccess.name || window.userAccess.device_id || 'User'}`;
+    modal.hidden = false;
+    loadMyCoinRequests();
+  }
 };
 
 window.closeCoinModal = function(){
@@ -11116,9 +11297,11 @@ window.submitCoinRequest = function(){
   }
 
   const payload = {
+    coins: coins,
     amount_coins: coins,
+    amount_riel: coins * 500,
     note: note,
-    device_id: window.userAccess.device_id || '',
+    device_id: (window.userAccess && window.userAccess.device_id) || getClientDeviceId(),
     token: localStorage.getItem('syd_auth_token') || ''
   };
 
@@ -11160,10 +11343,9 @@ window.submitCoinRequest = function(){
 };
 
 window.loadMyCoinRequests = function(){
-  if(!window.userAccess || !window.userAccess.device_id) return;
   const list = $("#coinMyRequestsList");
   if(!list) return;
-  const devId = window.userAccess.device_id;
+  const devId = (window.userAccess && window.userAccess.device_id) || getClientDeviceId();
   const tok = localStorage.getItem('syd_auth_token') || '';
 
   fetch(`/dl/coins/my_requests?device_id=${encodeURIComponent(devId)}&token=${encodeURIComponent(tok)}`)
@@ -11174,19 +11356,21 @@ window.loadMyCoinRequests = function(){
       return;
     }
     list.innerHTML = j.requests.map(r => {
+      const c = r.coins !== undefined ? r.coins : (r.amount_coins !== undefined ? r.amount_coins : 0);
       let stBadge = '';
       if(r.status === 'approved'){
-        stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(46,204,113,0.2);color:var(--good)">✅ បានអនុម័ត (+${r.amount_coins} Coins)</span>`;
+        stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(46,204,113,0.2);color:var(--good)">✅ បានអនុម័ត (+${c} Coins)</span>`;
       } else if(r.status === 'rejected'){
         stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(255,46,99,0.2);color:var(--bad)">❌ បានបដិសេធ</span>`;
       } else {
         stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(241,196,15,0.2);color:var(--gold)">⏳ កំពុងរង់ចាំ Admin</span>`;
       }
+      const timeStr = r.created_at ? (typeof r.created_at === 'number' ? new Date(r.created_at * 1000).toLocaleString() : String(r.created_at).slice(0, 16).replace('T', ' ')) : '';
       return `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;font-size:11.5px">
         <div>
-          <b style="color:#eab308;font-size:13px">${r.amount_coins} Coins</b>
-          <span style="color:var(--muted);margin-left:6px">(${Number(r.amount_riel || 0).toLocaleString()} ៛)</span>
-          <div style="color:var(--muted);font-size:10.5px;margin-top:2px">${r.note ? esc(r.note) + ' · ' : ''}${r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : ''}</div>
+          <b style="color:#eab308;font-size:13px">${c} Coins</b>
+          <span style="color:var(--muted);margin-left:6px">(${Number(r.amount_riel || (c*500)).toLocaleString()} ៛)</span>
+          <div style="color:var(--muted);font-size:10.5px;margin-top:2px">${r.note ? esc(r.note) + ' · ' : ''}${timeStr}</div>
         </div>
         <div>${stBadge}</div>
       </div>`;
@@ -11195,6 +11379,313 @@ window.loadMyCoinRequests = function(){
   .catch(e => {
     list.innerHTML = '<div style="text-align:center;padding:12px;color:var(--muted);font-size:11.5px">មិនអាចទាញយកប្រវត្តិសំណើបានទេ</div>';
   });
+};
+
+/* ---------- ADMIN COIN HUB CONTROLLERS ---------- */
+window.loadAdminCoinHubData = async function(){
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  const pin = currentAdminPin || sessionStorage.getItem('hg_admin_pin') || '8888';
+
+  // 1. Fetch coin requests
+  try {
+    const res = await fetch(`/dl/admin/coins/requests?pin=${encodeURIComponent(pin)}&token=${encodeURIComponent(tok)}`);
+    const j = await res.json();
+    if(j.ok && Array.isArray(j.requests)){
+      cachedAdminCoinRequests = j.requests;
+      const pendingCount = cachedAdminCoinRequests.filter(r => r.status === 'pending').length;
+      const totalCount = cachedAdminCoinRequests.length;
+
+      // Update counters across UI
+      const bAdminPend = $("#adminPendingReqCount"); if(bAdminPend) bAdminPend.textContent = pendingCount;
+      const bAdminTot = $("#adminTotalReqCount"); if(bAdminTot) bAdminTot.textContent = totalCount;
+      const bUcPend = $("#ucPendingReqCount"); if(bUcPend) bUcPend.textContent = pendingCount;
+      const bUcTot = $("#ucTotalReqCount"); if(bUcTot) bUcTot.textContent = totalCount;
+      const bBadge = $("#ucPendingCoinBadge"); if(bBadge) bBadge.textContent = pendingCount;
+
+      renderAdminCoinRequestsList();
+    } else {
+      const errHtml = `<div style="text-align:center;padding:16px;color:var(--bad);font-size:12px">❌ ${esc(j.error || "មិនអាចទាញយកទិន្នន័យបានទេ")}</div>`;
+      if($("#adminCoinRequestsList")) $("#adminCoinRequestsList").innerHTML = errHtml;
+      if($("#ucAdminCoinRequestsList")) $("#ucAdminCoinRequestsList").innerHTML = errHtml;
+    }
+  } catch(e){
+    const errHtml = `<div style="text-align:center;padding:16px;color:var(--bad);font-size:12px">⚠️ កំហុសបណ្តាញ: ${esc(e)}</div>`;
+    if($("#adminCoinRequestsList")) $("#adminCoinRequestsList").innerHTML = errHtml;
+    if($("#ucAdminCoinRequestsList")) $("#ucAdminCoinRequestsList").innerHTML = errHtml;
+  }
+
+  // 2. Fetch users to populate target datalist
+  try {
+    const uRes = await fetch(`/dl/access/admin/users?pin=${encodeURIComponent(pin)}&token=${encodeURIComponent(tok)}`);
+    const uJ = await uRes.json();
+    if(uJ.ok && Array.isArray(uJ.users)){
+      const dl = $("#adminCoinUsersDatalist");
+      if(dl){
+        dl.innerHTML = uJ.users.map(u => {
+          const val = u.username || u.name || u.device_id || '';
+          return `<option value="${esc(val)}">${esc(u.name ? `${u.name} (@${u.username || ''})` : val)} - សមតុល្យ: ${u.coins || 0} Coins</option>`;
+        }).join('');
+      }
+    }
+  } catch(e){}
+};
+
+window.filterAdminReqs = function(filter){
+  currentAdminCoinFilter = filter;
+  document.querySelectorAll('.admin-req-filter').forEach(btn => {
+    btn.classList.toggle('on', btn.getAttribute('data-filter') === filter);
+  });
+  renderAdminCoinRequestsList();
+};
+
+window.renderAdminCoinRequestsList = function(){
+  const listEl1 = $("#adminCoinRequestsList");
+  const listEl2 = $("#ucAdminCoinRequestsList");
+  if(!listEl1 && !listEl2) return;
+
+  const totalAll = cachedAdminCoinRequests.length;
+  const totalPend = cachedAdminCoinRequests.filter(r => r.status === 'pending').length;
+  const totalApp = cachedAdminCoinRequests.filter(r => r.status === 'approved').length;
+  const totalRej = cachedAdminCoinRequests.filter(r => r.status === 'rejected').length;
+
+  if($("#cntReqAll")) $("#cntReqAll").textContent = totalAll;
+  if($("#cntReqPend")) $("#cntReqPend").textContent = totalPend;
+  if($("#cntReqApp")) $("#cntReqApp").textContent = totalApp;
+  if($("#cntReqRej")) $("#cntReqRej").textContent = totalRej;
+
+  const filtered = cachedAdminCoinRequests.filter(r => {
+    if(currentAdminCoinFilter === 'pending') return r.status === 'pending';
+    if(currentAdminCoinFilter === 'approved') return r.status === 'approved';
+    if(currentAdminCoinFilter === 'rejected') return r.status === 'rejected';
+    return true;
+  });
+
+  if(!filtered.length){
+    const emptyHtml = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">មិនមានសំណើទិញ Coin ក្នុងលក្ខខណ្ឌនេះទេ</div>';
+    if(listEl1) listEl1.innerHTML = emptyHtml;
+    if(listEl2) listEl2.innerHTML = emptyHtml;
+    return;
+  }
+
+  const html = filtered.map(r => {
+    const c = r.coins !== undefined ? r.coins : (r.amount_coins !== undefined ? r.amount_coins : 0);
+    const riel = r.amount_riel !== undefined ? r.amount_riel : (c * 500);
+    const isPend = (r.status === 'pending');
+    const isApp = (r.status === 'approved');
+    const isRej = (r.status === 'rejected');
+
+    let badge = '';
+    if(isApp){
+      badge = `<span style="font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px;background:rgba(46,204,113,0.2);color:var(--good);border:1px solid rgba(46,204,113,0.35)">✅ បានអនុម័ត (+${c} Coins)</span>`;
+    } else if(isRej){
+      badge = `<span style="font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px;background:rgba(255,46,99,0.2);color:var(--bad);border:1px solid rgba(255,46,99,0.35)">❌ បានបដិសេធ</span>`;
+    } else {
+      badge = `<span style="font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px;background:rgba(241,196,15,0.2);color:var(--gold);border:1px solid rgba(241,196,15,0.35)">⏳ រង់ចាំ Admin ពិនិត្យ</span>`;
+    }
+
+    const timeStr = r.created_at ? (typeof r.created_at === 'number' ? new Date(r.created_at * 1000).toLocaleString() : String(r.created_at).slice(0, 16).replace('T', ' ')) : '';
+
+    return `<div style="background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.25)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-weight:900;font-size:14px;color:#ff6a2b">${esc(r.username || 'User')}</span>
+            ${r.name && r.name !== r.username ? `<span style="color:var(--ink);font-weight:700;font-size:12.5px">(${esc(r.name)})</span>` : ''}
+            ${r.contact ? `<span style="font-size:11.5px;color:var(--muted)">📞 ${esc(r.contact)}</span>` : ''}
+            ${badge}
+          </div>
+          <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-top:2px">
+            ID: ${esc(r.id)} · ${timeStr} · Dev: ${esc((r.device_id || '').slice(0, 18))}...
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:16px;font-weight:900;color:#eab308;font-family:var(--font-mono)">${c} Coins</div>
+          <div style="font-size:12px;font-weight:700;color:var(--good)">${Number(riel).toLocaleString()} ៛</div>
+        </div>
+      </div>
+
+      <!-- Payment / User Note -->
+      <div style="background:var(--surface-2);border-radius:6px;padding:6px 10px;font-size:11.5px;color:var(--ink)">
+        <b>ព័ត៌មានផ្ទេរប្រាក់:</b> ${r.note ? esc(r.note) : '<i style="color:var(--muted)">គ្មានចំណាំ</i>'}
+        ${r.admin_note ? `<div style="color:#eab308;margin-top:2px;font-size:11px"><b>Admin Note:</b> ${esc(r.admin_note)}</div>` : ''}
+      </div>
+
+      <!-- Actions -->
+      ${isPend ? `
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;border-top:1px dashed var(--line);padding-top:8px">
+        <button type="button" class="btn sm" onclick="adminApproveReq('${esc(r.id)}', ${c}, '${esc(r.username || r.device_id || '')}')" style="height:32px;padding:0 14px;font-size:11.5px;font-weight:800;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border-radius:6px;cursor:pointer;box-shadow:0 2px 8px rgba(34,197,94,0.3)">
+          ✅ អនុម័ត &amp; បញ្ចូល ${c} Coin
+        </button>
+        <button type="button" class="btn sm" onclick="adminRejectReq('${esc(r.id)}')" style="height:32px;padding:0 12px;font-size:11.5px;font-weight:700;background:rgba(255,46,99,0.15);color:var(--bad);border:1px solid rgba(255,46,99,0.35);border-radius:6px;cursor:pointer">
+          ❌ បដិសេធ
+        </button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  if(listEl1) listEl1.innerHTML = html;
+  if(listEl2) listEl2.innerHTML = html;
+};
+
+window.adminApproveReq = async function(reqId, coins, username){
+  if(!confirm(`តើអ្នកពិតជាចង់ អនុម័ត & បញ្ចូល ${coins} Coin ជូន ${username || 'User'} មែនទេ?`)) return;
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  const pin = currentAdminPin || sessionStorage.getItem('hg_admin_pin') || '8888';
+
+  try {
+    const res = await fetch("/dl/admin/coins/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pin: pin,
+        token: tok,
+        request_id: reqId,
+        admin_note: "Admin បានអនុម័ត និងបញ្ចូល Coin រួចរាល់"
+      })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast(`🎉 បានអនុម័ត និងបញ្ចូល ${coins} Coin ជូន User ជោគជ័យ!`, false);
+      await loadAdminCoinHubData();
+      await fetchAccessStatus();
+    } else {
+      toast("❌ បរាជ័យ: " + (j.error || "មិនអាចអនុម័តបានទេ"), true);
+    }
+  } catch(e){
+    toast("⚠️ កំហុស: " + e, true);
+  }
+};
+
+window.adminRejectReq = async function(reqId){
+  const reason = prompt("សូមបញ្ជាក់មូលហេតុនៃការបដិសេធ (Reason - ស្រេចចិត្ត):", "ព័ត៌មានផ្ទេរប្រាក់មិនត្រឹមត្រូវ");
+  if(reason === null) return;
+
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  const pin = currentAdminPin || sessionStorage.getItem('hg_admin_pin') || '8888';
+
+  try {
+    const res = await fetch("/dl/admin/coins/reject", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pin: pin,
+        token: tok,
+        request_id: reqId,
+        reason: reason
+      })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast("❌ បានបដិសេធសំណើទិញ Coin!", false);
+      await loadAdminCoinHubData();
+    } else {
+      toast("❌ បរាជ័យ: " + (j.error || "មិនអាចបដិសេធបានទេ"), true);
+    }
+  } catch(e){
+    toast("⚠️ កំហុស: " + e, true);
+  }
+};
+
+window.submitAdminDirectCoin = async function(){
+  const target = ($("#adminCoinTargetInput") && $("#adminCoinTargetInput").value.trim()) || '';
+  const action = ($("#adminCoinActionSelect") && $("#adminCoinActionSelect").value) || 'add';
+  const coins = parseInt(($("#adminCoinAmountInput") && $("#adminCoinAmountInput").value) || '0', 10);
+  const note = ($("#adminCoinNoteInput") && $("#adminCoinNoteInput").value.trim()) || '';
+
+  if(!target){
+    toast("⚠️ សូមបញ្ចូល Username ឬ Device ID របស់ User!", true);
+    return;
+  }
+  if(isNaN(coins) || coins < 0){
+    toast("⚠️ ចំនួន Coin មិនត្រឹមត្រូវ!", true);
+    return;
+  }
+
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  const pin = currentAdminPin || sessionStorage.getItem('hg_admin_pin') || '8888';
+
+  try {
+    const res = await fetch("/dl/admin/coins/adjust", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pin: pin,
+        token: tok,
+        username: target,
+        action: action,
+        coins: coins,
+        note: note
+      })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast(`✅ បានកែប្រែ Coin ជូន ${target} ជោគជ័យ! (សមតុល្យថ្មី: ${j.user ? j.user.coins : coins} Coins)`, false);
+      if($("#adminCoinNoteInput")) $("#adminCoinNoteInput").value = '';
+      await loadAdminCoinHubData();
+      await fetchAccessStatus();
+      if(currentAdminPin) refreshAdminUsersList();
+    } else {
+      toast("❌ បរាជ័យ: " + (j.error || "មិនអាចកែប្រែ Coin បានទេ"), true);
+    }
+  } catch(e){
+    toast("⚠️ កំហុស: " + e, true);
+  }
+};
+
+window.submitUcDirectCoin = async function(){
+  const target = ($("#ucAdminCoinTargetInput") && $("#ucAdminCoinTargetInput").value.trim()) || '';
+  const action = ($("#ucAdminCoinActionSelect") && $("#ucAdminCoinActionSelect").value) || 'add';
+  const coins = parseInt(($("#ucAdminCoinAmountInput") && $("#ucAdminCoinAmountInput").value) || '0', 10);
+  const note = ($("#ucAdminCoinNoteInput") && $("#ucAdminCoinNoteInput").value.trim()) || '';
+
+  if(!target){
+    toast("⚠️ សូមបញ្ចូល Username ឬ Device ID របស់ User!", true);
+    return;
+  }
+  if(isNaN(coins) || coins < 0){
+    toast("⚠️ ចំនួន Coin មិនត្រឹមត្រូវ!", true);
+    return;
+  }
+
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  const pin = currentAdminPin || sessionStorage.getItem('hg_admin_pin') || '8888';
+
+  try {
+    const res = await fetch("/dl/admin/coins/adjust", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pin: pin,
+        token: tok,
+        username: target,
+        action: action,
+        coins: coins,
+        note: note
+      })
+    });
+    const j = await res.json();
+    if(j.ok){
+      toast(`✅ បានកែប្រែ Coin ជូន ${target} ជោគជ័យ! (សមតុល្យថ្មី: ${j.user ? j.user.coins : coins} Coins)`, false);
+      if($("#ucAdminCoinNoteInput")) $("#ucAdminCoinNoteInput").value = '';
+      await loadAdminCoinHubData();
+      await fetchAccessStatus();
+      if(currentAdminPin) refreshAdminUsersList();
+    } else {
+      toast("❌ បរាជ័យ: " + (j.error || "មិនអាចកែប្រែ Coin បានទេ"), true);
+    }
+  } catch(e){
+    toast("⚠️ កំហុស: " + e, true);
+  }
+};
+
+window.adminOpenCoinAdjust = function(targetUser, currentCoins){
+  if($("#adminCoinTargetInput")) $("#adminCoinTargetInput").value = targetUser;
+  if($("#ucAdminCoinTargetInput")) $("#ucAdminCoinTargetInput").value = targetUser;
+  if($("#userCtrlModal") && !$("#userCtrlModal").hidden){
+    switchUcTab('coins');
+  } else {
+    openCoinModal();
+  }
 };
 
 window.buyCurrentDramaWithCoins = function(){
@@ -11316,8 +11807,9 @@ window.buyDramaWithCoins = async function(sid, title){
 
 window.adminToggleVipRequestButton = async function(explicitState){
   try {
-    const pin = currentAdminPin || (window.userAccess && window.userAccess.pin) || localStorage.getItem('syd_auth_token') || 'syd@168';
-    const bodyObj = { pin: pin };
+    const tok = localStorage.getItem('syd_auth_token') || '';
+    const pin = currentAdminPin || (window.userAccess && window.userAccess.pin) || sessionStorage.getItem('hg_admin_pin') || 'syd@168';
+    const bodyObj = { pin: pin, token: tok };
     if(explicitState !== undefined && explicitState !== null){
       bodyObj.enabled = explicitState;
     }
