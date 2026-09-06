@@ -440,68 +440,67 @@ def login(identity: str, password: str, device_id: str = ""):
         return True, admin_user
 
     # 2. Regular User check
+    # Step A: Check local cache first (FAST PATH - immediate response, no network latency)
+    target = None
+    target_key = None
     with _lock:
         d = _load_data()
         users = d.get("users", {})
-        target = None
-        target_key = None
-        # Regular User / VIP User check: Check Firebase Realtime Database FIRST as source of truth!
-        fb_u = firebase_fetch_user(ident)
-        if fb_u and isinstance(fb_u, dict) and fb_u.get("username"):
-            target = dict(fb_u)
-            target_key = fb_u.get("key") or ("user_" + clean_firebase_key(fb_u.get("username", ident)))
-            if target_key in users and not target.get("password_hash") and users[target_key].get("password_hash"):
-                target["password_hash"] = users[target_key]["password_hash"]
-            users[target_key] = target
-            d["users"] = users
-            _save_data(d)
+        for k, u in users.items():
+            u_name = str(u.get("username") or "").strip().lower()
+            u_cnt = str(u.get("contact") or "").strip().lower()
+            if ident.lower() in (u_name, u_cnt, k.lower()):
+                target = dict(u)
+                target_key = k
+                break
 
-        if not target:
-            for k, u in users.items():
-                u_name = str(u.get("username") or "").strip().lower()
-                u_cnt = str(u.get("contact") or "").strip().lower()
-                if ident.lower() in (u_name, u_cnt, k.lower()):
-                    target = u
-                    target_key = k
-                    break
+    fetched_from_fb = False
+    # Step B: If not found locally, query Firebase Realtime Database WITHOUT holding _lock
+    if not target:
+        try:
+            fb_u = firebase_fetch_user(ident, timeout=3.5)
+            if fb_u and isinstance(fb_u, dict) and fb_u.get("username"):
+                target = dict(fb_u)
+                target_key = fb_u.get("key") or ("user_" + clean_firebase_key(fb_u.get("username", ident)))
+                fetched_from_fb = True
+        except Exception:
+            pass
 
-        if not target:
-            # Check Firebase /licenses/
-            fb_lic = firebase_fetch_license(ident)
+    if not target:
+        try:
+            fb_lic = firebase_fetch_license(ident, force=True, timeout=3.0)
             if fb_lic and isinstance(fb_lic, dict) and fb_lic.get("username"):
                 target = dict(fb_lic)
                 target_key = "user_" + clean_firebase_key(fb_lic.get("username", ident))
-                users[target_key] = target
-                d["users"] = users
-                _save_data(d)
+                fetched_from_fb = True
+        except Exception:
+            pass
 
-        if not target:
-            return False, "user_not_found: គណនីនេះមិនទាន់មានក្នុងប្រព័ន្ធទេ! លោកអ្នកត្រូវតែចុះឈ្មោះគណនីជាមុនសិន។"
+    if not target:
+        return False, "user_not_found: គណនីនេះមិនទាន់មានក្នុងប្រព័ន្ធទេ! លោកអ្នកត្រូវតែចុះឈ្មោះគណនីជាមុនសិន។"
 
-        if target.get("status") == "banned" or target.get("is_banned"):
-            return False, "🚫 គណនីនេះត្រូវបានបិទ (Banned) មិនឱ្យប្រើប្រាស់ដោយ Admin! សូមទាក់ទង Admin។"
+    if target.get("status") == "banned" or target.get("is_banned"):
+        return False, "🚫 គណនីនេះត្រូវបានបិទ (Banned) មិនឱ្យប្រើប្រាស់ដោយ Admin! សូមទាក់ទង Admin។"
 
-        # Update device_id to current device on login (Machine ID unrestricted)
-        current_hw = (dev or get_current_device_id()).strip()
-        target["device_id"] = current_hw
-
-        # Verify Password
-        stored_hash = target.get("password_hash", "")
-        if stored_hash:
-            if hash_pw(pw) != stored_hash and pw != target.get("password", ""):
-                return False, "ពាក្យសម្ងាត់មិនត្រឹមត្រូវ (Incorrect password)"
-        elif target.get("password"):
-            if pw != target.get("password"):
-                return False, "ពាក្យសម្ងាត់មិនត្រឹមត្រូវ (Incorrect password)"
-        elif pw != "123456":
+    # Verify Password
+    stored_hash = target.get("password_hash", "")
+    if stored_hash:
+        if hash_pw(pw) != stored_hash and pw != target.get("password", ""):
             return False, "ពាក្យសម្ងាត់មិនត្រឹមត្រូវ (Incorrect password)"
+    elif target.get("password"):
+        if pw != target.get("password"):
+            return False, "ពាក្យសម្ងាត់មិនត្រឹមត្រូវ (Incorrect password)"
+    elif pw != "123456":
+        return False, "ពាក្យសម្ងាត់មិនត្រឹមត្រូវ (Incorrect password)"
 
-        if not target.get("password_hash"):
-            target["password_hash"] = hash_pw(pw)
+    if not target.get("password_hash"):
+        target["password_hash"] = hash_pw(pw)
 
-        # Check if Firebase has more recent VIP/Coins status
+    # Step C: If user was retrieved from local cache, check Firebase with a fast timeout (2.5s)
+    # to pull latest VIP/Coin updates from cloud. If Firebase is slow, proceed without blocking!
+    if not fetched_from_fb:
         try:
-            fb_refresh = firebase_fetch_user(target.get("username") or ident)
+            fb_refresh = firebase_fetch_user(target.get("username") or ident, timeout=2.5)
             if fb_refresh and isinstance(fb_refresh, dict):
                 for fbk in ("is_vip", "status", "role", "expires_at", "approved_package", "package_name", "package_badge", "expires_date", "coins", "coins_riel", "purchased_series", "is_banned"):
                     if fbk in fb_refresh:
@@ -509,74 +508,91 @@ def login(identity: str, password: str, device_id: str = ""):
         except Exception:
             pass
 
-        now = int(time.time())
-        token = "usr_" + secrets.token_hex(16)
-        role = target.get("role", "user")
-        is_admin = (role == "admin" or target.get("is_admin"))
-        is_vip = is_admin or bool(target.get("is_vip")) or target.get("status") in ("approved", "vip") or target.get("role") == "vip"
+    # Update device_id to current device on login (Machine ID unrestricted)
+    current_hw = (dev or get_current_device_id()).strip()
+    target["device_id"] = current_hw
 
-        # Check expiration for VIP
-        exp = target.get("expires_at", 0)
-        if is_vip and not is_admin and exp > 0 and exp < now:
-            is_vip = False
-            target["status"] = "expired"
-            target["is_vip"] = False
-            target["role"] = "user"
+    now = int(time.time())
+    token = "usr_" + secrets.token_hex(16)
+    role = target.get("role", "user")
+    is_admin = (role == "admin" or target.get("is_admin"))
+    is_vip = is_admin or bool(target.get("is_vip")) or target.get("status") in ("approved", "vip") or target.get("role") == "vip"
 
-        # Check 3-day trial expiration for regular user without VIP request
-        if not is_vip and not is_admin:
-            if exp == 0:
-                exp = (target.get("created_at") or now) + TRIAL_SECONDS
-                target["expires_at"] = exp
+    # Check expiration for VIP
+    exp = target.get("expires_at", 0)
+    if is_vip and not is_admin and exp > 0 and exp < now:
+        is_vip = False
+        target["status"] = "expired"
+        target["is_vip"] = False
+        target["role"] = "user"
 
-            if now >= exp and target.get("status") != "pending_vip":
-                # Check 24-hour temporary login block
-                lockout_until = target.get("trial_lockout_until", 0)
-                if not lockout_until or lockout_until == 0:
-                    lockout_until = now + TRIAL_LOCKOUT_SECONDS
-                    target["trial_lockout_until"] = lockout_until
-                    target["status"] = "trial_locked_24h"
-                    _save_data(d)
+    # Check 3-day trial expiration for regular user without VIP request
+    if not is_vip and not is_admin:
+        if exp == 0:
+            exp = (target.get("created_at") or now) + TRIAL_SECONDS
+            target["expires_at"] = exp
 
-                if now < lockout_until:
-                    rem = lockout_until - now
-                    hrs = rem // 3600
-                    mins = (rem % 3600) // 60
-                    t_str = f"{hrs} ម៉ោង {mins} នាទី" if hrs > 0 else f"{mins} នាទី"
-                    return False, f"⏳ គណនីរបស់អ្នកបានផុតកំណត់ការសាកល្បង 3 ថ្ងៃដោយមិនបានស្នើសុំ VIP! ប្រព័ន្ធបានបិទការ Login ជាបណ្តោះអាសន្នរយៈពេល 24 ម៉ោង (នៅសល់ {t_str}) ទើបអាច Login បានទៀត។ ឬសូមទាក់ទង Admin តាម Telegram ដើម្បីស្នើសុំ VIP!"
-                else:
-                    # 24 hours have passed! User can login again ("បានអាចLogin បានទៀត")
-                    target["trial_lockout_until"] = 0
-                    target["expires_at"] = now + TRIAL_LOCKOUT_SECONDS  # 24-hour grace window to request VIP
-                    target["status"] = "user"
-                    _save_data(d)
+        if now >= exp and target.get("status") != "pending_vip":
+            # Check 24-hour temporary login block
+            lockout_until = target.get("trial_lockout_until", 0)
+            if not lockout_until or lockout_until == 0:
+                lockout_until = now + TRIAL_LOCKOUT_SECONDS
+                target["trial_lockout_until"] = lockout_until
+                target["status"] = "trial_locked_24h"
 
-        max_eps = 999999 if is_vip else 5
-        target["role"] = "vip" if is_vip else "user"
-        target["is_vip"] = is_vip
-        target["is_admin"] = is_admin
-        target["max_free_episodes"] = max_eps
-        target["token"] = token
-        target["device_id"] = dev
-        target["last_login"] = now
+            if now < lockout_until:
+                rem = lockout_until - now
+                hrs = rem // 3600
+                mins = (rem % 3600) // 60
+                t_str = f"{hrs} ម៉ោង {mins} នាទី" if hrs > 0 else f"{mins} នាទី"
+                with _lock:
+                    d = _load_data()
+                    users = d.get("users", {})
+                    if target_key:
+                        users[target_key] = target
+                        d["users"] = users
+                        _save_data(d)
+                return False, f"⏳ គណនីរបស់អ្នកបានផុតកំណត់ការសាកល្បង 3 ថ្ងៃដោយមិនបានស្នើសុំ VIP! ប្រព័ន្ធបានបិទការ Login ជាបណ្តោះអាសន្នរយៈពេល 24 ម៉ោង (នៅសល់ {t_str}) ទើបអាច Login បានទៀត។ ឬសូមទាក់ទង Admin តាម Telegram ដើម្បីស្នើសុំ VIP!"
+            else:
+                # 24 hours have passed! User can login again ("បានអាចLogin បានទៀត")
+                target["trial_lockout_until"] = 0
+                target["expires_at"] = now + TRIAL_LOCKOUT_SECONDS  # 24-hour grace window to request VIP
+                target["status"] = "user"
 
-        if exp > 0:
-            import datetime
-            target["expires_date"] = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
-            target["days_left"] = _calc_days_left(exp, now, is_vip)
-        elif exp == 0 and is_vip:
-            target["expires_date"] = "Lifetime VIP"
-            target["days_left"] = -1
-        else:
-            target["expires_date"] = f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)"
-            target["days_left"] = TRIAL_DAYS
+    max_eps = 999999 if is_vip else 5
+    target["role"] = "vip" if is_vip else "user"
+    target["is_vip"] = is_vip
+    target["is_admin"] = is_admin
+    target["max_free_episodes"] = max_eps
+    target["token"] = token
+    target["device_id"] = dev
+    target["last_login"] = now
 
-        target["coins"] = int(target.get("coins", 0))
-        target["coins_riel"] = target["coins"] * 500
-        if not isinstance(target.get("purchased_series"), dict):
-            target["purchased_series"] = {}
+    if exp > 0:
+        import datetime
+        target["expires_date"] = datetime.datetime.fromtimestamp(exp).strftime("%d/%m/%Y")
+        target["days_left"] = _calc_days_left(exp, now, is_vip)
+    elif exp == 0 and is_vip:
+        target["expires_date"] = "Lifetime VIP"
+        target["days_left"] = -1
+    else:
+        target["expires_date"] = f"User ធម្មតា (សាកល្បង {TRIAL_DAYS} ថ្ងៃ)"
+        target["days_left"] = TRIAL_DAYS
 
+    target["coins"] = int(target.get("coins", 0))
+    target["coins_riel"] = target["coins"] * 500
+    if not isinstance(target.get("purchased_series"), dict):
+        target["purchased_series"] = {}
+
+    with _lock:
+        d = _load_data()
+        users = d.get("users", {})
+        if not target_key:
+            target_key = target.get("key") or ("user_" + clean_firebase_key(target.get("username", ident)))
+        users[target_key] = target
+        d["users"] = users
         _save_data(d)
+
         _logged_out_devices.discard(dev)
         _logged_out_devices.discard(get_current_device_id())
         _logged_out_devices.discard(token)
@@ -588,14 +604,14 @@ def login(identity: str, password: str, device_id: str = ""):
         if dev:
             _sessions[dev] = target
 
-        # Sync to Firebase Realtime Database
-        try:
-            threading.Thread(target=firebase_sync_user, args=(dict(target),), daemon=True).start()
-            threading.Thread(target=firebase_sync_license, args=(dict(target),), daemon=True).start()
-        except Exception:
-            pass
+    # Sync to Firebase Realtime Database in background daemon thread
+    try:
+        threading.Thread(target=firebase_sync_user, args=(dict(target),), daemon=True).start()
+        threading.Thread(target=firebase_sync_license, args=(dict(target),), daemon=True).start()
+    except Exception:
+        pass
 
-        return True, target
+    return True, target
 
 def register_user(username: str, name: str, contact: str, password: str, note: str = "", package: str = "1_year", device_id: str = ""):
     """
@@ -2191,7 +2207,7 @@ def firebase_sync_user(user_dict: dict):
         print(f"[firebase] sync user error: {e}")
         return False
 
-def firebase_fetch_user(identity: str):
+def firebase_fetch_user(identity: str, timeout: float = 3.5):
     """
     Fetch user record from Firebase Realtime Database by username or contact.
     """
@@ -2202,7 +2218,7 @@ def firebase_fetch_user(identity: str):
         clean_u = clean_firebase_key(ident)
         url, params = _firebase_url(f"users/{clean_u}")
         if url:
-            r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+            r = requests.get(url, params=params, timeout=timeout, headers={"User-Agent": "SYD-Downloader-Pro"})
             if r.status_code == 200 and r.text and r.text != "null":
                 u_data = r.json()
                 if isinstance(u_data, dict) and u_data.get("username"):
@@ -2211,7 +2227,7 @@ def firebase_fetch_user(identity: str):
         # Fallback: search by contact (phone number) across all users in /users
         all_url, all_params = _firebase_url("users")
         if all_url:
-            r2 = requests.get(all_url, params=all_params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+            r2 = requests.get(all_url, params=all_params, timeout=timeout, headers={"User-Agent": "SYD-Downloader-Pro"})
             if r2.status_code == 200 and r2.text and r2.text != "null":
                 all_u = r2.json()
                 if isinstance(all_u, dict):
@@ -2225,7 +2241,7 @@ def firebase_fetch_user(identity: str):
         print(f"[firebase] fetch user error: {e}")
     return None
 
-def firebase_fetch_license(device_id: str, force: bool = False):
+def firebase_fetch_license(device_id: str, force: bool = False, timeout: float = 3.0):
     """
     Fetch license status from Firebase Realtime Database and apply updates to local user if approved.
     """
@@ -2240,7 +2256,7 @@ def firebase_fetch_license(device_id: str, force: bool = False):
         url, params = _firebase_url(f"licenses/{clean_id}")
         if not url:
             return None
-        r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+        r = requests.get(url, params=params, timeout=timeout, headers={"User-Agent": "SYD-Downloader-Pro"})
         if r.status_code == 200:
             txt = (r.text or "").strip()
             if not txt or txt == "null" or txt == "None":

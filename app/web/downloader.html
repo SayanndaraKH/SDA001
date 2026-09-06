@@ -8700,6 +8700,21 @@ if(regCopyBtn){
 }
 
 // Enter key listeners for Login & Register forms
+const loginUserInput = $("#authLoginUser");
+if(loginUserInput){
+  loginUserInput.addEventListener("keydown", e => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      const p = ($("#authLoginPass") && $("#authLoginPass").value) || '';
+      if(!p && $("#authLoginPass")){
+        $("#authLoginPass").focus();
+      } else {
+        const u = loginUserInput.value || '';
+        executeLogin(u, p);
+      }
+    }
+  });
+}
 const loginPassInput = $("#authLoginPass");
 if(loginPassInput){
   loginPassInput.addEventListener("keydown", e => {
@@ -8755,10 +8770,13 @@ async function executeLogin(user, pass){
     return;
   }
   const btn = $("#authLoginSubmitBtn");
-  if(btn){ btn.disabled = true; btn.innerHTML = "<span>កំពុងពិនិត្យ...</span>"; }
+  if(btn){ 
+    btn.disabled = true; 
+    btn.innerHTML = "<span><span style='display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px;vertical-align:middle'></span>កំពុងផ្ទៀងផ្ទាត់...</span>"; 
+  }
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
     const res = await fetch("/dl/access/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -8799,7 +8817,7 @@ async function executeLogin(user, pass){
       }
     }
   } catch(e){
-    const errMsg = (e.name === 'AbortError') ? "ការតភ្ជាប់យឺតពេក (Network Timeout) សូមព្យាយាមម្តងទៀត!" : ("កំហុសបណ្តាញ៖ " + e);
+    const errMsg = (e.name === 'AbortError') ? "ការតភ្ជាប់យឺតពេក (Network Timeout) សូមពិនិត្យមើលអ៊ីនធឺណិត ហើយព្យាយាមម្តងទៀត!" : ("កំហុសបណ្តាញ៖ " + e);
     toast("⚠️ " + errMsg, true);
     if(alertEl){
       alertEl.innerHTML = "⚠️ " + esc(errMsg);

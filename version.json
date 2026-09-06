@@ -1,7 +1,7 @@
 {
-  "version": "1.0.1",
-  "version_tag": "V1.0.1",
+  "version": "1.0.2",
+  "version_tag": "V1.0.2",
   "app_name": "SYD-Downloader-Pro",
-  "updated_at": "2026-09-06 14:52:16",
-  "message": "Release V1.0.1 (2026-09-06 14:52:16)"
+  "updated_at": "2026-09-06 20:51:00",
+  "message": "Fix login network timeout and optimize authentication performance"
 }
