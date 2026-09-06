@@ -1154,6 +1154,10 @@ function updateDock(){
 
 /* ---------- start / cancel ---------- */
 async function start(){
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតលើ Website សម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+    return;
+  }
   const allValid = Object.keys(cart).filter(id=>!(cart[id]&&cart[id].unavailable));
   const ids = allValid.filter(id => cart[id].checked !== false);
   if(!ids.length){
@@ -1563,10 +1567,23 @@ async function openDramaDetail(id, pEl = null, isNavBack = false){
   // Render fast initial state immediately
   renderDramaDetailUI(ddCurrentDrama);
 
-  // Fetch full details & episodes from /dl/episodes?series_id=...
+  // Fetch full details & episodes from /dl/episodes?series_id=...&title=...
   try {
-    const res = await (await fetch("/dl/episodes?series_id=" + encodeURIComponent(id))).json();
+    const titleParam = encodeURIComponent(ddCurrentDrama.title || '');
+    const res = await (await fetch(`/dl/episodes?series_id=${encodeURIComponent(id)}&title=${titleParam}`)).json();
     if(res){
+      if(res.unavailable || (res.error && (res.error.includes('下架') || res.error.includes('不存在')))){
+        ddCurrentDrama.unavailable = true;
+        ddCurrentDrama.unavailableMsg = res.error_km || "រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម (Upstream Taken Down)";
+        ddCurrentDrama.alternatives = res.alternatives || [];
+        ddAllEps = [];
+        epCache[id] = [];
+        showDramaUnavailable(ddCurrentDrama);
+        renderDramaDetailEpisodes();
+        return;
+      }
+      hideDramaUnavailable();
+      ddCurrentDrama.readyToStream = true;
       if(res.title) ddCurrentDrama.title = res.title;
       if(res.title_km) ddCurrentDrama.title_km = res.title_km;
       if(res.cover) ddCurrentDrama.cover = res.cover;
@@ -1607,17 +1624,55 @@ async function openDramaDetail(id, pEl = null, isNavBack = false){
   loadRelatedDramas(ddCurrentDrama);
 }
 
+function showDramaUnavailable(item){
+  const unOverlay = $("#ddInlineUnavailable");
+  const unTitle = $("#ddUnavailableTitle");
+  const unDesc = $("#ddUnavailableDesc");
+  if(unTitle) unTitle.textContent = (item && item.unavailableMsg) || "រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម";
+  if(unDesc) unDesc.textContent = "Server ដើមបានដកចេញ (Upstream Taken Down) មិនអាចចាក់ផ្សាយ ឬទាញយកបានទេ។ សូមជ្រើសរើសរឿងផ្សេងទៀត";
+  if(unOverlay) unOverlay.hidden = false;
+
+  hidePlayPosterOverlay();
+  const loading = $("#ddInlineLoading");
+  if(loading) loading.hidden = true;
+  const vid = $("#ddInlineVideo");
+  if(vid){
+    vid.pause();
+    vid.removeAttribute('src');
+    vid.load();
+  }
+}
+
+function hideDramaUnavailable(){
+  const unOverlay = $("#ddInlineUnavailable");
+  if(unOverlay) unOverlay.hidden = true;
+}
+
 function renderDramaDetailUI(item){
   // Video poster & initial stream ready
   const covUrl = getPosterUrl(item.cover, item.title, item.id) || '/logo.png';
   const vid = $("#ddInlineVideo");
   if(vid){
     vid.poster = covUrl;
-    if(!vid.src || !vid.src.includes(`series_id=${encodeURIComponent(item.id)}`)){
-      vid.src = `/dl/stream?series_id=${encodeURIComponent(item.id)}&ep=1`;
+    if(item.unavailable){
+      vid.pause();
+      vid.removeAttribute('src');
+      vid.load();
+    } else if(item.readyToStream){
+      const tok = localStorage.getItem('syd_auth_token') || '';
+      const dev = (window.userAccess && window.userAccess.device_id) || '';
+      const targetSrc = `/dl/stream?series_id=${encodeURIComponent(item.id)}&ep=${ddInlinePlayingEp || 1}&token=${encodeURIComponent(tok)}&device_id=${encodeURIComponent(dev)}`;
+      if(!vid.src || !vid.src.includes(`series_id=${encodeURIComponent(item.id)}`)){
+        vid.src = targetSrc;
+      }
     }
   }
-  showPlayPosterOverlay();
+  if(item.unavailable){
+    showDramaUnavailable(item);
+  } else {
+    hideDramaUnavailable();
+    showPlayPosterOverlay();
+  }
   const loading = $("#ddInlineLoading");
   if(loading) loading.hidden = true;
   
@@ -1735,6 +1790,9 @@ function renderDramaDetailUI(item){
   }
   renderDramaDetailEpisodes();
   updateDdQueueBtn();
+  if(typeof updateDramaDetailCoinUI === 'function'){
+    updateDramaDetailCoinUI(item);
+  }
 }
 
 function renderDramaDetailEpisodes(){
@@ -1756,6 +1814,40 @@ function renderDramaDetailEpisodes(){
   const totHint = $("#ddEpTotalHint");
 
   if(!eps.length){
+    if(ddCurrentDrama && ddCurrentDrama.unavailable){
+      if(totHint) totHint.textContent = `ដកចេញពី Server ដើម`;
+      let altHtml = '';
+      if(ddCurrentDrama.alternatives && ddCurrentDrama.alternatives.length){
+        altHtml = `
+          <div style="margin-top:16px;text-align:left">
+            <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px">🎬 រឿងស្រដៀងគ្នាដែលអាចទស្សនាបាន (Available Versions):</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              ${ddCurrentDrama.alternatives.map(a => `
+                <button type="button" class="btn sm ghost" onclick="openDramaDetailModal('${esc(a.series_id)}')" style="display:flex;align-items:center;gap:6px;font-family:var(--font-km);font-size:12px;border:1px solid rgba(255,255,255,0.15);padding:6px 12px;border-radius:8px">
+                  <span>▶</span>
+                  <span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title_km || a.title)}</span>
+                  ${a.episode_cnt ? `<span style="font-size:10px;opacity:0.7">(${a.episode_cnt} ភាគ)</span>` : ''}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+      gridEl.innerHTML = `
+        <div style="grid-column:1/-1;padding:26px 18px;text-align:center;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.22);border-radius:14px;margin:8px 0">
+          <div style="font-size:32px;margin-bottom:6px">⚠️</div>
+          <div style="font-family:var(--font-km);font-size:15px;font-weight:700;color:#ef4444;margin-bottom:6px">
+            រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម (Upstream Content Unavailable)
+          </div>
+          <div style="font-family:var(--font-km);font-size:12.5px;color:var(--text-muted);max-width:460px;margin:0 auto;line-height:1.6">
+            សូមអភ័យទោស រឿងនេះត្រូវបាន Server ដើមដកចេញ មិនអាចចាក់ផ្សាយ ឬទាញយកបានទេ។ សូមជ្រើសរើសរឿងផ្សេងទៀតពីបញ្ជី ឬរឿងស្រដៀងគ្នាខាងក្រោម។
+          </div>
+          ${altHtml}
+        </div>
+      `;
+      if(rangesEl) rangesEl.innerHTML = '';
+      return;
+    }
     if(totHint) totHint.textContent = `សរុប 0 ភាគ`;
     gridEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted);font-family:var(--font-km)">⏳ កំពុងទាញយកបញ្ជីភាគ...</div>';
     if(rangesEl) rangesEl.innerHTML = '';
@@ -2105,6 +2197,10 @@ $("#ddCopyLinkBtn").onclick = () => {
 };
 
 $("#ddDlAllBtn").onclick = $("#ddHeroDlBtn").onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ លើ Website មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតសម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+    return;
+  }
   if(!ddCurrentDrama) return;
   const id = ddCurrentDrama.id;
   const eps = ddAllEps || [];
@@ -2114,7 +2210,7 @@ $("#ddDlAllBtn").onclick = $("#ddHeroDlBtn").onclick = () => {
     cart[id].sel = allowed.length ? allowed : [1];
     saveCart();
     renderQueue();
-    toast(`⬇️ គណនីធម្មតា៖ បានដាក់ភាគ 1-10 នៃរឿង 《${ddCurrentDrama.title}》 ចូលក្នុង Queue`);
+    toast(`⬇️ គណនីធម្មតា៖ បានដាក់ភាគ 1-5 នៃរឿង 《${ddCurrentDrama.title}》 ចូលក្នុង Queue`);
   } else {
     toast(`⬇️ បានដាក់រឿង 《${ddCurrentDrama.title}》 ចូលក្នុង Queue`);
   }
@@ -2137,10 +2233,11 @@ $("#ddHeaderQueueBtn").onclick = $("#ddHeroQueueBtn").onclick = () => {
 
 $("#ddEpSelectAll").onclick = () => {
   if(!isUserFullAccess()){
-    const allowed = (ddAllEps || []).filter(n => n <= 10);
+    const sid = ddCurrentDrama ? (ddCurrentDrama.id || ddCurrentDrama.series_id) : '';
+    const allowed = (ddAllEps || []).filter(n => !isEpisodeLocked(n, sid));
     ddSelectedEps = new Set(allowed);
     renderDramaDetailEpisodes();
-    toast("💡 គណនីធម្មតាអាចជ្រើសរើសបានត្រឹមភាគ 1-10 ប៉ុណ្ណោះ។ សូមស្នើសុំ VIP ដើម្បីដោនឡូតគ្រប់ភាគ!");
+    toast("💡 បានជ្រើសរើសភាគដែល Free។ សូមទិញ Coin ឬស្នើសុំ VIP ដើម្បីដោនឡូតគ្រប់ភាគ!");
     return;
   }
   ddSelectedEps = new Set(ddAllEps);
@@ -2153,6 +2250,10 @@ $("#ddEpSelectNone").onclick = () => {
 };
 
 $("#ddEpDlSelected").onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ លើ Website មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតសម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+    return;
+  }
   if(!ddCurrentDrama) return;
   const id = ddCurrentDrama.id;
   const selArr = Array.from(ddSelectedEps);
@@ -2214,6 +2315,10 @@ function showPlayPosterOverlay(){
 function openInlineLivePlayer(epNum, autoPlay = true){
   if(!ddCurrentDrama) return;
   const drama = ddCurrentDrama;
+  if(drama.unavailable){
+    toast("⚠️ រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម មិនអាចចាក់ផ្សាយបានទេ", true);
+    return;
+  }
   const num = Number(epNum) || 1;
   if(isEpisodeLocked(num)){
     promptVipModal(num);
@@ -2375,9 +2480,27 @@ if(inlineVid){
       hidePlayPosterOverlay();
     }
   });
-  inlineVid.addEventListener('error', () => {
+  inlineVid.addEventListener('error', async () => {
     const l = $("#ddInlineLoading");
     if(l) l.hidden = true;
+    if(ddCurrentDrama && ddCurrentDrama.unavailable){
+      return;
+    }
+    // Check if 404/unavailable
+    if(ddCurrentDrama){
+      try {
+        const tok = localStorage.getItem('syd_auth_token') || '';
+        const dev = (window.userAccess && window.userAccess.device_id) || '';
+        const sUrl = `/dl/stream?series_id=${encodeURIComponent(ddCurrentDrama.id)}&ep=${ddInlinePlayingEp || 1}&token=${encodeURIComponent(tok)}&device_id=${encodeURIComponent(dev)}`;
+        const r = await fetch(sUrl, { method: 'HEAD' });
+        if(r.status === 404 || r.status === 410){
+          ddCurrentDrama.unavailable = true;
+          showDramaUnavailable(ddCurrentDrama);
+          renderDramaDetailEpisodes();
+          return;
+        }
+      } catch(e){}
+    }
     toast("⚠️ មិនអាចចាក់វីដេអូបានទេ សូមសាកល្បងចុចលេខភាគម្តងទៀត ឬបើកលើ PotPlayer");
   });
   inlineVid.addEventListener('ended', () => {
@@ -2393,9 +2516,13 @@ if(inlineVid){
 const playPoster = $("#ddPlayPosterOverlay");
 if(playPoster) playPoster.onclick = (e) => {
   e.stopPropagation();
+  if(ddCurrentDrama && ddCurrentDrama.unavailable){
+    toast("⚠️ រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម មិនអាចចាក់ផ្សាយបានទេ", true);
+    return;
+  }
   hidePlayPosterOverlay();
   const video = $("#ddInlineVideo");
-  if(video && video.src){
+  if(video && video.src && !video.src.endsWith('/dl') && !video.src.endsWith('/')){
     const p = video.play();
     if(p !== undefined){
       p.catch(err => console.log("Play error:", err));
@@ -2436,12 +2563,18 @@ if(inlineFsBtn) inlineFsBtn.onclick = () => {
 const inlineSysPlayBtn = $("#ddInlineSysPlay");
 if(inlineSysPlayBtn) inlineSysPlayBtn.onclick = async () => {
   if(!ddCurrentDrama || !ddInlinePlayingEp) return;
+  if(ddCurrentDrama.unavailable){
+    toast("⚠️ រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម មិនអាចបើកលើ PotPlayer បានទេ", true);
+    return;
+  }
   toast(`🚀 កំពុងបើកចាក់ភាគទី ${ddInlinePlayingEp} លើ PotPlayer / VLC ខាងក្រៅ...`);
   try {
+    const tok = localStorage.getItem('syd_auth_token') || '';
+    const dev = (window.userAccess && window.userAccess.device_id) || '';
     const res = await fetch("/dl/stream/play", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series_id: ddCurrentDrama.id, ep: ddInlinePlayingEp })
+      body: JSON.stringify({ series_id: ddCurrentDrama.id, ep: ddInlinePlayingEp, token: tok, device_id: dev })
     });
     const j = await res.json();
     if(j.ok) toast(`✅ បានបើកភាគទី ${ddInlinePlayingEp} លើ External Player`);
@@ -2454,6 +2587,10 @@ if(inlineSysPlayBtn) inlineSysPlayBtn.onclick = async () => {
 // Download Current Episode Button
 const inlineDlCurBtn = $("#ddInlineDlCur");
 if(inlineDlCurBtn) inlineDlCurBtn.onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ លើ Website មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតសម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+    return;
+  }
   if(!ddCurrentDrama || !ddInlinePlayingEp) return;
   const ep = ddInlinePlayingEp;
   if(isEpisodeLocked(ep)){
@@ -2637,7 +2774,7 @@ function renderLibEpisodeGrid(j, name){
   const have = new Set(j.downloaded || []);
   const freshSet = new Set((j.episodes || []).filter(e => e.fresh).map(e => e.index));
   const max = total || (j.downloaded && j.downloaded.length ? Math.max.apply(null, j.downloaded) : 0);
-  const zipBtnHtml = dlCount > 0 ? `<a href="/dl/library/zip?name=${encodeURIComponent(name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:8px">📦 ទាញយកទាំងអស់ (.ZIP)</a> <button type="button" class="btn primary sm" id="libEpSavePcBtn" style="padding:2px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-left:4px">💾 Save ចូល PC</button>` : '';
+  const zipBtnHtml = (dlCount > 0 && !(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked())) ? `<a href="/dl/library/zip?name=${encodeURIComponent(name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:8px">📦 ទាញយកទាំងអស់ (.ZIP)</a> <button type="button" class="btn primary sm" id="libEpSavePcBtn" style="padding:2px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-left:4px">💾 Save ចូល PC</button>` : '';
   $("#libEpSub").innerHTML = `<b>${dlCount}</b> of <b>${total || max || '?'}</b> downloaded ${j.fresh ? (' · <span style="color:var(--good);font-weight:700">+' + j.fresh + ' new</span>') : ''} · <span style="color:var(--accent)">Click episode to play</span> ${zipBtnHtml}`;
   const savePcBtn = $("#libEpSavePcBtn");
   if(savePcBtn){
@@ -2839,8 +2976,9 @@ function updateVpControls(){
   if(currentVpIsStream){
     const tot = currentVpTotal || (currentVpAllEps && currentVpAllEps.length) || 0;
     $("#vpSub").innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px"><span style="color:#ef4444;animation:vpPulse 1.5s infinite">●</span> <strong>ផ្សាយផ្ទាល់អនឡាញ (Online Live Stream · 1080p)</strong> · ភាគ ${currentVpEp} ${tot ? `នៃ ${tot}` : ''}</span>`;
-    if(dlAllBtn) dlAllBtn.hidden = false;
-    if(dlCurBtn){ dlCurBtn.hidden = false; dlCurBtn.textContent = `⬇️ ដោនឡូតភាគ ${currentVpEp}`; }
+    const isWebBlocked = (typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked());
+    if(dlAllBtn) dlAllBtn.hidden = isWebBlocked ? true : false;
+    if(dlCurBtn){ dlCurBtn.hidden = isWebBlocked ? true : false; dlCurBtn.textContent = `⬇️ ដោនឡូតភាគ ${currentVpEp}`; }
     if(queueBtn) queueBtn.hidden = false;
     if(fixPicBtn) fixPicBtn.hidden = true;
     epList = (currentVpAllEps && currentVpAllEps.length) ? currentVpAllEps : (currentVpTotal ? Array.from({length: currentVpTotal}, (_, i) => i + 1) : [currentVpEp]);
@@ -2848,7 +2986,8 @@ function updateVpControls(){
     $("#vpSub").textContent = `💾 1080p Playback · Episode ${currentVpEp}`;
     if(dlAllBtn) dlAllBtn.hidden = true;
     if(dlCurBtn){
-      dlCurBtn.hidden = false;
+      const isWebBlocked = (typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked());
+      dlCurBtn.hidden = isWebBlocked ? true : false;
       dlCurBtn.textContent = `⬇️ ទាញយកភាគ ${currentVpEp} ទៅ PC`;
       dlCurBtn.title = "ទាញយកឯកសារ MP4 មកកាន់កុំព្យូទ័ររបស់អ្នក";
       dlCurBtn.onclick = () => {
@@ -2964,6 +3103,10 @@ document.addEventListener("click", e=>{
   const pdl = e.target.closest("[data-pdl]");
   if(pdl){
     e.stopPropagation();
+    if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+      toast("⚠️ មុខងារទាញយក (Download) ត្រូវបានបិទលើ Website សម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+      return;
+    }
     const p = pdl.closest(".poster");
     if(!p) return;
     const id = p.dataset.id;
@@ -3210,6 +3353,10 @@ $("#vpEpSelector").addEventListener('click', e => {
 
 const vpDlAll = $("#vpDlAllBtn");
 if(vpDlAll) vpDlAll.onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ មុខងារទាញយក (Download) ត្រូវបានបិទលើ Website សម្រាប់ User ធម្មតា និង VIP!", true);
+    return;
+  }
   if(!currentVpSeriesId) return;
   const eps = (currentVpAllEps && currentVpAllEps.length) ? currentVpAllEps : Array.from({length: currentVpTotal || 24}, (_, i) => i + 1);
   addToCart(currentVpSeriesId, currentVpSeries, currentVpTotal || eps.length, currentVpCover, false, currentVpScore, 0, '', currentVpTitleKm);
@@ -3223,6 +3370,10 @@ if(vpDlAll) vpDlAll.onclick = () => {
 
 const vpDlCur = $("#vpDlCurBtn");
 if(vpDlCur) vpDlCur.onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ មុខងារទាញយក (Download) ត្រូវបានបិទលើ Website សម្រាប់ User ធម្មតា និង VIP!", true);
+    return;
+  }
   if(!currentVpSeriesId) return;
   addToCart(currentVpSeriesId, currentVpSeries, currentVpTotal || 1, currentVpCover, false, currentVpScore, 0, '', currentVpTitleKm);
   if(cart[currentVpSeriesId]){
@@ -3759,7 +3910,23 @@ function isEpisodeLocked(epNum, seriesId){
   return num > freeLimit;
 }
 
+function isWebDownloadBlocked(){
+  const isAdmin = !!(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin' || window.userAccess.role === 'dev'));
+  if(isAdmin) return false;
+  if(window.userAccess && (window.userAccess.web_download_disabled === true || window.userAccess.is_deployed_website === true)){
+    return true;
+  }
+  const host = window.location.hostname;
+  if(host.includes('railway.app') || host.includes('onrender.com') || (host && host !== 'localhost' && host !== '127.0.0.1' && !host.startsWith('192.168.') && !host.startsWith('10.'))){
+    return true;
+  }
+  return false;
+}
+
+let currentAuthTab = 'login';
+
 function switchAuthTab(tab){
+  currentAuthTab = tab;
   const isAuth = !!(window.userAccess && window.userAccess.authenticated);
   const isPendingVip = !!(window.userAccess && window.userAccess.status === 'pending_vip');
   const isBanned = !!(window.userAccess && (window.userAccess.status === 'banned' || window.userAccess.is_banned));
@@ -3775,24 +3942,13 @@ function switchAuthTab(tab){
   if(secB) secB.style.display = (tab === 'banned') ? 'flex' : 'none';
 
   if(tab === 'login'){
-    const card = $("#loginCurrentActiveCard");
-    const nameEl = $("#loginCurrentUsername");
-    const detailEl = $("#loginCurrentDetail");
     const heading = $("#authLoginFormHeading");
-    if(card && nameEl && detailEl){
-      if(isAuth && window.userAccess && window.userAccess.username){
-        card.style.display = 'flex';
-        nameEl.textContent = window.userAccess.username || 'USER';
-        detailEl.textContent = `${window.userAccess.name || 'អ្នកប្រើប្រាស់'} · សមតុល្យ ${window.userAccess.coins || 0} Coins (${(window.userAccess.coins || 0) * 500}៛)`;
-        if(heading) heading.textContent = "ប្តូរគណនី / ចូលគណនីផ្សេង (Switch Account / Login)";
-      } else {
-        card.style.display = 'none';
-        if(heading) heading.textContent = "ចូលប្រើប្រាស់គណនី (Login)";
-      }
-    }
+    if(heading) heading.textContent = "ចូលប្រើប្រាស់គណនី (Login)";
     setTimeout(() => {
-      const inp = $("#authLoginUser");
-      if(inp) inp.focus();
+      if(currentAuthTab === 'login'){
+        const inp = $("#authLoginUser");
+        if(inp && document.activeElement !== inp && !document.activeElement?.closest('#authTabRegisterSec')) inp.focus();
+      }
     }, 150);
   }
 
@@ -3845,18 +4001,47 @@ function openReRequestVipForm(){
 let isMandatoryAuth = false;
 
 function promptVipModal(epNum){
-  const vipReqEnabled = !!(window.userAccess && window.userAccess.settings && (window.userAccess.settings.vip_request_enabled === true || window.userAccess.settings.vip_request_enabled === 'true' || window.userAccess.settings.vip_request_enabled === 1));
-  if(!vipReqEnabled){
-    toast(`🔒 ភាគទី ${epNum} ត្រូវបានចាក់សោរ! បច្ចុប្បន្ន ADMIN បានបិទការស្នើសុំ VIP ជាបណ្តោះអាសន្ន។`, true);
+  const isAuth = !!(window.userAccess && window.userAccess.authenticated);
+  if(!isAuth){
+    toast(`🔒 ភាគទី ${epNum} ត្រូវបានចាក់សោរ! សូមចូលគណនី ឬចុះឈ្មោះដើម្បីទស្សនា`, true);
+    openUserRegisterModal('login', true);
     return;
   }
-  const maxFree = (window.userAccess && window.userAccess.max_free_episodes) || 5;
+
+  const sid = ddCurrentDrama ? (ddCurrentDrama.id || ddCurrentDrama.series_id) : '';
+  const title = ddCurrentDrama ? (ddCurrentDrama.title_km || ddCurrentDrama.title) : 'រឿងនេះ';
+  const userCoins = Number((window.userAccess && window.userAccess.coins) || 0);
+
   const banner = $("#authAlertBanner");
   const alertText = $("#authAlertText");
   if(banner && alertText){
-    alertText.innerHTML = `🔒 <b>ភាគទី ${epNum} ត្រូវបានចាក់សោរ (Locked)!</b><br>គណនីធម្មតាអាចទស្សនា & ដោនឡូតបានត្រឹម <b>ភាគ 1 ដល់ ${maxFree}</b> ប៉ុណ្ណោះ។<br>👉 សូមស្នើសុំកញ្ចប់ VIP ពី ADMIN ដើម្បីទស្សនា និងដោនឡូតគ្រប់ភាគទាំងអស់ដោយគ្មានការ Lock!`;
+    alertText.innerHTML = `🔒 <b>ភាគទី ${epNum} នៃរឿង 《${esc(title)}》 ត្រូវបានចាក់សោរ!</b><br>
+    🪙 <b>ទិញដោះសោររឿងនេះ៖</b> ត្រូវការត្រឹមតែ <b>2 Coins (1,000៛)</b> ដោះសោរគ្រប់ភាគទាំងអស់ជាអចិន្ត្រៃយ៍!<br>
+    👑 <b>ឬស្នើសុំកញ្ចប់ VIP៖</b> ដោះសោរគ្រប់រឿងទាំងអស់ក្នុងកម្មវិធីដោយគ្មានការ Lock!`;
     banner.style.display = 'block';
   }
+
+  if(sid && userCoins >= 2){
+    if(confirm(`🔒 ភាគទី ${epNum} ត្រូវបានចាក់សោរ!
+
+សមតុល្យរបស់អ្នកមាន: ${userCoins} Coins
+រឿងនេះត្រូវការ: 2 Coins (1,000៛) ដើម្បីដោះសោរគ្រប់ភាគទាំងអស់។
+
+តើអ្នកចង់ទិញដោះសោររឿងនេះឥឡូវនេះទេ?`)){
+      buyDramaWithCoins(sid, title);
+      return;
+    }
+  } else if(sid && userCoins < 2){
+    if(confirm(`🔒 ភាគទី ${epNum} ត្រូវបានចាក់សោរ!
+
+សមតុល្យ Coins របស់អ្នក: ${userCoins} Coins (មិនគ្រប់ 2 Coins ទេ)
+
+តើអ្នកចង់បើកកាបូប Coin ដើម្បីបញ្ចូល Coin (Top-up) ដែរឬទេ?`)){
+      openCoinModal();
+      return;
+    }
+  }
+
   openUserRegisterModal('vip', false);
 }
 
@@ -3865,7 +4050,8 @@ function openUserRegisterModal(preferTab = 'login', isMandatory = false){
   if(!m) return;
   const isAuth = !!(window.userAccess && window.userAccess.authenticated);
   const isBanned = !!(window.userAccess && (window.userAccess.status === 'banned' || window.userAccess.is_banned));
-  isMandatoryAuth = (!isAuth || isBanned) && !!isMandatory;
+  // Mandatory Login/Register: Every time app is opened, user must login or register!
+  isMandatoryAuth = (!isAuth || isBanned || !!isMandatory);
   const closeBtn1 = $("#regCloseBtn");
   const closeBtn2 = $("#regCloseBtn2");
   if(closeBtn1) closeBtn1.style.display = isMandatoryAuth ? 'none' : 'block';
@@ -3915,10 +4101,13 @@ function openUserRegisterModal(preferTab = 'login', isMandatory = false){
     bannedTg.href = `https://t.me/${tg}`;
   }
 
+  const wasAlreadyOpen = !m.hidden;
   m.hidden = false;
   
   let targetTab = preferTab || 'login';
-  if(isBanned && targetTab !== 'vip'){
+  if(wasAlreadyOpen && preferTab === 'login' && (currentAuthTab === 'register' || currentAuthTab === 'vip') && !isBanned){
+    targetTab = currentAuthTab;
+  } else if(isBanned && targetTab !== 'vip'){
     targetTab = 'banned';
   } else if(isAdmin || isVip || !vipReqEnabled){
     if(targetTab === 'vip') targetTab = 'login';
@@ -3926,11 +4115,20 @@ function openUserRegisterModal(preferTab = 'login', isMandatory = false){
   switchAuthTab(targetTab);
 }
 
-function closeUserRegisterModal(){
-  if(!window.userAccess || !window.userAccess.authenticated){
-    toast("⚠️ ដាច់ខាតត្រូវតែចុះឈ្មោះ User ធម្មតា ឬ Login ជាមុនសិន!", true);
-    return;
+function closeUserRegisterModal(force = false){
+  const isAuth = !!(window.userAccess && window.userAccess.authenticated);
+  const isBanned = !!(window.userAccess && (window.userAccess.status === 'banned' || window.userAccess.is_banned));
+  if(!force){
+    if(isBanned){
+      toast("🚫 គណនីត្រូវបាន Banned មិនអាចបិទផ្ទាំងនេះបានទេ។", true);
+      return;
+    }
+    if(!isAuth || isMandatoryAuth){
+      toast("⚠️ គ្រប់ពេលបើកកម្មវិធីត្រូវតែ Login ជាដាច់ខាត ឬចុះឈ្មោះជាចាំបាច់ដើម្បីប្រើប្រាស់!", true);
+      return;
+    }
   }
+  isMandatoryAuth = false;
   const m = $("#userRegisterModal");
   if(m) m.hidden = true;
   const banner = $("#authAlertBanner");
@@ -4038,9 +4236,11 @@ function updateVipPortalSettings(settings, userAccess){
 async function fetchAccessStatus(){
   try {
     const urlParams = new URLSearchParams(window.location.search);
-    let tok = urlParams.get('auth_token') || localStorage.getItem('syd_auth_token') || '';
-    if(urlParams.get('auth_token')){
-      localStorage.setItem('syd_auth_token', urlParams.get('auth_token'));
+    let tok = (urlParams.get('auth_token') || '').trim() || (urlParams.get('token') || '').trim() || (localStorage.getItem('syd_auth_token') || '').trim();
+    if(urlParams.get('auth_token') && urlParams.get('auth_token').trim()){
+      localStorage.setItem('syd_auth_token', urlParams.get('auth_token').trim());
+    } else if(urlParams.get('token') && urlParams.get('token').trim()){
+      localStorage.setItem('syd_auth_token', urlParams.get('token').trim());
     }
     const res = await fetch(`/dl/access/status?token=${encodeURIComponent(tok)}`);
     if(res.ok){
@@ -4053,23 +4253,35 @@ async function fetchAccessStatus(){
       const isDevOrAdmin = !!(data.is_dev || data.role === 'dev' || data.is_admin || data.role === 'admin');
       if(isDevOrAdmin){
         isMandatoryAuth = false;
-        closeUserRegisterModal();
-      } else if(data.is_banned || data.status === 'banned' || data.status === 'machine_mismatch'){
+        closeUserRegisterModal(true);
+      } else if(data.is_banned || data.status === 'banned'){
         isMandatoryAuth = true;
         openUserRegisterModal('banned', true);
-        if(data.status === 'machine_mismatch'){
-          const bTitle = $("#authBannedTitle");
-          const bDesc = $("#authBannedDesc");
-          if(bTitle) bTitle.textContent = "🚫 Machine ID មិនត្រូវគ្នា (1 PC = 1 User ប៉ុណ្ណោះ)";
-          if(bDesc) bDesc.innerHTML = `<span style="color:#f87171;font-weight:bold">គណនីនេះត្រូវបានភ្ជាប់ជាមួយកុំព្យូទ័រ (PC) ផ្សេងរួចហើយ!</span><br>ប្រព័ន្ធកំណត់ដាច់ខាត 1 Machine ID ប្រើប្រាស់បានតែលើ 1 PC ប៉ុណ្ណោះ មិនអាចប្រើលើកុំព្យូទ័រនេះបានឡើយ។`;
+      } else if(!data.authenticated || data.must_login || (data.must_register && !data.authenticated)){
+        const m = $("#userRegisterModal");
+        if(!m || m.hidden){
+          openUserRegisterModal('login', true);
         }
-      } else if(!data.authenticated || data.must_register || !data.has_firebase_account){
-        openUserRegisterModal('register', true);
       } else {
+        // Authenticated user (Regular or VIP)
         isMandatoryAuth = false;
+        closeUserRegisterModal(true);
         if(prevWasNotVip && data.is_vip){
           toast(`👑 អបអរសាទរ! ADMIN បានអនុម័តកញ្ចប់ VIP ជូន ${data.name || data.username} រួចរាល់ហើយ! (ដោះសោរគ្រប់ភាគទាំងអស់)`, false);
-          closeUserRegisterModal();
+        }
+      }
+
+        const act = urlParams.get('action');
+        if(act === 'coin_modal'){
+          setTimeout(() => { if(typeof openCoinModal === 'function') openCoinModal(); }, 400);
+        } else if(act === 'detail'){
+          const sid = urlParams.get('drama_id') || '7662291674818677784';
+          setTimeout(() => { if(typeof openDramaDetail === 'function') openDramaDetail(sid); }, 400);
+        } else if(act === 'logout'){
+          setTimeout(() => {
+            window.confirm = () => true;
+            if(typeof doExplicitLogout === 'function') doExplicitLogout();
+          }, 400);
         }
       }
 
@@ -4093,11 +4305,9 @@ function updateAccessUI(data){
   const topUc = $("#topUserCtrlBtn");
   const topLogout = $("#topLogoutBtn");
   const topLoginBtn = $("#topLoginBtn");
-  if(topLoginBtn) topLoginBtn.style.display = isAdmin ? "none" : "inline-flex";
-  const btnSwitchToUser = $("#topBtnSwitchToUser");
-  const btnSwitchToAdmin = $("#topBtnSwitchToAdmin");
-  if(btnSwitchToUser) btnSwitchToUser.style.display = isAdmin ? "inline-flex" : "none";
-  if(btnSwitchToAdmin) btnSwitchToAdmin.style.display = (!isAdmin) ? "inline-flex" : "none";
+  const footUser = $("#footUser");
+  if(topLoginBtn) topLoginBtn.style.display = (data && data.authenticated) ? "none" : "inline-flex";
+
   const topRestartBtn = $("#topAdminRestartBtn");
   if(topRestartBtn) topRestartBtn.style.display = isAdmin ? "inline-flex" : "none";
   const isVip = !!(data && data.is_vip);
@@ -4231,9 +4441,9 @@ function updateAccessUI(data){
     }
     refreshAdminUsersList();
 
-  } else if(isBanned || data.status === 'machine_mismatch'){
+  } else if(isBanned){
     if(icon) icon.textContent = "🚫";
-    if(txt) txt.textContent = data.status === 'machine_mismatch' ? "Machine Lock (1 PC)" : "Banned (បិទគណនី)";
+    if(txt) txt.textContent = "Banned (បិទគណនី)";
     if(badge){
       badge.style.borderColor = "var(--bad)";
       badge.style.color = "var(--bad)";
@@ -4242,7 +4452,7 @@ function updateAccessUI(data){
     }
     if(topUc) topUc.style.display = "none";
     if(topLogout) topLogout.style.display = "inline-flex";
-    if(footUser) footUser.innerHTML = `<span style="color:var(--bad);font-weight:700">🚫 ${data.status === 'machine_mismatch' ? 'Machine ID មិនត្រូវគ្នា (1 PC Only)' : 'គណនីត្រូវបាន ADMIN បិទ (Banned)'}</span>`;
+    if(footUser) footUser.innerHTML = `<span style="color:var(--bad);font-weight:700">🚫 គណនីត្រូវបាន ADMIN បិទ (Banned)</span>`;
   } else if(isVip){
     if(icon) icon.textContent = "👑";
     if(txt) txt.textContent = `VIP: ${data.username || data.name || 'សមាជិក'}`;
@@ -4269,7 +4479,7 @@ function updateAccessUI(data){
     if(footUser) footUser.innerHTML = `<span style="color:var(--gold);font-weight:700">⏳ ចូលជា: ${esc(data.username)} (រង់ចាំ Admin អនុម័ត VIP)</span>`;
   } else if(isUser){
     if(icon) icon.textContent = "👤";
-    if(txt) txt.textContent = `${data.username} (ភាគ 1-10)`;
+    if(txt) txt.textContent = `${data.username} (ភាគ 1-5)`;
     if(badge){
       badge.style.borderColor = "rgba(255,106,43,0.5)";
       badge.style.color = "var(--accent)";
@@ -4278,9 +4488,9 @@ function updateAccessUI(data){
     }
     if(topUc) topUc.style.display = "none";
     if(topLogout) topLogout.style.display = "inline-flex";
-    if(footUser) footUser.innerHTML = `<span style="color:var(--accent);font-weight:700">👤 ចូលជា: ${esc(data.username)} (ភាគ 1-10 ឥតគិតថ្លៃ)</span>`;
+    if(footUser) footUser.innerHTML = `<span style="color:var(--accent);font-weight:700">👤 ចូលជា: ${esc(data.username)} (ភាគ 1-5 ឥតគិតថ្លៃ)</span>`;
   } else {
-    // Guest
+    // Unauthenticated
     if(icon) icon.textContent = "👤";
     if(txt) txt.textContent = "ចូលគណនី / ចុះឈ្មោះ";
     if(badge){
@@ -4291,7 +4501,28 @@ function updateAccessUI(data){
     }
     if(topUc) topUc.style.display = "none";
     if(topLogout) topLogout.style.display = "none";
-    if(footUser) footUser.textContent = "មិនទាន់ចូលគណនី (Guest - ភាគ 1-10)";
+    if(footUser) footUser.textContent = "មិនទាន់ចូលគណនី (សូមចូលគណនី ឬចុះឈ្មោះ)";
+  }
+
+  // Update Topbar Coins Badge
+  const topCoinBadge = $("#topCoinBadge");
+  const topCoinsVal = $("#topCoinsVal");
+  const topCoinsRiel = $("#topCoinsRiel");
+  if(topCoinBadge){
+    const isAuth = !!(data && data.authenticated);
+    if(isAuth){
+      const coins = Number((data && data.coins) || 0);
+      if(topCoinsVal) topCoinsVal.textContent = coins;
+      if(topCoinsRiel) topCoinsRiel.textContent = (coins * 500).toLocaleString();
+      topCoinBadge.style.display = "inline-flex";
+    } else {
+      topCoinBadge.style.display = "none";
+    }
+  }
+
+  // Update Drama Detail Coin UI
+  if(typeof updateDramaDetailCoinUI === 'function' && ddCurrentDrama){
+    updateDramaDetailCoinUI(ddCurrentDrama);
   }
 
   // Update elements inside Modal Status Card
@@ -4303,7 +4534,7 @@ function updateAccessUI(data){
     if(data.username){
       vipUserDisp.textContent = `គណនី: ${data.username}${data.name ? ' (' + data.name + ')' : ''}`;
     } else {
-      vipUserDisp.textContent = "មិនទាន់ចូលគណនី (Guest)";
+      vipUserDisp.textContent = "មិនទាន់ចូលគណនី (សូមចូលគណនី)";
     }
   }
 
@@ -4329,12 +4560,12 @@ function updateAccessUI(data){
       regStBadge.textContent = "👤 គណនីធម្មតា (Free Tier)";
       regStBadge.style.color = "var(--accent)";
       regStBadge.style.background = "rgba(255,106,43,0.15)";
-      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-10";
+      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-5";
     } else {
       regStBadge.textContent = "មិនទាន់ចូលគណនី";
       regStBadge.style.color = "var(--muted)";
       regStBadge.style.background = "rgba(255,255,255,0.08)";
-      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-10";
+      if(regExp) regExp.textContent = "ទស្សនា & ដោនឡូតបានភាគ 1-5";
     }
   }
 
@@ -4353,15 +4584,15 @@ function updateAccessUI(data){
       if(topDlIcon) topDlIcon.textContent = isDevRole ? "⚡" : "♾️";
       if(topDlText) topDlText.textContent = isDevRole ? "DEV MASTER (សេរី)" : "គ្មានដែនកំណត់ (ADMIN)";
       topDlBadge.title = isDevRole ? "Developer Machine (ប្រើប្រាស់បានដោយសេរី គ្មានដែនកំណត់ មិនបាច់ Login)" : "គណនី Super Admin (Full Control - គ្មានដែនកំណត់)";
-    } else if(isBanned || data.status === 'machine_mismatch'){
+    } else if(isBanned){
       topDlBadge.style.display = "inline-flex";
       topDlBadge.style.background = "rgba(255,46,99,0.22)";
       topDlBadge.style.border = "1.5px solid rgba(255,46,99,0.7)";
       topDlBadge.style.color = "var(--bad)";
       topDlBadge.style.boxShadow = "0 0 12px rgba(255,46,99,0.4)";
       if(topDlIcon) topDlIcon.textContent = "🚫";
-      if(topDlText) topDlText.textContent = data.status === 'machine_mismatch' ? "Machine Lock (1 PC)" : "គណនីត្រូវបានបិទ (Banned)";
-      topDlBadge.title = data.status === 'machine_mismatch' ? "គណនីខុសកុំព្យូទ័រ (1 Machine ID / 1 PC Only)" : "គណនីត្រូវបាន ADMIN បិទដំណើរការ";
+      if(topDlText) topDlText.textContent = "គណនីត្រូវបានបិទ (Banned)";
+      topDlBadge.title = "គណនីត្រូវបាន ADMIN បិទដំណើរការ";
     } else if(isVip){
       topDlBadge.style.display = "inline-flex";
       topDlBadge.style.background = "rgba(46,204,113,0.18)";
@@ -4438,7 +4669,7 @@ function updateAccessUI(data){
       if(mDaysIcon) mDaysIcon.textContent = uDays <= 2 ? "⚠️" : "⏳";
       if(mNotice) mNotice.style.display = "block";
     } else {
-      mDaysBadge.textContent = "មិនទាន់ចុះឈ្មោះ (Guest)";
+      mDaysBadge.textContent = "មិនទាន់ចូលគណនី";
       mDaysBadge.style.background = "rgba(255,255,255,0.08)";
       mDaysBadge.style.color = "var(--muted)";
       if(mDaysIcon) mDaysIcon.textContent = "👤";
@@ -4471,17 +4702,20 @@ if(topVipBtn) topVipBtn.onclick = () => {
 
 window.doExplicitLogout = async function(){
   if(!confirm("តើអ្នកពិតជាចង់ចាកចេញពីគណនីមែនទេ?")) return;
-  localStorage.setItem('syd_auth_token', 'guest');
+  const oldTok = localStorage.getItem('syd_auth_token') || '';
+  const devId = (window.userAccess && window.userAccess.device_id) || '';
+
+  localStorage.removeItem('syd_auth_token');
   localStorage.removeItem('syd_auth_user');
+  sessionStorage.removeItem('syd_auth_token');
   sessionStorage.removeItem('hg_admin_pin');
   currentAdminPin = '';
 
   try {
-    const devId = (window.userAccess && window.userAccess.device_id) || '';
     await fetch('/dl/access/logout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'guest', device_id: devId })
+      body: JSON.stringify({ token: oldTok, device_id: devId })
     });
   } catch(e){}
 
@@ -4490,21 +4724,39 @@ window.doExplicitLogout = async function(){
     window.history.replaceState({}, document.title, cleanUrl);
   }
 
-  toast("🚪 បានចាកចេញពីគណនីជោគជ័យ (Guest Mode)");
+  localStorage.removeItem('syd_auth_token');
+  sessionStorage.removeItem('syd_auth_token');
+  sessionStorage.removeItem('hg_admin_pin');
 
-  window.userAccess = { authenticated: false, role: 'guest', status: 'guest' };
+  toast("🚪 បានចាកចេញពីគណនីជោគជ័យ! សូមចូលគណនីដើម្បីបន្តប្រើប្រាស់");
+
+  window.userAccess = { 
+    authenticated: false, 
+    role: 'unauthenticated', 
+    status: 'login_required', 
+    must_register: true, 
+    must_login: true, 
+    username: 'មិនទាន់ចូលគណនី' 
+  };
   updateAccessUI(window.userAccess);
+  isMandatoryAuth = true;
   openUserRegisterModal('login', true);
-
-  await fetchAccessStatus();
 };
 
 const topLogoutBtn = $("#topLogoutBtn");
 if(topLogoutBtn) topLogoutBtn.onclick = window.doExplicitLogout;
 
-const regCl = $("#regCloseBtn"); if(regCl) regCl.onclick = closeUserRegisterModal;
-const regCl2 = $("#regCloseBtn2"); if(regCl2) regCl2.onclick = closeUserRegisterModal;
-const regMod = $("#userRegisterModal"); if(regMod) regMod.addEventListener('click', e => { if(e.target === regMod && !isMandatoryAuth) closeUserRegisterModal(); });
+const regCl = $("#regCloseBtn"); if(regCl) regCl.onclick = () => closeUserRegisterModal(false);
+const regCl2 = $("#regCloseBtn2"); if(regCl2) regCl2.onclick = () => closeUserRegisterModal(false);
+const regMod = $("#userRegisterModal"); if(regMod) regMod.addEventListener('click', e => { if(e.target === regMod) closeUserRegisterModal(false); });
+document.addEventListener("keydown", e => {
+  if(e.key === "Escape"){
+    const m = $("#userRegisterModal");
+    if(m && !m.hidden){
+      closeUserRegisterModal(false);
+    }
+  }
+});
 
 const regCopyBtn = $("#regCopyDevId");
 if(regCopyBtn){
@@ -4543,59 +4795,89 @@ if(regPassInput){
   });
 }
 
+function togglePasswordVisibility(inputId, btnId){
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if(!inp) return;
+  if(inp.type === "password"){
+    inp.type = "text";
+    if(btn) btn.innerHTML = "🙈";
+  } else {
+    inp.type = "password";
+    if(btn) btn.innerHTML = "👁️";
+  }
+}
+
 // Login Submit Handler
 async function executeLogin(user, pass){
   const ident = user.trim();
   const pw = pass.trim();
+  const alertEl = $("#authLoginAlert");
+  if(alertEl) { alertEl.style.display = "none"; alertEl.textContent = ""; }
+
   if(!ident){
     toast("⚠️ សូមបញ្ចូល Username ឬ Phone!", true);
+    if(alertEl){ alertEl.textContent = "⚠️ សូមបញ្ចូល Username ឬ Phone!"; alertEl.style.display = "block"; }
     if($("#authLoginUser")) $("#authLoginUser").focus();
     return;
   }
   if(!pw){
     toast("⚠️ សូមបញ្ចូលពាក្យសម្ងាត់ (Password)!", true);
+    if(alertEl){ alertEl.textContent = "⚠️ សូមបញ្ចូលពាក្យសម្ងាត់ (Password)!"; alertEl.style.display = "block"; }
     if($("#authLoginPass")) $("#authLoginPass").focus();
     return;
   }
   const btn = $("#authLoginSubmitBtn");
   if(btn){ btn.disabled = true; btn.innerHTML = "<span>កំពុងពិនិត្យ...</span>"; }
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     const res = await fetch("/dl/access/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         identity: ident,
         password: pw,
         device_id: (window.userAccess && window.userAccess.device_id) || ''
       })
     });
+    clearTimeout(timeoutId);
     const j = await res.json();
     if(j.ok){
-      localStorage.setItem('syd_auth_token', j.token || '');
+      if(alertEl) alertEl.style.display = "none";
+      const token = j.token || '';
+      localStorage.setItem('syd_auth_token', token);
       localStorage.setItem('syd_auth_user', JSON.stringify(j.user || {}));
+      window.userAccess = Object.assign({}, j.user || {}, { authenticated: true });
+      isMandatoryAuth = false;
+      closeUserRegisterModal(true);
       if(j.user && (j.user.is_admin || j.user.role === 'admin')){
         sessionStorage.setItem('hg_admin_pin', '8888');
-        currentAdminPin = (j.token || '8888');
+        currentAdminPin = (token || '8888');
         toast("🛡️ ស្វាគមន៍ការចូលប្រើប្រាស់ ADMIN (Full Control គ្មានការ Lock)!", false);
-        closeUserRegisterModal();
-        await fetchAccessStatus();
       } else if(j.user && j.user.is_vip){
         toast(`👑 ស្វាគមន៍ VIP! ${j.user.name || j.user.username} (ដោះសោរគ្រប់ភាគ)`);
-        closeUserRegisterModal();
-        await fetchAccessStatus();
       } else {
-        // REGULAR USER (Free Tier 1-10)
-        // USER REQUIREMENT:
-        // user ធម្មតា Login ចូលទៅ ប្រព័ន្ធនឹងបង្ហាញ ការស្នើសុំ កញ្ចប់ VIP
+        // REGULAR USER (Free Tier 1-5)
         toast(`✅ ចូលប្រើប្រាស់ជោគជ័យ! សូមស្វាគមន៍ ${j.user.name || j.user.username}`);
-        await fetchAccessStatus();
-        openUserRegisterModal('vip', false);
       }
+      await fetchAccessStatus();
     } else {
-      toast("⚠️ " + (j.error || "ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ"), true);
+      const errMsg = j.error || "ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ";
+      toast("⚠️ " + errMsg, true);
+      if(alertEl){
+        alertEl.innerHTML = "⚠️ " + esc(errMsg);
+        alertEl.style.display = "block";
+      }
     }
   } catch(e){
-    toast("⚠️ កំហុសបណ្តាញ៖ " + e, true);
+    const errMsg = (e.name === 'AbortError') ? "ការតភ្ជាប់យឺតពេក (Network Timeout) សូមព្យាយាមម្តងទៀត!" : ("កំហុសបណ្តាញ៖ " + e);
+    toast("⚠️ " + errMsg, true);
+    if(alertEl){
+      alertEl.innerHTML = "⚠️ " + esc(errMsg);
+      alertEl.style.display = "block";
+    }
   } finally {
     if(btn){ btn.disabled = false; btn.innerHTML = "<span>🚀 ចូលគណនី (Login)</span>"; }
   }
@@ -4664,8 +4946,9 @@ if(authRegSubmitBtn){
         if($("#regNameInput")) $("#regNameInput").value = j.user.name || name;
         if($("#regContactInput")) $("#regContactInput").value = j.user.contact || contact;
 
-        toast("🎉 ចុះឈ្មោះជោគជ័យ! អ្នកជា User ធម្មតា (ភាគ 1-10 ឥតគិតថ្លៃ)។ សូមស្នើសុំ VIP ដើម្បីដោះសោរគ្រប់ភាគ!", false);
-        openUserRegisterModal('vip', false);
+        toast(`🎉 ជោគជ័យ ការប្រើប្រាស់កម្មវិធី USER ធម្មតា (សូមស្វាគមន៍ ${j.user.name || username})`, false);
+        closeUserRegisterModal(true);
+        await fetchAccessStatus();
       } else {
         toast("⚠️ " + (j.error || "បរាជ័យក្នុងការចុះឈ្មោះ"), true);
       }
@@ -4745,7 +5028,7 @@ if(regSubBtn){
 }
 
 /* ---------- Admin Access Panel Handlers ---------- */
-async function checkAndUnlockAdmin(pin){
+window.checkAndUnlockAdmin = async function checkAndUnlockAdmin(pin){
   if(!pin) return false;
   try {
     const tok = localStorage.getItem('syd_auth_token') || '';
@@ -4886,7 +5169,7 @@ function renderAdminUserList(users){
     } else if(isPend){
       stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(241,196,15,0.2);color:var(--gold)">⏳ PENDING VIP [${esc(u.requested_package || '1_year')}]</span>`;
     } else {
-      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(255,106,43,0.2);color:var(--accent)">👤 ធម្មតា (ភាគ 1-10)</span>`;
+      stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(255,106,43,0.2);color:var(--accent)">👤 ធម្មតា (ភាគ 1-5)</span>`;
     }
     
     const reqPkg = u.requested_package || '1_year';
@@ -4895,10 +5178,13 @@ function renderAdminUserList(users){
     return `<div style="background:var(--surface);padding:12px 14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <b style="font-size:13.5px;color:var(--ink)">${esc(u.name || u.username || 'Unknown')}</b>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,106,43,0.15);border:1px solid rgba(255,106,43,0.35);padding:3px 10px;border-radius:8px">
+              <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">USER NAME:</span>
+              <span style="font-weight:900;font-size:14px;color:#ff6a2b;letter-spacing:0.5px">${esc(u.username || u.name || 'USER')}</span>
+            </div>
+            ${u.name && u.name !== u.username ? `<b style="font-size:13px;color:var(--ink)">(${esc(u.name)})</b>` : ''}
             ${stBadge}
-            ${u.username ? `<span style="font-size:11.5px;color:var(--muted)">(@${esc(u.username)})</span>` : ''}
             ${u.contact ? `<span style="font-size:12px;color:var(--accent);font-weight:600">📞 ${esc(u.contact)}</span>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:4px;font-size:11px;color:var(--muted);font-family:var(--font-mono);flex-wrap:wrap">
@@ -5032,6 +5318,7 @@ window.adminApproveUser = async function(targetKey, explicitPkg, customDays){
     if(j.ok){
       toast(`✅ បានអនុម័ត VIP ជូន ${targetKey} រួចរាល់!`);
       refreshAdminUsersList();
+      refreshFirebaseLicenses();
       fetchAccessStatus();
     } else {
       toast("⚠️ " + (j.error || "បរាជ័យ"), true);
@@ -5060,6 +5347,7 @@ window.adminBanUser = async function(targetKey, banned){
     if(j.ok){
       toast(banned ? `🚫 បានបិទគណនី ${targetKey} រួចរាល់!` : `✅ បានបើកគណនី ${targetKey} ឡើងវិញរួចរាល់!`);
       refreshAdminUsersList();
+      refreshFirebaseLicenses();
       fetchAccessStatus();
     } else {
       toast("⚠️ " + (j.error || "បរាជ័យ"), true);
@@ -5082,6 +5370,7 @@ window.adminRevokeUser = async function(targetKey){
     if(j.ok){
       toast(`⛔ បានដកសិទ្ធិ VIP របស់ ${targetKey} រួចរាល់!`);
       refreshAdminUsersList();
+      refreshFirebaseLicenses();
       fetchAccessStatus();
     } else {
       toast("⚠️ " + (j.error || "បរាជ័យ"), true);
@@ -5104,6 +5393,7 @@ window.adminDeleteUser = async function(targetKey){
     if(j.ok){
       toast("🗑️ បានលុបទិន្នន័យរួចរាល់!");
       refreshAdminUsersList();
+      refreshFirebaseLicenses();
     } else {
       toast("⚠️ " + (j.error || "បរាជ័យ"), true);
     }
@@ -5345,7 +5635,8 @@ function renderFirebaseLicensesList(licenses){
     }
 
     const devId = item.device_id || item.key || '';
-    const displayName = item.name || item.username || 'User PC';
+    const userName = item.username || item.name || 'SYD-001';
+    const fullName = item.name && item.name !== userName ? item.name : '';
     const contact = item.contact || 'គ្មានទំនាក់ទំនង';
     const note = item.note ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-style:italic">📝 ចំណាំ៖ ${esc(item.note)}</div>` : '';
     const expText = item.expires_date ? `ផុតកំណត់៖ ${item.expires_date} (${item.days_left >= 0 ? item.days_left + ' ថ្ងៃទៀត' : 'Lifetime'})` : '';
@@ -5354,8 +5645,12 @@ function renderFirebaseLicensesList(licenses){
       <div style="background:var(--surface);border:1px solid ${isPending ? 'rgba(241,196,15,0.4)' : 'var(--line)'};padding:12px 14px;border-radius:12px;display:flex;flex-direction:column;gap:8px;box-shadow:${isPending ? '0 0 12px rgba(241,196,15,0.1)' : 'none'}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
           <div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-weight:800;font-size:13.5px;color:var(--ink)">${esc(displayName)}</span>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,106,43,0.15);border:1px solid rgba(255,106,43,0.35);padding:3px 10px;border-radius:8px">
+                <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">USER NAME:</span>
+                <span style="font-weight:900;font-size:14px;color:#ff6a2b;letter-spacing:0.5px">${esc(userName)}</span>
+              </div>
+              ${fullName ? `<span style="font-weight:700;font-size:13px;color:var(--ink)">(${esc(fullName)})</span>` : ''}
               <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:${badgeBg};color:${badgeColor}">${statusText}</span>
             </div>
             <div style="font-size:11.5px;color:var(--muted);margin-top:2px">
@@ -5545,7 +5840,7 @@ async function backgroundFirebaseSync(){
 setInterval(backgroundFirebaseSync, 25000);
 setTimeout(backgroundFirebaseSync, 4000);
 
-function openUserControl() {
+window.openUserControl = function openUserControl() {
   const m = $("#userCtrlModal");
   if(!m) return;
   const q = $("#ubQuality"), s = $("#ubSeries");
@@ -6102,9 +6397,9 @@ function renderStorageExplorer(seriesList){
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
             <button class="btn accent sm se-play-btn" data-sname="${esc(s.folder_name)}" style="padding:4px 10px;font-size:12px">🎬 ទស្សនា</button>
-            <button class="btn primary sm se-save-pc-btn" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:4px 10px;font-size:12px">💾 Save ចូល PC</button>
-            <button class="btn ghost sm se-expand-btn" data-sidx="${idx}" style="padding:4px 10px;font-size:12px">📂 ភាគ & ទាញយក</button>
-            <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn ghost sm" title="ទាញយកភាគទាំងអស់ជា ZIP ដាក់កុំព្យូទ័រ" style="padding:4px 10px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">📦 ZIP</a>
+            ${(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()) ? '' : `<button class="btn primary sm se-save-pc-btn" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:4px 10px;font-size:12px">💾 Save ចូល PC</button>`}
+            <button class="btn ghost sm se-expand-btn" data-sidx="${idx}" style="padding:4px 10px;font-size:12px">📂 ភាគ${(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()) ? '' : ' & ទាញយក'}</button>
+            ${(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()) ? '' : `<a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn ghost sm" title="ទាញយកភាគទាំងអស់ជា ZIP ដាក់កុំព្យូទ័រ" style="padding:4px 10px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">📦 ZIP</a>`}
           </div>
         </div>
 
@@ -6113,8 +6408,8 @@ function renderStorageExplorer(seriesList){
           <div style="font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
             <span>បញ្ជីភាគដែលបានដោនឡូតរួច (ចុចលើប៊ូតុង ដើម្បី Download មក PC):</span>
             <div style="display:flex;gap:6px">
-              <button class="btn primary sm se-panel-save-pc" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:2px 8px;font-size:11px">💾 Save គ្រប់ភាគចូល PC</button>
-              <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none">⬇️ ទាញយកទាំងអស់ (.ZIP)</a>
+              ${(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()) ? '' : `<button class="btn primary sm se-panel-save-pc" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:2px 8px;font-size:11px">💾 Save គ្រប់ភាគចូល PC</button>
+              <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none">⬇️ ទាញយកទាំងអស់ (.ZIP)</a>`}
             </div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;max-height:200px;overflow-y:auto;padding-right:4px">
@@ -6894,4 +7189,313 @@ if(new URLSearchParams(location.search).has("open_first_drama")){
 
 
 
+
+
+
+// ====================================================
+// SYD COIN WALLET & PURCHASE DRAMA LOGIC
+// ====================================================
+
+function updateDramaDetailCoinUI(item){
+  const sid = item ? (item.id || item.series_id) : (ddCurrentDrama ? (ddCurrentDrama.id || ddCurrentDrama.series_id) : null);
+  if(!sid) return;
+
+  const coinBadge = $("#ddCoinPriceBadge");
+  const buyBtn = $("#ddBuyDramaBtn");
+  const isPurchased = !!(window.userAccess && window.userAccess.purchased_series && (window.userAccess.purchased_series[sid] || (Array.isArray(window.userAccess.purchased_series) && window.userAccess.purchased_series.includes(sid))));
+  const isVipOrAdmin = !!(window.userAccess && (window.userAccess.is_vip || window.userAccess.is_admin || window.userAccess.role === 'admin' || window.userAccess.role === 'dev'));
+
+  if(coinBadge){
+    if(isPurchased){
+      coinBadge.textContent = "✅ បានទិញរួចរាល់ (Unlocked)";
+      coinBadge.style.background = "rgba(34,197,94,0.18)";
+      coinBadge.style.color = "#22c55e";
+      coinBadge.style.border = "1px solid rgba(34,197,94,0.4)";
+      coinBadge.title = "អ្នកបានទិញរឿងនេះរួចរាល់ អាចទស្សនា & ដោនឡូតគ្រប់ភាគដោយសេរី";
+    } else if(isVipOrAdmin){
+      coinBadge.textContent = "🎁 Free សម្រាប់អ្នក (VIP)";
+      coinBadge.style.background = "rgba(56,189,248,0.15)";
+      coinBadge.style.color = "#38bdf8";
+      coinBadge.style.border = "1px solid rgba(56,189,248,0.4)";
+      coinBadge.title = "គណនី VIP/Admin មានសិទ្ធិទស្សនា & ដោនឡូតឥតគិត Coin";
+    } else {
+      coinBadge.textContent = "🪙 2 Coins (1,000៛)";
+      coinBadge.style.background = "rgba(234,179,8,0.15)";
+      coinBadge.style.color = "#eab308";
+      coinBadge.style.border = "1px solid rgba(234,179,8,0.4)";
+      coinBadge.title = "1 Coin = 500៛ | ដោះសោររឿងនេះគ្រប់ភាគទាំងអស់ជាអចិន្ត្រៃយ៍";
+    }
+  }
+
+  if(buyBtn){
+    if(isPurchased){
+      buyBtn.style.display = "inline-flex";
+      buyBtn.disabled = true;
+      buyBtn.style.background = "rgba(34,197,94,0.2)";
+      buyBtn.style.color = "#22c55e";
+      buyBtn.style.boxShadow = "none";
+      buyBtn.style.cursor = "default";
+      buyBtn.innerHTML = "<span>✅ បានទិញរួចរាល់</span>";
+      buyBtn.title = "រឿងនេះត្រូវបានដោះសោរគ្រប់ភាគរួចរាល់ហើយ";
+    } else if(isVipOrAdmin){
+      buyBtn.style.display = "none";
+    } else {
+      buyBtn.style.display = "inline-flex";
+      buyBtn.disabled = false;
+      buyBtn.style.background = "linear-gradient(135deg,#eab308,#ca8a04)";
+      buyBtn.style.color = "#000";
+      buyBtn.style.boxShadow = "0 3px 12px rgba(234,179,8,0.35)";
+      buyBtn.style.cursor = "pointer";
+      buyBtn.innerHTML = "<span>🛒 ទិញរឿងនេះ (2 Coins)</span>";
+      buyBtn.title = "ទិញដោះសោររឿងនេះដោយប្រើ 2 Coins (1,000៛)";
+    }
+  }
+}
+
+window.openCoinModal = function(){
+  if(!window.userAccess || !window.userAccess.authenticated){
+    toast("សូមចូលគណនីជាមុនសិន ដើម្បីទិញ Coin!", true);
+    if(typeof openUserRegisterModal === 'function') openUserRegisterModal('login', true);
+    return;
+  }
+  const modal = $("#coinModal");
+  if(!modal) return;
+  const coins = Number((window.userAccess && window.userAccess.coins) || 0);
+  const coinsEl = $("#coinModalUserCoins");
+  const rielEl = $("#coinModalUserRiel");
+  const nameEl = $("#coinModalUserAccountName");
+  if(coinsEl) coinsEl.textContent = coins;
+  if(rielEl) rielEl.textContent = (coins * 500).toLocaleString();
+  if(nameEl) nameEl.textContent = `គណនី: ${window.userAccess.username || window.userAccess.name || window.userAccess.device_id || 'User'}`;
+  
+  modal.hidden = false;
+  loadMyCoinRequests();
+};
+
+window.closeCoinModal = function(){
+  const modal = $("#coinModal");
+  if(modal) modal.hidden = true;
+};
+
+window.selectCoinPackage = function(coins, riel){
+  const inp = $("#coinReqInput");
+  const dsp = $("#coinReqRielDisplay");
+  if(inp) inp.value = coins;
+  if(dsp) dsp.value = Number(riel).toLocaleString() + ' ៛';
+};
+
+window.onCoinReqInputChange = function(){
+  const inp = $("#coinReqInput");
+  const dsp = $("#coinReqRielDisplay");
+  if(!inp || !dsp) return;
+  const coins = Math.max(1, parseInt(inp.value || '0', 10));
+  dsp.value = (coins * 500).toLocaleString() + ' ៛';
+};
+
+window.submitCoinRequest = function(){
+  if(!window.userAccess || !window.userAccess.authenticated){
+    toast("សូមចូលគណនីជាមុនសិន!", true);
+    if(typeof openUserRegisterModal === 'function') openUserRegisterModal('login', true);
+    return;
+  }
+  const inp = $("#coinReqInput");
+  const noteInp = $("#coinReqNoteInput");
+  const msgEl = $("#coinReqStatusMsg");
+  const btn = $("#coinReqSubmitBtn");
+  const coins = parseInt((inp && inp.value) || '0', 10);
+  const note = (noteInp && noteInp.value.trim()) || '';
+
+  if(coins < 1){
+    toast("សូមបញ្ចូលចំនួន Coin យ៉ាងតិច 1 Coin!", true);
+    return;
+  }
+
+  if(btn) btn.disabled = true;
+  if(msgEl){
+    msgEl.style.display = "block";
+    msgEl.style.background = "rgba(56,189,248,0.15)";
+    msgEl.style.color = "#38bdf8";
+    msgEl.textContent = "⏳ កំពុងផ្ញើសំណើទិញ Coin ទៅ Admin...";
+  }
+
+  const payload = {
+    amount_coins: coins,
+    note: note,
+    device_id: window.userAccess.device_id || '',
+    token: localStorage.getItem('syd_auth_token') || ''
+  };
+
+  fetch("/dl/coins/request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(j => {
+    if(btn) btn.disabled = false;
+    if(j.ok){
+      if(msgEl){
+        msgEl.style.background = "rgba(46,204,113,0.15)";
+        msgEl.style.color = "var(--good)";
+        msgEl.textContent = `✅ បានផ្ញើសំណើទិញ ${coins} Coin រួចរាល់! Admin នឹងពិនិត្យនិងបញ្ចូលជូនភ្លាមៗ។`;
+      }
+      toast(`✅ បានផ្ញើសំណើទិញ ${coins} Coin!`, false);
+      if(noteInp) noteInp.value = '';
+      loadMyCoinRequests();
+    } else {
+      if(msgEl){
+        msgEl.style.background = "rgba(255,46,99,0.15)";
+        msgEl.style.color = "var(--bad)";
+        msgEl.textContent = "❌ បរាជ័យ: " + (j.error || "មិនអាចផ្ញើសំណើបានទេ");
+      }
+      toast("❌ " + (j.error || "បរាជ័យ"), true);
+    }
+  })
+  .catch(e => {
+    if(btn) btn.disabled = false;
+    if(msgEl){
+      msgEl.style.background = "rgba(255,46,99,0.15)";
+      msgEl.style.color = "var(--bad)";
+      msgEl.textContent = "⚠️ កំហុស: " + e;
+    }
+    toast("⚠️ កំហុសបណ្តាញ: " + e, true);
+  });
+};
+
+window.loadMyCoinRequests = function(){
+  if(!window.userAccess || !window.userAccess.device_id) return;
+  const list = $("#coinMyRequestsList");
+  if(!list) return;
+  const devId = window.userAccess.device_id;
+  const tok = localStorage.getItem('syd_auth_token') || '';
+
+  fetch(`/dl/coins/my_requests?device_id=${encodeURIComponent(devId)}&token=${encodeURIComponent(tok)}`)
+  .then(r => r.json())
+  .then(j => {
+    if(!j.ok || !j.requests || !j.requests.length){
+      list.innerHTML = '<div style="text-align:center;padding:12px;color:var(--muted);font-size:11.5px">មិនទាន់មានសំណើទិញ Coin ទេ</div>';
+      return;
+    }
+    list.innerHTML = j.requests.map(r => {
+      let stBadge = '';
+      if(r.status === 'approved'){
+        stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(46,204,113,0.2);color:var(--good)">✅ បានអនុម័ត (+${r.amount_coins} Coins)</span>`;
+      } else if(r.status === 'rejected'){
+        stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(255,46,99,0.2);color:var(--bad)">❌ បានបដិសេធ</span>`;
+      } else {
+        stBadge = `<span style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:4px;background:rgba(241,196,15,0.2);color:var(--gold)">⏳ កំពុងរង់ចាំ Admin</span>`;
+      }
+      return `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;font-size:11.5px">
+        <div>
+          <b style="color:#eab308;font-size:13px">${r.amount_coins} Coins</b>
+          <span style="color:var(--muted);margin-left:6px">(${Number(r.amount_riel || 0).toLocaleString()} ៛)</span>
+          <div style="color:var(--muted);font-size:10.5px;margin-top:2px">${r.note ? esc(r.note) + ' · ' : ''}${r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : ''}</div>
+        </div>
+        <div>${stBadge}</div>
+      </div>`;
+    }).join('');
+  })
+  .catch(e => {
+    list.innerHTML = '<div style="text-align:center;padding:12px;color:var(--muted);font-size:11.5px">មិនអាចទាញយកប្រវត្តិសំណើបានទេ</div>';
+  });
+};
+
+window.buyCurrentDramaWithCoins = function(){
+  if(!ddCurrentDrama){
+    toast("⚠️ សូមជ្រើសរើសរឿងជាមុនសិន!", true);
+    return;
+  }
+  const sid = ddCurrentDrama.id || ddCurrentDrama.series_id;
+  const title = ddCurrentDrama.title_km || ddCurrentDrama.title;
+  buyDramaWithCoins(sid, title);
+};
+
+window.buyDramaWithCoins = async function(sid, title){
+  if(!window.userAccess || !window.userAccess.authenticated){
+    toast("សូមចូលគណនីជាមុនសិន ដើម្បីទិញរឿងដោះសោរ!", true);
+    if(typeof openUserRegisterModal === 'function') openUserRegisterModal('login', true);
+    return;
+  }
+
+  const sidStr = String(sid || '').trim();
+  if(!sidStr){
+    toast("⚠️ មិនមានលេខសម្គាល់រឿង (Series ID) ទេ!", true);
+    return;
+  }
+
+  const dramaTitle = title || sidStr;
+  const currentCoins = Number((window.userAccess && window.userAccess.coins) || 0);
+
+  const purchased = window.userAccess.purchased_series || {};
+  if(purchased[sidStr] || (Array.isArray(purchased) && purchased.includes(sidStr))){
+    toast(`✅ អ្នកបានទិញរឿង 《${dramaTitle}》 រួចរាល់ហើយ!`, false);
+    return;
+  }
+
+  if(!confirm(`🛒 តើអ្នកពិតជាចង់ប្រើ 2 Coins (1,000៛) ដើម្បីដោះសោររឿង 《${dramaTitle}》 គ្រប់ភាគទាំងអស់ជាអចិន្ត្រៃយ៍មែនទេ?\\n\\nសមតុល្យ Coin បច្ចុប្បន្ន: ${currentCoins} Coins`)){
+    return;
+  }
+
+  if(currentCoins < 2){
+    toast(`🪙 Coins មិនគ្រប់គ្រាន់ទេ! រឿងនេះត្រូវការ 2 Coins (1,000៛) ប៉ុន្តែអ្នកមានត្រឹម ${currentCoins} Coins។`, true);
+    if(typeof openCoinModal === 'function') openCoinModal();
+    return;
+  }
+
+  const tok = localStorage.getItem('syd_auth_token') || '';
+  const devId = (window.userAccess && window.userAccess.device_id) || '';
+
+  toast(`⏳ កំពុងដំណើរការទិញរឿង 《${dramaTitle}》...`, false);
+
+  try {
+    const res = await fetch("/dl/access/purchase-series", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: tok,
+        device_id: devId,
+        series_id: sidStr,
+        series_title: dramaTitle
+      })
+    });
+    const j = await res.json();
+    if(j.ok){
+      if(!window.userAccess.purchased_series) window.userAccess.purchased_series = {};
+      window.userAccess.purchased_series[sidStr] = {
+        series_id: sidStr,
+        title: dramaTitle,
+        coins: 2,
+        purchased_at: Date.now() / 1000
+      };
+      if(j.coins !== undefined) window.userAccess.coins = Number(j.coins);
+      if(j.coins_riel !== undefined) window.userAccess.coins_riel = Number(j.coins_riel);
+
+      const topCoinsVal = $("#topCoinsVal");
+      const topCoinsRiel = $("#topCoinsRiel");
+      if(topCoinsVal) topCoinsVal.textContent = window.userAccess.coins;
+      if(topCoinsRiel) topCoinsRiel.textContent = (window.userAccess.coins * 500).toLocaleString();
+
+      if(typeof updateDramaDetailCoinUI === 'function' && ddCurrentDrama){
+        updateDramaDetailCoinUI(ddCurrentDrama);
+      }
+      if(typeof renderDramaDetailEpisodes === 'function' && ddCurrentDrama){
+        renderDramaDetailEpisodes();
+      }
+
+      toast(`🎉 ${j.message || "ទិញដោះសោររឿងជោគជ័យ! អ្នកអាចទស្សនា និងដោនឡូតគ្រប់ភាគទាំងអស់ដោយសេរី"}`, false);
+    } else {
+      if(j.reason === 'insufficient_coins'){
+        toast(`❌ ${j.error || "Coins មិនគ្រប់គ្រាន់ទេ"}`, true);
+        if(typeof openCoinModal === 'function') openCoinModal();
+      } else if(j.reason === 'login_required'){
+        toast(`⚠️ ${j.error || "សូមចូលគណនីជាមុនសិន!"}`, true);
+        if(typeof openUserRegisterModal === 'function') openUserRegisterModal('login', true);
+      } else {
+        toast(`❌ បរាជ័យ: ${j.error || "មិនអាចទិញរឿងបានទេ"}`, true);
+      }
+    }
+  } catch(e){
+    toast(`⚠️ កំហុសបណ្តាញ: ${e.message}`, true);
+  }
+};
 

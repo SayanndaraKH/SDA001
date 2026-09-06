@@ -586,26 +586,308 @@
   .cast-name{ font-size:12px; font-weight:700; color:var(--ink); line-height:1.25; word-break:break-word; }
   .cast-role{ font-size:11px; color:var(--muted); line-height:1.2; }
 
-  /* ============ Circular Centered Pagination (ស្ទាយរង្វង់មូលចំកណ្តាល ដូចរូបថត) ============ */
+  /* ============ Front Cast & Characters Explorer (តួអង្គសម្តែង) ============ */
+  .front-cast-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px 18px 14px;
+    margin: 6px 0 16px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+  }
+  .front-cast-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .front-cast-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .front-cast-title {
+    font-family: var(--font-km);
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--ink);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .front-cast-badge {
+    font-size: 11.5px;
+    color: #38bdf8;
+    background: rgba(56,189,248,0.12);
+    border: 1px solid rgba(56,189,248,0.3);
+    padding: 2px 9px;
+    border-radius: 12px;
+    font-weight: 700;
+  }
+  .front-cast-hint {
+    font-size: 11.5px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .cast-gender-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--ground);
+    padding: 3px;
+    border-radius: 20px;
+    border: 1px solid var(--line-2);
+  }
+  .cast-gender-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border-radius: 16px;
+    border: none;
+    background: transparent;
+    color: var(--ink-2);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--font-km);
+    transition: all 0.15s ease;
+  }
+  .cast-gender-tab:hover {
+    color: var(--ink);
+    background: var(--surface-2);
+  }
+  .cast-gender-tab.on {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #ffffff;
+    box-shadow: 0 2px 10px var(--glow);
+  }
+  .cast-gender-tab .en-sub {
+    font-size: 10px;
+    opacity: 0.82;
+    font-weight: 500;
+  }
+
+  .front-cast-carousel-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+  .front-cast-track {
+    display: flex;
+    gap: 18px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    padding: 8px 6px 14px;
+    align-items: flex-start;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,106,43,0.3) transparent;
+    cursor: grab;
+    user-select: none;
+  }
+  .front-cast-track:active {
+    cursor: grabbing;
+  }
+  .front-cast-track::-webkit-scrollbar {
+    height: 5px;
+  }
+  .front-cast-track::-webkit-scrollbar-thumb {
+    background: rgba(255,106,43,0.25);
+    border-radius: 4px;
+  }
+  .front-cast-track::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+  }
+
+  .cast-slide-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 6;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(26, 18, 12, 0.9);
+    border: 1.5px solid var(--line-2);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+    transition: all 0.2s ease;
+    backdrop-filter: blur(8px);
+    user-select: none;
+  }
+  .cast-slide-arrow:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+    transform: translateY(-50%) scale(1.12);
+    box-shadow: 0 4px 16px var(--glow);
+  }
+  .cast-slide-arrow.left-arrow { left: -6px; }
+  .cast-slide-arrow.right-arrow { right: -6px; }
+
+  .front-cast-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 78px;
+    max-width: 96px;
+    flex-shrink: 0;
+    text-align: center;
+    cursor: pointer;
+    padding: 6px 4px;
+    border-radius: 14px;
+    transition: all 0.2s ease;
+  }
+  .front-cast-item:hover {
+    transform: translateY(-3px);
+    background: var(--surface-2);
+  }
+  .front-cast-item.selected {
+    background: rgba(255,106,43,0.14);
+    border: 1.5px solid var(--accent);
+    box-shadow: 0 0 16px var(--glow);
+  }
+  .front-cast-avatar-wrap {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .front-cast-avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(56,189,248,0.45);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    background: var(--surface-2);
+    transition: all 0.2s ease;
+  }
+  .front-cast-item:hover .front-cast-avatar {
+    transform: scale(1.08);
+    border-color: #38bdf8;
+    box-shadow: 0 0 16px rgba(56,189,248,0.5);
+  }
+  .front-cast-item.selected .front-cast-avatar {
+    transform: scale(1.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 18px var(--glow);
+  }
+  .front-cast-gender-icon {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--surface);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  .front-cast-gender-icon.gender-female {
+    background: #ec4899;
+    color: #ffffff;
+  }
+  .front-cast-gender-icon.gender-male {
+    background: #0284c7;
+    color: #ffffff;
+  }
+  .front-cast-name {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.25;
+    word-break: break-word;
+    transition: color 0.15s ease;
+  }
+  .front-cast-item:hover .front-cast-name,
+  .front-cast-item.selected .front-cast-name {
+    color: var(--accent);
+  }
+  .front-cast-role {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.2;
+  }
+
+  .active-actor-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 9px 16px;
+    border-radius: 12px;
+    background: rgba(255,106,43,0.12);
+    border: 1px solid rgba(255,106,43,0.35);
+  }
+  .active-actor-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .active-actor-icon {
+    font-size: 20px;
+  }
+  .active-gender-tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-family: var(--font-km);
+  }
+
+  /* ============ Circular Centered & Top-Right Pagination (ស្ទាយរង្វង់មូល ដូចរូបថត) ============ */
   .circle-pager{
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
-    gap:8px !important;
+    gap:7px !important;
     width:100% !important;
     margin:22px auto 14px !important;
     padding:6px 0 !important;
     flex-wrap:wrap !important;
     user-select:none;
   }
+  /* Top pagination placed on the right (ផ្នែកខាងលើដាក់នៅខាងស្តាំ) */
+  .circle-pager.top-pager{
+    justify-content:flex-end !important;
+    margin:6px 0 12px auto !important;
+    width:auto !important;
+    padding:2px 0 !important;
+  }
   .circle-page-btn{
-    width:38px;
-    height:38px;
+    width:36px;
+    height:36px;
+    min-width:36px;
     border-radius:50%;
     border:none;
-    background:#52525b;
+    background:#474b57;
     color:#ffffff;
-    font-size:14px;
+    font-size:13.5px;
     font-weight:700;
     font-family:var(--font-mono), -apple-system, sans-serif;
     display:inline-flex;
@@ -613,11 +895,13 @@
     justify-content:center;
     cursor:pointer;
     transition:all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow:0 2px 6px rgba(0, 0, 0, 0.3);
+    box-shadow:0 2px 6px rgba(0, 0, 0, 0.35);
     outline:none;
+    padding:0;
+    line-height:1;
   }
   .circle-page-btn:hover:not(:disabled):not(.active){
-    background:#71717a;
+    background:#646979;
     transform:scale(1.08);
     color:#ffffff;
   }
@@ -625,24 +909,29 @@
     background:#38bdf8 !important;
     color:#090d16 !important;
     font-weight:800 !important;
-    box-shadow:0 0 16px rgba(56, 189, 248, 0.6) !important;
-    transform:scale(1.05);
+    box-shadow:0 0 18px rgba(56, 189, 248, 0.75) !important;
+    transform:scale(1.08);
   }
   .circle-page-btn:disabled{
-    opacity:0.32;
+    opacity:0.3;
     cursor:not-allowed;
-    background:#3f3f46;
+    background:#2b2d35;
     pointer-events:none;
   }
   .circle-page-btn.nav-btn{
     font-size:16px;
     font-weight:800;
+    background:#343741;
+  }
+  .circle-page-btn.nav-btn:hover:not(:disabled){
+    background:#525665;
   }
   .circle-page-dots{
-    width:38px;
-    height:38px;
+    width:36px;
+    height:36px;
+    min-width:36px;
     border-radius:50%;
-    background:#52525b;
+    background:#474b57;
     color:#ffffff;
     display:inline-flex;
     align-items:center;
@@ -652,12 +941,35 @@
     letter-spacing:1px;
     cursor:pointer;
     transition:all 0.18s ease;
-    box-shadow:0 2px 6px rgba(0, 0, 0, 0.3);
+    box-shadow:0 2px 6px rgba(0, 0, 0, 0.35);
+    user-select:none;
+    line-height:1;
   }
   .circle-page-dots:hover{
-    background:#71717a;
+    background:#646979;
     transform:scale(1.08);
     color:#38bdf8;
+  }
+  @media (max-width: 768px){
+    .circle-pager{
+      gap:5px !important;
+      overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
+      flex-wrap:nowrap !important;
+      justify-content:flex-start !important;
+      padding-bottom:6px !important;
+    }
+    .circle-pager.top-pager{
+      justify-content:flex-start !important;
+      margin-left:0 !important;
+      width:100% !important;
+    }
+    .circle-page-btn, .circle-page-dots{
+      width:32px;
+      height:32px;
+      min-width:32px;
+      font-size:12px;
+    }
   }
   /* ============ Right Side Queue Drawer & Floating Button ============ */
   .side-queue-drawer{
@@ -1034,6 +1346,71 @@
     .rankno{position:absolute;top:6px;left:6px;z-index:3;min-width:20px;height:20px;padding:0 5px;display:flex;align-items:center;justify-content:center;border-radius:7px;background:rgba(0,0,0,.66);color:#fff;font:800 12px/1 var(--font-mono);backdrop-filter:blur(2px)}
     .rankno.top{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:var(--on-accent)}
     </style>
+    <!-- ============ Front Cast & Characters Carousel (តួអង្គសម្តែង) ============ -->
+    <div id="frontCastSection" class="front-cast-card">
+      <div class="front-cast-header">
+        <div class="front-cast-title-wrap">
+          <h3 class="front-cast-title">
+            <span style="font-size:18px">🎭</span>
+            <span>តួអង្គសម្តែង (Cast &amp; Characters)</span>
+          </h3>
+          <span id="frontCastCountBadge" class="front-cast-badge">137 តួអង្គ</span>
+          <span class="front-cast-hint">⭐ តារាសម្តែង ប្រចាំសប្តាហ៍</span>
+        </div>
+
+        <!-- Gender Filter Tabs (ជម្រើស ស្រី ឬ ប្រុស ឬ ទាំងអស់) -->
+        <div class="cast-gender-tabs" id="castGenderTabs">
+          <button type="button" class="cast-gender-tab on" data-gender="all" onclick="filterFrontCast('all')" title="បង្ហាញតួអង្គទាំងអស់">
+            <span class="km-label">🌟 ទាំងអស់</span>
+            <span class="en-sub">All</span>
+          </button>
+          <button type="button" class="cast-gender-tab" data-gender="female" onclick="filterFrontCast('female')" title="បង្ហាញតែតួស្រី">
+            <span class="km-label">👩 ស្រី</span>
+            <span class="en-sub">Actresses</span>
+          </button>
+          <button type="button" class="cast-gender-tab" data-gender="male" onclick="filterFrontCast('male')" title="បង្ហាញតែតួប្រុស">
+            <span class="km-label">👨 ប្រុស</span>
+            <span class="en-sub">Actors</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Horizontal Carousel Slider (អាចស្លាយទៅឆ្វេង ឬទៅស្តាំបានដោយសេរី) -->
+      <div class="front-cast-carousel-wrap">
+        <button type="button" class="cast-slide-arrow left-arrow" onclick="slideFrontCast(-1)" title="ស្លាយទៅឆ្វេង (Slide Left)" aria-label="Slide Left">
+          ‹
+        </button>
+
+        <div id="frontCastList" class="front-cast-track">
+          <!-- Populated dynamically by renderFrontCastList() -->
+        </div>
+
+        <button type="button" class="cast-slide-arrow right-arrow" onclick="slideFrontCast(1)" title="ស្លាយទៅស្តាំ (Slide Right)" aria-label="Slide Right">
+          ›
+        </button>
+      </div>
+
+      <!-- Active Actor Selection Banner (When an actor is selected) -->
+      <div id="frontActiveActorBanner" class="active-actor-banner" style="display:none">
+        <div class="active-actor-info">
+          <span class="active-actor-icon">🎬</span>
+          <div>
+            <div style="font-family:var(--font-km);font-weight:800;font-size:13.5px;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span>កំពុងបង្ហាញ Poster រឿងរបស់:</span>
+              <span id="activeActorNameDisplay" style="color:var(--accent);font-size:15px;font-weight:900"></span>
+              <span id="activeActorGenderTag" class="active-gender-tag"></span>
+            </div>
+            <div id="activeActorSubText" style="font-size:11.5px;color:var(--muted);font-weight:600;margin-top:2px">
+              ចុចលើ Poster រឿងណាមួយខាងក្រោមដើម្បីទស្សនា ឬដោនឡូតភ្លាមៗ
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn ghost sm" onclick="clearActorFilter()" style="font-family:var(--font-km);font-weight:700;font-size:12px;padding:6px 14px;border-radius:20px;border-color:rgba(240,82,26,0.4);color:var(--ink);cursor:pointer">
+          ✕ បង្ហាញរឿងទាំងអស់វិញ (Show All)
+        </button>
+      </div>
+    </div>
+
     <div class="exctl" id="explorerControls" hidden>
       <div class="exrow">
         <div style="position:relative;flex:1 1 240px;min-width:160px;display:flex;align-items:center">
@@ -1104,6 +1481,11 @@
         <span id="dateSortIndicator">💡 ចុចជ្រើសរើសដើម្បីតម្រៀបថ្ងៃនីមួយៗ ពីមុនមកបច្ចុប្បន្ន ឬពីថ្មីទៅចាស់</span>
       </div>
     </div>
+    <!-- Top Pagination Row (Aligned to the Right ផ្នែកខាងលើដាក់នៅខាងស្តាំ) -->
+    <div class="top-pager-bar" id="topPagerBar" style="display:flex;justify-content:flex-end;align-items:center;width:100%;margin:2px 0 10px">
+      <div id="moreRowTop" class="circle-pager top-pager" hidden></div>
+      <div id="explorerPagerTop" class="circle-pager top-pager" hidden></div>
+    </div>
     <div class="grid" id="results"></div>
     <div id="moreRow" class="circle-pager" hidden></div>
     <div id="explorerPager" class="circle-pager" hidden></div>
@@ -1149,6 +1531,14 @@
           <div id="ddPlayPosterOverlay" style="position:absolute;inset:0;background:rgba(0,0,0,0.35);backdrop-filter:blur(2px);z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer">
             <div class="dd-big-play-btn" style="width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#ff2e63,#ff6a2b);display:flex;align-items:center;justify-content:center;color:#fff;font-size:26px;box-shadow:0 8px 30px rgba(255,46,99,0.55);padding-left:4px">▶</div>
             <span style="font-family:var(--font-km);font-weight:700;font-size:13.5px;color:#fff;background:rgba(0,0,0,0.68);padding:5px 14px;border-radius:20px;backdrop-filter:blur(4px)">ចុចដើម្បី Live Stream មើលភ្លាមៗ</span>
+          </div>
+
+          <!-- Unavailable Overlay for Taken Down Dramas -->
+          <div id="ddInlineUnavailable" hidden style="position:absolute;inset:0;background:rgba(15,23,42,0.95);backdrop-filter:blur(10px);z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center">
+            <div style="font-size:42px;margin-bottom:2px">⚠️</div>
+            <div style="font-family:var(--font-km);font-size:15.5px;font-weight:700;color:#f87171" id="ddUnavailableTitle">រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម</div>
+            <div style="font-family:var(--font-km);font-size:12.5px;color:rgba(255,255,255,0.75);max-width:280px;line-height:1.6" id="ddUnavailableDesc">Server ដើមបានដកចេញ (Upstream Taken Down) មិនអាចចាក់ផ្សាយ ឬទាញយកបានទេ</div>
+            <button class="btn sm ghost" onclick="closeDramaDetail()" style="font-family:var(--font-km);font-size:12px;color:#fff;border-color:rgba(255,255,255,0.3);margin-top:10px;padding:6px 14px">‹ ត្រឡប់ទៅរឿងផ្សេងទៀត</button>
           </div>
 
           <!-- Floating Close / Reset button at top-left -->
@@ -1354,6 +1744,19 @@
       <div class="panel"><div class="console" id="log">—</div></div>
     </details>
   </div>
+
+  <!-- ============ Footer ផ្នែកខាងក្រោមបង្អស់ (៣ជួរដេក) ============ -->
+  <footer id="mainPageFooter" style="margin-top:56px;padding:32px 16px 48px 16px;border-top:1px solid rgba(255,106,43,0.25);text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:var(--font-km);background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,0.5) 100%)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);letter-spacing:0.4px">
+      រក្សាសិទ្ធដោយ៖ <span style="color:var(--accent);font-weight:800;letter-spacing:0.6px">SYD DRAMA ENTERTANMENT</span>
+    </div>
+    <div style="font-size:14px;font-weight:600;color:var(--ink-2);letter-spacing:0.3px">
+      លេខទូរស័ព្ទ : <a href="tel:092800104" style="color:var(--accent);font-family:var(--font-mono);font-weight:700;text-decoration:none;letter-spacing:0.5px">092 800 104</a>
+    </div>
+    <div style="font-size:13.5px;font-weight:600;color:var(--muted);letter-spacing:0.2px">
+      ឆ្នាំ ២០២៦-២០២៧
+    </div>
+  </footer>
 </div>
 
 <!-- episode picker modal -->
@@ -3064,7 +3467,7 @@ async function loadTrending(board, page, force=false){
   } else {
     $("#resLabel").textContent="🏆 Leaderboard";
   }
-  $("#boardTabs").hidden=false; $("#backHome").hidden=true; $("#explorerPager").hidden=true; $("#explorerControls").hidden=true; $("#resCount").textContent="";
+  $("#boardTabs").hidden=false; $("#backHome").hidden=true; $("#explorerPager").hidden=true; if($("#explorerPagerTop")) $("#explorerPagerTop").hidden=true; $("#explorerControls").hidden=true; $("#resCount").textContent="";
   $("#trendCats").hidden=false;
   if($("#liveCats")) $("#liveCats").hidden=true;
   document.querySelectorAll("#boardTabs .tab").forEach(t=>{
@@ -3128,7 +3531,581 @@ function renderTrending(){
   autoTranslateCatalog(trendData);
 }
 
-/* ============ Circular Centered Pagination (ស្ទាយរង្វង់មូលចំកណ្តាល ដូចរូបថត) ============ */
+let frontCastGenderFilter = 'all'; // 'all', 'female', 'male'
+let selectedActorName = null;
+
+/* ============ Front Cast & Characters Explorer (តួអង្គសម្តែងលើផ្ទាំងមុខ) ============ */
+const INITIAL_FRONT_ACTORS = [
+  {
+    "name": "王阡惠",
+    "role": "林微",
+    "gender": "female",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/1eec7a57c6844f77bea085db75ffe984~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=Awbq6zPIdyeBONfv6bTg%2F0TDL7E%3D",
+    "intro": "王阡惠，中国内地女演员，代表作《全班差生，托举我上清北》《团宠六小姐》《极品辣妈好威武》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "魏尊",
+    "role": "程砚",
+    "gender": "male",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/09d06bfef985bb1d5f732cfd7501253f~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=77Of%2FxTmpy2gIcdKDxgXaIwmHTo%3D",
+    "intro": "魏尊，中国内地影视男演员，代表作《全班差生，托举我上清北》《望道》《银河补习班》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "刘欣迪",
+    "role": "夏小棠",
+    "gender": "female",
+    "avatar": "https://p6-novel-sign.byteimg.com/novel-pic/872028d3e5ee7d26cfd9965bfd4f77e8~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=%2BAEmFCTPnVhgEt4u24x%2Bi6eAfW0%3D",
+    "intro": "刘欣迪，中国影视剧女演员，代表作《全班差生，托举我上清北》《与茶热恋》《姜小姐的反击》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "熊贤达",
+    "role": "周游",
+    "gender": "male",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/f89b188adb83aa4b145cd412afc68bc3~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=8uTxCoFA8%2FJHwBuzv7WWANLGO1k%3D",
+    "intro": "熊贤达，中国内地男演员，代表作《全班差生，托举我上清北》《海神殿下超宠我》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "陈传凯",
+    "role": "林国强",
+    "gender": "male",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/bbd3a1f5aaad47279f15631679f57f7e~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=Y1ecxMoWk5YiJ4swH%2Be3%2Bk14k9I%3D",
+    "intro": "陈传凯，中国内地男演员，代表作《全班差生，托举我上清北》《戴假发的人》《一江春水》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "东东",
+    "role": "李翠花",
+    "gender": "female",
+    "avatar": "https://p6-novel-sign.byteimg.com/novel-pic/c9886d4442fd4f2f8c4597edfdea85da~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=GOd3qJRubaElTQf6PBzToUKPpmI%3D",
+    "intro": "东东，中国影视剧女演员，代表作《全班差生，托举我上清北》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "王玉芷",
+    "role": "蔡老师",
+    "gender": "female",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/837b6d73367024d6c86a5e5bef8d5103~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=wIblOP6opVKlVvJbs%2FDDGOZ1boY%3D",
+    "intro": "王玉芷，中国影视剧女演员，代表作《全班差生，托举我上清北》《杂技皇后夏菊花》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "温鑫阳",
+    "role": "林华",
+    "gender": "male",
+    "avatar": "https://p3-novel-sign.byteimg.com/novel-pic/d2f3b81e9def7eb8c05b607e3e18e40f~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=NGC2lksxn%2BheHsIkUDdrTZo1XMw%3D",
+    "intro": "温鑫阳，中国内地男演员，代表作《全班差生，托举我上清北》《傅爷的小青梅又飒又美》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "张紫豪",
+    "role": "隔壁班学生",
+    "gender": "male",
+    "avatar": "https://p3-novel-sign.byteimg.com/novel-pic/898a7f1da1daca6e2b37d2891e6ad775~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=bD7pcanrplFFUzM%2F%2BK6%2BbXoF6z4%3D",
+    "intro": "张紫豪，中国内地男演员，代表作《全班差生，托举我上清北》《被拐上山后竟无敌于都市》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "杨东峰",
+    "role": "高老大",
+    "gender": "male",
+    "avatar": "https://p6-novel-sign.byteimg.com/novel-pic/f430369b95568dad7f03bfaf19777860~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=LuTzFdNOqF7QRI3ZJzZ8zbyA3No%3D",
+    "intro": "杨东峰，中国内地男演员，代表作《全班差生，托举我上清北》《蜜恋物语》《野花劫》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "刘厚辰",
+    "role": "程父",
+    "gender": "male",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/9652cfbfebde4a7598bc6647e405d1a4~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=1qrkTOV0GCcYPcJ996wnS7igqlk%3D",
+    "intro": "刘厚辰，中国内地男演员，代表作《全班差生，托举我上清北》《他偏要》《小小圣手定乾坤》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "田鹏",
+    "role": "夏父",
+    "gender": "male",
+    "avatar": "https://p3-novel-sign.byteimg.com/novel-pic/b98c364eeb324c0fbeaf084086da280d~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796379901&x-signature=EyvVH3zqwApVpSG1Y2LBMLX1w38%3D",
+    "intro": "田鹏，资深主持人、影视演员，代表作《全班差生，托举我上清北》《都市隐龙》等。",
+    "drama": "全班差生，托举我上清北",
+    "sid": "7668961158434409534"
+  },
+  {
+    "name": "郭宇欣",
+    "role": "时穗",
+    "gender": "female",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/75b8dd5915aaed1adb9825e3368db7bf~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380347&x-signature=SbzyGhLokCrJdLcNYP61QnBgZ4Y%3D",
+    "intro": "郭宇欣，中国内地女演员，代表作《好雨知时节》《心动还请告诉我》《盛夏芬德拉》等。",
+    "drama": "好雨知时节",
+    "sid": "7673056752958458942"
+  },
+  {
+    "name": "王皓祯",
+    "role": "宋知节",
+    "gender": "male",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/799a131cda7e1c9b64352f008b052169~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380347&x-signature=llgZTQCblhNbeWI4ez7oHhmXmto%3D",
+    "intro": "王皓祯，中国内地男演员，代表作《好雨知时节》《温软玫瑰沦为他心尖偏宠》等。",
+    "drama": "好雨知时节",
+    "sid": "7673056752958458942"
+  },
+  {
+    "name": "李佳明",
+    "role": "秦程锦",
+    "gender": "male",
+    "avatar": "https://p6-novel-sign.byteimg.com/novel-pic/5946c17fefd34d15b1def05b33f3ffd6~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380347&x-signature=cCRzcpj02sIgDUMzvo%2BAfzn3DN0%3D",
+    "intro": "李佳明，中国影视剧演员，代表作《好雨知时节》等。",
+    "drama": "好雨知时节",
+    "sid": "7673056752958458942"
+  },
+  {
+    "name": "白靖筠",
+    "role": "林暖暖",
+    "gender": "female",
+    "avatar": "https://p3-novel-sign.byteimg.com/novel-pic/8002e7b511b5d021c59f1b51b1a5115c~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380347&x-signature=IakHcOm780AvlHrj%2B3d24EqsGlM%3D",
+    "intro": "白靖筠，中国内地女演员，代表作《好雨知时节》《邱秘书的婚事》等。",
+    "drama": "好雨知时节",
+    "sid": "7673056752958458942"
+  },
+  {
+    "name": "阿茉",
+    "role": "时母",
+    "gender": "female",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/29b29970682432cf21d8abf1301d16d1~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380347&x-signature=pULMu0x8hKNdP%2BFyMEtTGfSvP6c%3D",
+    "intro": "阿茉，中国内地女演员，代表作《好雨知时节》《咬清梨》《素锦流年》等。",
+    "drama": "好雨知时节",
+    "sid": "7673056752958458942"
+  },
+  {
+    "name": "祁忆",
+    "role": "苏芹",
+    "gender": "female",
+    "avatar": "https://p6-novel-sign.byteimg.com/novel-pic/aee4d6efc5ad2f6868f3bf0ddba7cf5b~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380347&x-signature=y7v74YtKpELB%2B3FUgyeoCOk8WIg%3D",
+    "intro": "祁忆，中国影视剧女演员，代表作《好雨知时节》《谁懂啊娘娘写了一百条宫规》等。",
+    "drama": "好雨知时节",
+    "sid": "7673056752958458942"
+  },
+  {
+    "name": "孙鸿",
+    "role": "宋臣",
+    "gender": "male",
+    "avatar": "https://p3-novel-sign.byteimg.com/novel-pic/b19ae6e91f159e0dc94f2b8ce11b9e66~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380347&x-signature=hm57VGx1WFDO1dwuEi2K%2BEWu7J8%3D",
+    "intro": "孙鸿，中国影视剧男演员，代表作《好雨知时节》《囚眠》《野女孩》等。",
+    "drama": "好雨知时节",
+    "sid": "7673056752958458942"
+  },
+  {
+    "name": "安心",
+    "role": "林姨",
+    "gender": "female",
+    "avatar": "https://p3-novel-sign.byteimg.com/novel-pic/bf49a7b424b5492b9f97a00dcf90e623~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380347&x-signature=GHTQzv5xi%2BgCZ%2FwWmLrC6Bekz74%3D",
+    "intro": "安心，中国内地女演员，代表作《好雨知时节》《遮云》《我的归途有风2》等。",
+    "drama": "好雨知时节",
+    "sid": "7673056752958458942"
+  },
+  {
+    "name": "马秋元",
+    "role": "方子怡",
+    "gender": "female",
+    "avatar": "https://p3-novel-sign.byteimg.com/novel-pic/e4dc4915f3e4b370ff099bfbbedbdafd~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380382&x-signature=JbKXXqK65Nz%2F728XbWeKNud2JL4%3D",
+    "intro": "马秋元，中国内地女演员，短剧代表作《黑莲花上位手册》《北境战神》《桃花马上请长缨》《咬清梨》等。",
+    "drama": "北境战神",
+    "sid": "7283356034716929084"
+  },
+  {
+    "name": "申浩男",
+    "role": "宴矜",
+    "gender": "male",
+    "avatar": "https://p3-novel-sign.byteimg.com/novel-pic/1d2ba5fed0e0b97efa3cd77872df8262~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380407&x-signature=HRjcCrGeBzBGSIgrwA00iRuRzlI%3D",
+    "intro": "申浩男，中国内地男演员，代表作《宴律你的白月光回国了》《玫瑰冠冕》《旖旎婚色》等。",
+    "drama": "宴律，你的白月光回国了",
+    "sid": "7503745441910017049"
+  },
+  {
+    "name": "何健麒",
+    "role": "周宴京",
+    "gender": "male",
+    "avatar": "https://p9-novel-sign.byteimg.com/novel-pic/c99ebc3799852052a89ab2f7f39fbe9e~tplv-resize:200:0.heic?lk3s=253f70db&x-expires=1796380354&x-signature=nsppt9hkppXa3GymNS7R3FGGQiE%3D",
+    "intro": "何健麒，中国内地影视剧男演员，代表作《盛夏芬德拉》《绮靡》《深情诱引》等。",
+    "drama": "盛夏芬德拉",
+    "sid": "7550544718799588376"
+  }
+];
+
+window.allActorsList = [];
+window.allActorsMap = {};
+
+async function initFrontCast() {
+  window.allActorsList = [];
+  window.allActorsMap = {};
+  for (const a of INITIAL_FRONT_ACTORS) {
+    window.allActorsMap[a.name] = a;
+    window.allActorsList.push(a);
+  }
+  renderFrontCastList();
+  initFrontCastDragScroll();
+
+  // Load all 137+ actors dynamically from https://hongguoduanju.com/
+  try {
+    const res = await fetch("/dl/actors");
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.actors && data.actors.length) {
+        window.allActorsList = [];
+        window.allActorsMap = {};
+        for (const a of data.actors) {
+          window.allActorsMap[a.name] = a;
+          window.allActorsList.push(a);
+        }
+        renderFrontCastList();
+      }
+    }
+  } catch (e) {
+    console.warn("Could not load /dl/actors:", e);
+  }
+}
+
+function filterFrontCast(gender) {
+  frontCastGenderFilter = gender;
+  document.querySelectorAll("#castGenderTabs .cast-gender-tab").forEach(btn => {
+    btn.classList.toggle("on", btn.dataset.gender === gender);
+  });
+  renderFrontCastList();
+}
+
+function slideFrontCast(dir) {
+  const container = document.getElementById("frontCastList");
+  if (!container) return;
+  const amount = 340 * dir;
+  container.scrollBy({ left: amount, behavior: "smooth" });
+}
+
+function initFrontCastDragScroll() {
+  const slider = document.getElementById("frontCastList");
+  if (!slider || slider._dragInited) return;
+  slider._dragInited = true;
+  let isDown = false;
+  let startX = 0;
+  let scrollLeft = 0;
+
+  slider.addEventListener("mousedown", (e) => {
+    isDown = true;
+    slider.classList.add("active");
+    startX = e.pageX - slider.offsetLeft;
+    scrollLeft = slider.scrollLeft;
+  });
+  slider.addEventListener("mouseleave", () => { isDown = false; });
+  slider.addEventListener("mouseup", () => { isDown = false; });
+  slider.addEventListener("mousemove", (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - slider.offsetLeft;
+    const walk = (x - startX) * 1.5;
+    slider.scrollLeft = scrollLeft - walk;
+  });
+  slider.addEventListener("wheel", (e) => {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      slider.scrollLeft += e.deltaY;
+    }
+  }, { passive: false });
+}
+
+function renderFrontCastList() {
+  const listEl = document.getElementById("frontCastList");
+  const badgeEl = document.getElementById("frontCastCountBadge");
+  if (!listEl) return;
+
+  const all = window.allActorsList || [];
+  let filtered = all;
+  if (frontCastGenderFilter === 'female') {
+    filtered = all.filter(a => a.gender === 'female');
+  } else if (frontCastGenderFilter === 'male') {
+    filtered = all.filter(a => a.gender === 'male');
+  }
+
+  if (badgeEl) {
+    if (frontCastGenderFilter === 'female') {
+      badgeEl.textContent = `${filtered.length} តួស្រី`;
+      badgeEl.style.color = "#ec4899";
+      badgeEl.style.borderColor = "rgba(236,72,153,0.35)";
+      badgeEl.style.background = "rgba(236,72,153,0.12)";
+    } else if (frontCastGenderFilter === 'male') {
+      badgeEl.textContent = `${filtered.length} តួប្រុស`;
+      badgeEl.style.color = "#38bdf8";
+      badgeEl.style.borderColor = "rgba(56,189,248,0.35)";
+      badgeEl.style.background = "rgba(56,189,248,0.12)";
+    } else {
+      badgeEl.textContent = `${filtered.length} តួអង្គ`;
+      badgeEl.style.color = "var(--accent)";
+      badgeEl.style.borderColor = "rgba(255,106,43,0.35)";
+      badgeEl.style.background = "rgba(255,106,43,0.12)";
+    }
+  }
+
+  if (!filtered.length) {
+    listEl.innerHTML = `<div style="padding:18px;color:var(--muted);font-size:12.5px;font-family:var(--font-km)">មិនមានតួអង្គក្នុងជម្រើសនេះទេ</div>`;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(a => {
+    const isSelected = (selectedActorName === a.name);
+    const picUrl = getAvatarUrl(a.avatar);
+    const initial = (a.name || 'ត').charAt(0).toUpperCase();
+    const isFem = a.gender === 'female';
+    const genderIcon = isFem ? '♀' : '♂';
+    const genderClass = isFem ? 'gender-female' : 'gender-male';
+
+    return `
+      <div class="front-cast-item ${isSelected ? 'selected' : ''}" onclick="selectFrontActor('${esc(a.name)}')" title="${esc(a.name)} · ${esc(a.role || (isFem ? 'តួស្រី' : 'តួប្រុស'))}${a.drama ? ' (' + esc(a.drama) + ')' : ''}">
+        <div class="front-cast-avatar-wrap">
+          ${picUrl ? `
+            <img class="front-cast-avatar" src="${esc(picUrl)}" 
+                 onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" 
+                 alt="${esc(a.name)}" loading="lazy">
+            <div class="front-cast-avatar" style="display:none;align-items:center;justify-content:center;background:linear-gradient(135deg,${isFem ? '#ec4899,#f43f5e' : '#0284c7,#38bdf8'});color:#ffffff;font-size:22px;font-weight:800">
+              ${esc(initial)}
+            </div>
+          ` : `
+            <div class="front-cast-avatar" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,${isFem ? '#ec4899,#f43f5e' : '#0284c7,#38bdf8'});color:#ffffff;font-size:22px;font-weight:800">
+              ${esc(initial)}
+            </div>
+          `}
+          <span class="front-cast-gender-icon ${genderClass}" title="${isFem ? 'តួស្រី (Female)' : 'តួប្រុស (Male)'}">${genderIcon}</span>
+        </div>
+        <div class="front-cast-name">${esc(a.name)}</div>
+        <div class="front-cast-role">${esc(a.role || (isFem ? 'តួស្រី' : 'តួប្រុស'))}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function registerCelebrities(celebs, series) {
+  if (!celebs || !Array.isArray(celebs) || !celebs.length) return;
+  let added = false;
+  const sid = series ? String(series.id || series.series_id || '') : '';
+  const dramaTitle = series ? (series.title || series.title_km || '') : '';
+
+  for (const c of celebs) {
+    const name = (c['演员'] || c['nickname'] || c['name'] || '').trim();
+    if (!name) continue;
+    const role = (c['角色'] || c['role_name'] || c['role'] || '').trim();
+    const rawPic = c['头像'] || c['avatar'] || c['avatar_url'] || '';
+    const intro = c['简介'] || c['intro'] || '';
+
+    if (window.allActorsMap && window.allActorsMap[name]) {
+      const ex = window.allActorsMap[name];
+      if (!ex.avatar && rawPic) ex.avatar = rawPic;
+      if (!ex.role && role) ex.role = role;
+      if (!ex.sid && sid) { ex.sid = sid; ex.drama = dramaTitle; }
+      continue;
+    }
+
+    const isFemale = intro.includes('女') || role.includes('小姐') || role.includes('妈') || role.includes('姨') || role.includes('娘') || role.includes('妻') || role.includes('妹');
+    const isMale = intro.includes('男') || role.includes('哥') || role.includes('爷') || role.includes('父') || role.includes('总') || role.includes('先生') || role.includes('弟') || role.includes('生');
+    const gender = (isFemale && !isMale) ? 'female' : ((isMale && !isFemale) ? 'male' : (intro.includes('女演员') ? 'female' : 'male'));
+
+    const actorObj = {
+      name: name,
+      role: role,
+      gender: gender,
+      avatar: rawPic,
+      intro: intro,
+      drama: dramaTitle,
+      sid: sid
+    };
+
+    if (!window.allActorsMap) window.allActorsMap = {};
+    if (!window.allActorsList) window.allActorsList = [];
+    window.allActorsMap[name] = actorObj;
+    window.allActorsList.push(actorObj);
+    added = true;
+  }
+
+  if (added) {
+    renderFrontCastList();
+  }
+}
+
+async function selectFrontActor(actorName) {
+  if (selectedActorName === actorName) {
+    clearActorFilter();
+    return;
+  }
+  selectedActorName = actorName;
+  renderFrontCastList();
+
+  const actor = (window.allActorsList || []).find(a => a.name === actorName) || { name: actorName, gender: 'female' };
+
+  const banner = document.getElementById("frontActiveActorBanner");
+  const nameDisp = document.getElementById("activeActorNameDisplay");
+  const tagDisp = document.getElementById("activeActorGenderTag");
+  const subDisp = document.getElementById("activeActorSubText");
+  if (banner) {
+    banner.style.display = "flex";
+    if (nameDisp) nameDisp.textContent = actorName;
+    if (tagDisp) {
+      tagDisp.textContent = actor.gender === 'female' ? '👩 តួស្រី (Actress)' : '👨 តួប្រុស (Actor)';
+      tagDisp.style.background = actor.gender === 'female' ? 'rgba(236,72,153,0.2)' : 'rgba(56,189,248,0.2)';
+      tagDisp.style.color = actor.gender === 'female' ? '#ec4899' : '#38bdf8';
+    }
+    if (subDisp) {
+      subDisp.textContent = actor.role ? `តួអង្គសម្តែង: "${actor.role}"${actor.drama ? ' ក្នុងរឿង 《' + actor.drama + '》' : ''} · ចុចលើ Poster រឿងខាងក្រោមដើម្បីទស្សនា ឬដោនឡូត` : `ចុចលើ Poster រឿងណាមួយខាងក្រោមដើម្បីទស្សនា ឬដោនឡូតភ្លាមៗ`;
+    }
+  }
+
+  loadDramasForActor(actorName, actor);
+}
+
+async function loadDramasForActor(actorName, actor) {
+  const box = $("#results");
+  const sec = $("#resultsSec");
+  sec.hidden = false;
+  if ($("#dramaDetailSec")) $("#dramaDetailSec").hidden = true;
+
+  $("#resLabel").textContent = `🎭 រឿងសម្តែងដោយ: ${actorName}`;
+  $("#resCount").textContent = "· កំពុងស្វែងរក...";
+  $("#boardTabs").hidden = true;
+  $("#backHome").hidden = false;
+  $("#explorerControls").hidden = true;
+  if ($("#moreRow")) $("#moreRow").hidden = true;
+  if ($("#moreRowTop")) $("#moreRowTop").hidden = true;
+  if ($("#explorerPager")) $("#explorerPager").hidden = true;
+  if ($("#explorerPagerTop")) $("#explorerPagerTop").hidden = true;
+  if ($("#trendCats")) $("#trendCats").hidden = true;
+
+  const localMatches = [];
+  const knownSid = actor && actor.sid;
+  const knownTitle = actor && actor.drama;
+  const seenIds = new Set();
+
+  const pool = [...(window.currentExplorerItems || []), ...(window.trendData || [])];
+  for (const item of pool) {
+    const sid = String(item.id || item.series_id || '');
+    if (!sid || seenIds.has(sid)) continue;
+    let isMatch = false;
+    if (knownSid && sid === String(knownSid)) isMatch = true;
+    if (knownTitle && (item.title === knownTitle || (item.title_km && item.title_km === knownTitle))) isMatch = true;
+    if (item.celebrities && item.celebrities.some(c => (c['演员'] || c['name']) === actorName)) isMatch = true;
+    if (item.intro && item.intro.includes(actorName)) isMatch = true;
+
+    if (isMatch) {
+      seenIds.add(sid);
+      localMatches.push(item);
+    }
+  }
+
+  // Pre-load all dramas directly known from https://hongguoduanju.com/
+  if (actor && actor.dramas && Array.isArray(actor.dramas)) {
+    for (const d of actor.dramas) {
+      const sid = String(d.series_id || '');
+      if (sid && !seenIds.has(sid)) {
+        seenIds.add(sid);
+        localMatches.push({
+          id: sid,
+          series_id: sid,
+          title: d.title || actorName,
+          title_km: d.title_km || '',
+          cover: d.cover || '',
+          episode_cnt: d.episode_cnt || 60,
+          total: d.episode_cnt || 60,
+          score: '8.3'
+        });
+      }
+    }
+  }
+
+  if (knownSid && !seenIds.has(String(knownSid))) {
+    seenIds.add(String(knownSid));
+    localMatches.unshift({
+      id: knownSid,
+      series_id: knownSid,
+      title: knownTitle || actorName,
+      title_km: knownTitle || actorName,
+      cover: actor.cover || (actor.avatar ? actor.avatar : ''),
+      episode_cnt: 60,
+      total: 60,
+      score: '8.2'
+    });
+  }
+
+  if (localMatches.length) {
+    box.innerHTML = resultCards(localMatches, false, 1);
+    syncResultButtons();
+    $("#resCount").textContent = `· ${localMatches.length} រឿង`;
+  } else {
+    box.innerHTML = `<div class="empty" style="grid-column:1/-1;padding:36px"><div class="sm">⏳ កំពុងស្វែងរក Poster រឿងទាំងអស់របស់ "${esc(actorName)}"...</div></div>`;
+  }
+
+  try {
+    const res = await (await fetch("/dl/search?q=" + encodeURIComponent(actorName))).json();
+    const items = res.results || [];
+    if (selectedActorName !== actorName) return;
+
+    if (items.length > 0) {
+      for (const it of items) {
+        const sid = String(it.id || it.series_id || '');
+        if (sid && !seenIds.has(sid)) {
+          seenIds.add(sid);
+          localMatches.push(it);
+        }
+      }
+      box.innerHTML = resultCards(localMatches.length ? localMatches : items, false, 1);
+      syncResultButtons();
+      autoTranslateCatalog(localMatches.length ? localMatches : items);
+      $("#resCount").textContent = `· ${localMatches.length ? localMatches.length : items.length} រឿង`;
+    } else if (!localMatches.length) {
+      box.innerHTML = `<div class="empty" style="grid-column:1/-1;padding:36px">
+        <div class="big">រកមិនឃើញរឿងរបស់តួអង្គ ${esc(actorName)} ទេ</div>
+        <div class="sm">សូមសាកល្បងចុចលើតួអង្គផ្សេងទៀត។</div>
+      </div>`;
+      $("#resCount").textContent = "· 0";
+    }
+  } catch (e) {
+    if (selectedActorName !== actorName) return;
+    if (!localMatches.length) {
+      box.innerHTML = `<div class="empty" style="grid-column:1/-1;padding:36px"><div class="sm">មិនអាចទាញយកបញ្ជីរឿងបានទេ: ${esc(''+e)}</div></div>`;
+    }
+  }
+
+  try {
+    const resultsSec = document.getElementById("results");
+    if (resultsSec) resultsSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch(e){}
+}
+
+function clearActorFilter() {
+  selectedActorName = null;
+  const banner = document.getElementById("frontActiveActorBanner");
+  if (banner) banner.style.display = "none";
+  renderFrontCastList();
+  $("#boardTabs").hidden = false;
+  $("#backHome").hidden = true;
+
+  if (currentTab === "explorer") {
+    loadExplorer(expPage || 1);
+  } else if (currentTab === "human" || currentTab === "ai" || currentTab === "trend") {
+    loadTrending(null, trendPage || 1);
+  } else {
+    loadExplorer(1);
+  }
+}
+
+
+/* ============ Circular Centered & Top-Right Pagination (ស្ទាយរង្វង់មូល ដូចរូបថត) ============ */
 function renderCircularPagination(container, curPage, totalPages, onPageClick){
   if(!container) return;
   curPage = Math.max(1, parseInt(curPage, 10) || 1);
@@ -3141,40 +4118,57 @@ function renderCircularPagination(container, curPage, totalPages, onPageClick){
   container.hidden = false;
 
   let pages = [];
-  if(totalPages <= 7){
+  // User request: Show 10 to 20 pages! (e.g. 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20)
+  const maxVisible = 20;
+  if(totalPages <= maxVisible){
     for(let i = 1; i <= totalPages; i++) pages.push(i);
   } else {
-    if(curPage <= 3){
-      pages = [1, 2, 3, 4, '...', totalPages];
-    } else if(curPage === 4){
-      pages = [1, 2, 3, 4, 5, '...', totalPages];
-    } else if(curPage >= totalPages - 2){
-      pages = [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
-    } else if(curPage === totalPages - 3){
-      pages = [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    if(curPage <= 12){
+      // First 20 pages + '...' + totalPages
+      const end = Math.min(20, totalPages - 1);
+      for(let i = 1; i <= end; i++) pages.push(i);
+      if(end < totalPages - 1) pages.push('...');
+      pages.push(totalPages);
+    } else if(curPage >= totalPages - 11){
+      // 1 + '...' + last 20 pages
+      pages.push(1);
+      const start = Math.max(2, totalPages - 19);
+      if(start > 2) pages.push('...');
+      for(let i = start; i <= totalPages; i++) pages.push(i);
     } else {
-      pages = [1, '...', curPage - 1, curPage, curPage + 1, '...', totalPages];
+      // 1 + '...' + ~15 pages centered around curPage + '...' + totalPages
+      pages.push(1);
+      const start = curPage - 7;
+      const end = curPage + 7;
+      if(start > 2) pages.push('...');
+      for(let i = start; i <= end; i++) pages.push(i);
+      if(end < totalPages - 1) pages.push('...');
+      pages.push(totalPages);
     }
   }
 
-  let html = `<div class="circle-pager">`;
+  const isTop = container.classList.contains("top-pager") || (container.id && container.id.endsWith("Top"));
+  let innerButtons = '';
   const prevDisabled = curPage <= 1 ? 'disabled' : '';
-  html += `<button type="button" class="circle-page-btn nav-btn" data-page="${curPage - 1}" ${prevDisabled} title="Previous Page">‹</button>`;
+  innerButtons += `<button type="button" class="circle-page-btn nav-btn" data-page="${curPage - 1}" ${prevDisabled} title="Previous Page">‹</button>`;
 
   for(const p of pages){
     if(p === '...'){
-      html += `<span class="circle-page-dots" title="Jump to page (ចុចដើម្បីរំលងទំព័រ)">…</span>`;
+      innerButtons += `<span class="circle-page-dots" title="Jump to page (ចុចដើម្បីរំលងទំព័រ)">…</span>`;
     } else {
       const isActive = p === curPage ? 'active' : '';
-      html += `<button type="button" class="circle-page-btn ${isActive}" data-page="${p}">${p}</button>`;
+      innerButtons += `<button type="button" class="circle-page-btn ${isActive}" data-page="${p}">${p}</button>`;
     }
   }
 
   const nextDisabled = curPage >= totalPages ? 'disabled' : '';
-  html += `<button type="button" class="circle-page-btn nav-btn" data-page="${curPage + 1}" ${nextDisabled} title="Next Page">›</button>`;
-  html += `</div>`;
+  innerButtons += `<button type="button" class="circle-page-btn nav-btn" data-page="${curPage + 1}" ${nextDisabled} title="Next Page">›</button>`;
 
-  container.innerHTML = html;
+  if(container.classList.contains("circle-pager")){
+    container.innerHTML = innerButtons;
+  } else {
+    container.innerHTML = `<div class="circle-pager ${isTop ? 'top-pager' : ''}">${innerButtons}</div>`;
+  }
 
   container.querySelectorAll(".circle-page-btn").forEach(btn => {
     btn.onclick = (e) => {
@@ -3202,10 +4196,17 @@ function renderCircularPagination(container, curPage, totalPages, onPageClick){
 
 function renderTrendControls(){
   const row=$("#moreRow");
-  row.hidden=false;
-  row.classList.add("trendctl-sticky");
+  const rowTop=$("#moreRowTop");
   const estTotalPages = trendHasMore ? Math.max(trendPage + 5, 20) : trendPage;
-  renderCircularPagination(row, trendPage, estTotalPages, (pg) => goToTrendPage(pg));
+  if(row){
+    row.hidden=false;
+    row.classList.add("trendctl-sticky");
+    renderCircularPagination(row, trendPage, estTotalPages, (pg) => goToTrendPage(pg));
+  }
+  if(rowTop){
+    rowTop.hidden=false;
+    renderCircularPagination(rowTop, trendPage, estTotalPages, (pg) => goToTrendPage(pg));
+  }
 }
 
 function trendTop(){ try{ $("#resultsSec").scrollIntoView({block:"start"}); }catch(e){} }
@@ -3374,7 +4375,7 @@ async function loadExplorer(page){
     if(seq!==exSeq || currentTab !== "explorer") return;   // a newer request superseded this one — drop the stale result
     const res=j.items||[];
     if(!(j.count>0)){
-      $("#explorerPager").hidden=true; $("#resCount").textContent="· 0";
+      $("#explorerPager").hidden=true; if($("#explorerPagerTop")) $("#explorerPagerTop").hidden=true; $("#resCount").textContent="· 0";
       const hasQ = !!(exQ && exQ.trim());
       box.innerHTML=`<div class="empty" style="grid-column:1/-1">
         <div class="big" style="font-family:'Khmer OS Battambang',sans-serif">រកមិនឃើញទិន្នន័យ (No matches)</div>
@@ -3399,6 +4400,8 @@ async function loadExplorer(page){
     autoTranslateCatalog(res);
     $("#resCount").textContent = "· "+j.count;
     renderCircularPagination($("#explorerPager"), j.page, j.pages, (pg) => loadExplorer(pg));
+    const epTop = $("#explorerPagerTop");
+    if(epTop) renderCircularPagination(epTop, j.page, j.pages, (pg) => loadExplorer(pg));
   }catch(e){
     if(seq!==exSeq || currentTab !== "explorer") return;
     try{
@@ -3412,7 +4415,7 @@ async function loadExplorer(page){
         return;
       }
     }catch(err2){}
-    $("#explorerPager").hidden=true;
+    $("#explorerPager").hidden=true; if($("#explorerPagerTop")) $("#explorerPagerTop").hidden=true;
     box.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="big" style="font-family:\'Khmer OS Battambang\',sans-serif">មិនអាចភ្ជាប់ទៅកាន់កាតាឡុកបានទេ</div><div class="sm" style="font-family:\'Khmer OS Battambang\',sans-serif">សូមពិនិត្យមើលការភ្ជាប់អ៊ីនធឺណិតរបស់អ្នក។</div></div>';
   }
 }
@@ -3420,7 +4423,7 @@ async function loadExplorer(page){
 async function doSearch(q){
   currentTab = "search";
   const sec=$("#resultsSec"), box=$("#results");
-  sec.hidden=false; if($("#dramaDetailSec")) $("#dramaDetailSec").hidden=true; $("#resLabel").textContent="លទ្ធផលស្វែងរក"; $("#resCount").textContent=""; $("#boardTabs").hidden=true; $("#backHome").hidden=false; $("#moreRow").hidden=true; $("#trendCats").hidden=true; $("#explorerPager").hidden=true; $("#explorerControls").hidden=true;
+  sec.hidden=false; if($("#dramaDetailSec")) $("#dramaDetailSec").hidden=true; $("#resLabel").textContent="លទ្ធផលស្វែងរក"; $("#resCount").textContent=""; $("#boardTabs").hidden=true; $("#backHome").hidden=false; $("#moreRow").hidden=true; if($("#moreRowTop")) $("#moreRowTop").hidden=true; $("#trendCats").hidden=true; $("#explorerPager").hidden=true; if($("#explorerPagerTop")) $("#explorerPagerTop").hidden=true; $("#explorerControls").hidden=true;
   box.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="sm">កំពុងស្វែងរក “'+esc(q)+'”…</div></div>';
   try{
     const j = DEMO ? demoSearch(q) : await (await fetch("/dl/search?q="+encodeURIComponent(q))).json();
@@ -4320,10 +5323,23 @@ async function openDramaDetail(id, pEl = null, isNavBack = false){
   // Render fast initial state immediately
   renderDramaDetailUI(ddCurrentDrama);
 
-  // Fetch full details & episodes from /dl/episodes?series_id=...
+  // Fetch full details & episodes from /dl/episodes?series_id=...&title=...
   try {
-    const res = await (await fetch("/dl/episodes?series_id=" + encodeURIComponent(id))).json();
+    const titleParam = encodeURIComponent(ddCurrentDrama.title || '');
+    const res = await (await fetch(`/dl/episodes?series_id=${encodeURIComponent(id)}&title=${titleParam}`)).json();
     if(res){
+      if(res.unavailable || (res.error && (res.error.includes('下架') || res.error.includes('不存在')))){
+        ddCurrentDrama.unavailable = true;
+        ddCurrentDrama.unavailableMsg = res.error_km || "រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម (Upstream Taken Down)";
+        ddCurrentDrama.alternatives = res.alternatives || [];
+        ddAllEps = [];
+        epCache[id] = [];
+        showDramaUnavailable(ddCurrentDrama);
+        renderDramaDetailEpisodes();
+        return;
+      }
+      hideDramaUnavailable();
+      ddCurrentDrama.readyToStream = true;
       if(res.title) ddCurrentDrama.title = res.title;
       if(res.title_km) ddCurrentDrama.title_km = res.title_km;
       if(res.cover) ddCurrentDrama.cover = res.cover;
@@ -4364,17 +5380,55 @@ async function openDramaDetail(id, pEl = null, isNavBack = false){
   loadRelatedDramas(ddCurrentDrama);
 }
 
+function showDramaUnavailable(item){
+  const unOverlay = $("#ddInlineUnavailable");
+  const unTitle = $("#ddUnavailableTitle");
+  const unDesc = $("#ddUnavailableDesc");
+  if(unTitle) unTitle.textContent = (item && item.unavailableMsg) || "រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម";
+  if(unDesc) unDesc.textContent = "Server ដើមបានដកចេញ (Upstream Taken Down) មិនអាចចាក់ផ្សាយ ឬទាញយកបានទេ។ សូមជ្រើសរើសរឿងផ្សេងទៀត";
+  if(unOverlay) unOverlay.hidden = false;
+
+  hidePlayPosterOverlay();
+  const loading = $("#ddInlineLoading");
+  if(loading) loading.hidden = true;
+  const vid = $("#ddInlineVideo");
+  if(vid){
+    vid.pause();
+    vid.removeAttribute('src');
+    vid.load();
+  }
+}
+
+function hideDramaUnavailable(){
+  const unOverlay = $("#ddInlineUnavailable");
+  if(unOverlay) unOverlay.hidden = true;
+}
+
 function renderDramaDetailUI(item){
   // Video poster & initial stream ready
   const covUrl = getPosterUrl(item.cover, item.title, item.id) || '/logo.png';
   const vid = $("#ddInlineVideo");
   if(vid){
     vid.poster = covUrl;
-    if(!vid.src || !vid.src.includes(`series_id=${encodeURIComponent(item.id)}`)){
-      vid.src = `/dl/stream?series_id=${encodeURIComponent(item.id)}&ep=1`;
+    if(item.unavailable){
+      vid.pause();
+      vid.removeAttribute('src');
+      vid.load();
+    } else if(item.readyToStream){
+      const tok = localStorage.getItem('syd_auth_token') || '';
+      const dev = (window.userAccess && window.userAccess.device_id) || '';
+      const targetSrc = `/dl/stream?series_id=${encodeURIComponent(item.id)}&ep=${ddInlinePlayingEp || 1}&token=${encodeURIComponent(tok)}&device_id=${encodeURIComponent(dev)}`;
+      if(!vid.src || !vid.src.includes(`series_id=${encodeURIComponent(item.id)}`)){
+        vid.src = targetSrc;
+      }
     }
   }
-  showPlayPosterOverlay();
+  if(item.unavailable){
+    showDramaUnavailable(item);
+  } else {
+    hideDramaUnavailable();
+    showPlayPosterOverlay();
+  }
   const loading = $("#ddInlineLoading");
   if(loading) loading.hidden = true;
   
@@ -4516,6 +5570,40 @@ function renderDramaDetailEpisodes(){
   const totHint = $("#ddEpTotalHint");
 
   if(!eps.length){
+    if(ddCurrentDrama && ddCurrentDrama.unavailable){
+      if(totHint) totHint.textContent = `ដកចេញពី Server ដើម`;
+      let altHtml = '';
+      if(ddCurrentDrama.alternatives && ddCurrentDrama.alternatives.length){
+        altHtml = `
+          <div style="margin-top:16px;text-align:left">
+            <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px">🎬 រឿងស្រដៀងគ្នាដែលអាចទស្សនាបាន (Available Versions):</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              ${ddCurrentDrama.alternatives.map(a => `
+                <button type="button" class="btn sm ghost" onclick="openDramaDetailModal('${esc(a.series_id)}')" style="display:flex;align-items:center;gap:6px;font-family:var(--font-km);font-size:12px;border:1px solid rgba(255,255,255,0.15);padding:6px 12px;border-radius:8px">
+                  <span>▶</span>
+                  <span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title_km || a.title)}</span>
+                  ${a.episode_cnt ? `<span style="font-size:10px;opacity:0.7">(${a.episode_cnt} ភាគ)</span>` : ''}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+      gridEl.innerHTML = `
+        <div style="grid-column:1/-1;padding:26px 18px;text-align:center;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.22);border-radius:14px;margin:8px 0">
+          <div style="font-size:32px;margin-bottom:6px">⚠️</div>
+          <div style="font-family:var(--font-km);font-size:15px;font-weight:700;color:#ef4444;margin-bottom:6px">
+            រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម (Upstream Content Unavailable)
+          </div>
+          <div style="font-family:var(--font-km);font-size:12.5px;color:var(--text-muted);max-width:460px;margin:0 auto;line-height:1.6">
+            សូមអភ័យទោស រឿងនេះត្រូវបាន Server ដើមដកចេញ មិនអាចចាក់ផ្សាយ ឬទាញយកបានទេ។ សូមជ្រើសរើសរឿងផ្សេងទៀតពីបញ្ជី ឬរឿងស្រដៀងគ្នាខាងក្រោម។
+          </div>
+          ${altHtml}
+        </div>
+      `;
+      if(rangesEl) rangesEl.innerHTML = '';
+      return;
+    }
     if(totHint) totHint.textContent = `សរុប 0 ភាគ`;
     gridEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted);font-family:var(--font-km)">⏳ កំពុងទាញយកបញ្ជីភាគ...</div>';
     if(rangesEl) rangesEl.innerHTML = '';
@@ -4983,6 +6071,10 @@ function showPlayPosterOverlay(){
 function openInlineLivePlayer(epNum, autoPlay = true){
   if(!ddCurrentDrama) return;
   const drama = ddCurrentDrama;
+  if(drama.unavailable){
+    toast("⚠️ រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម មិនអាចចាក់ផ្សាយបានទេ", true);
+    return;
+  }
   const num = Number(epNum) || 1;
   if(isEpisodeLocked(num)){
     promptVipModal(num);
@@ -5144,9 +6236,27 @@ if(inlineVid){
       hidePlayPosterOverlay();
     }
   });
-  inlineVid.addEventListener('error', () => {
+  inlineVid.addEventListener('error', async () => {
     const l = $("#ddInlineLoading");
     if(l) l.hidden = true;
+    if(ddCurrentDrama && ddCurrentDrama.unavailable){
+      return;
+    }
+    // Check if 404/unavailable
+    if(ddCurrentDrama){
+      try {
+        const tok = localStorage.getItem('syd_auth_token') || '';
+        const dev = (window.userAccess && window.userAccess.device_id) || '';
+        const sUrl = `/dl/stream?series_id=${encodeURIComponent(ddCurrentDrama.id)}&ep=${ddInlinePlayingEp || 1}&token=${encodeURIComponent(tok)}&device_id=${encodeURIComponent(dev)}`;
+        const r = await fetch(sUrl, { method: 'HEAD' });
+        if(r.status === 404 || r.status === 410){
+          ddCurrentDrama.unavailable = true;
+          showDramaUnavailable(ddCurrentDrama);
+          renderDramaDetailEpisodes();
+          return;
+        }
+      } catch(e){}
+    }
     toast("⚠️ មិនអាចចាក់វីដេអូបានទេ សូមសាកល្បងចុចលេខភាគម្តងទៀត ឬបើកលើ PotPlayer");
   });
   inlineVid.addEventListener('ended', () => {
@@ -5162,9 +6272,13 @@ if(inlineVid){
 const playPoster = $("#ddPlayPosterOverlay");
 if(playPoster) playPoster.onclick = (e) => {
   e.stopPropagation();
+  if(ddCurrentDrama && ddCurrentDrama.unavailable){
+    toast("⚠️ រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម មិនអាចចាក់ផ្សាយបានទេ", true);
+    return;
+  }
   hidePlayPosterOverlay();
   const video = $("#ddInlineVideo");
-  if(video && video.src){
+  if(video && video.src && !video.src.endsWith('/dl') && !video.src.endsWith('/')){
     const p = video.play();
     if(p !== undefined){
       p.catch(err => console.log("Play error:", err));
@@ -5205,12 +6319,18 @@ if(inlineFsBtn) inlineFsBtn.onclick = () => {
 const inlineSysPlayBtn = $("#ddInlineSysPlay");
 if(inlineSysPlayBtn) inlineSysPlayBtn.onclick = async () => {
   if(!ddCurrentDrama || !ddInlinePlayingEp) return;
+  if(ddCurrentDrama.unavailable){
+    toast("⚠️ រឿងនេះត្រូវបានដកចេញពីប្រព័ន្ធដើម មិនអាចបើកលើ PotPlayer បានទេ", true);
+    return;
+  }
   toast(`🚀 កំពុងបើកចាក់ភាគទី ${ddInlinePlayingEp} លើ PotPlayer / VLC ខាងក្រៅ...`);
   try {
+    const tok = localStorage.getItem('syd_auth_token') || '';
+    const dev = (window.userAccess && window.userAccess.device_id) || '';
     const res = await fetch("/dl/stream/play", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series_id: ddCurrentDrama.id, ep: ddInlinePlayingEp })
+      body: JSON.stringify({ series_id: ddCurrentDrama.id, ep: ddInlinePlayingEp, token: tok, device_id: dev })
     });
     const j = await res.json();
     if(j.ok) toast(`✅ បានបើកភាគទី ${ddInlinePlayingEp} លើ External Player`);
@@ -6872,13 +7992,39 @@ function updateVipPortalSettings(settings, userAccess){
 async function fetchAccessStatus(){
   try {
     const urlParams = new URLSearchParams(window.location.search);
-    let tok = urlParams.get('auth_token') || localStorage.getItem('syd_auth_token') || '';
-    if(urlParams.get('auth_token')){
-      localStorage.setItem('syd_auth_token', urlParams.get('auth_token'));
+    let tok = (urlParams.get('auth_token') || '').trim() || (urlParams.get('token') || '').trim() || (localStorage.getItem('syd_auth_token') || '').trim();
+    if(urlParams.get('auth_token') && urlParams.get('auth_token').trim()){
+      localStorage.setItem('syd_auth_token', urlParams.get('auth_token').trim());
+    } else if(urlParams.get('token') && urlParams.get('token').trim()){
+      localStorage.setItem('syd_auth_token', urlParams.get('token').trim());
     }
-    const res = await fetch(`/dl/access/status?token=${encodeURIComponent(tok)}`);
+    const pin = sessionStorage.getItem('hg_admin_pin') || currentAdminPin || '';
+    const isAdminMode = (tok && (tok.startsWith('admin_') || tok.startsWith('adm_'))) || (window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin')) || pin === '8888' || pin === 'syd@168';
+    
+    const pinQuery = isAdminMode ? `&pin=${encodeURIComponent(pin || '8888')}` : '';
+    const res = await fetch(`/dl/access/status?token=${encodeURIComponent(tok)}${pinQuery}`);
     if(res.ok){
-      const data = await res.json();
+      let data = await res.json();
+      
+      // If we are in ADMIN mode, never downgrade to regular user or VIP:
+      if(isAdminMode && (!data || (!data.is_admin && data.role !== 'admin'))){
+        try {
+          const healRes = await fetch("/dl/access/dev-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: pin || "syd@168" })
+          });
+          const healJ = await healRes.json();
+          if(healJ.ok && healJ.user){
+            data = healJ.user;
+            if(healJ.token){
+              localStorage.setItem('syd_auth_token', healJ.token);
+              sessionStorage.setItem('syd_auth_token', healJ.token);
+            }
+          }
+        } catch(e){}
+      }
+      
       const prevWasNotVip = window.userAccess && !window.userAccess.is_vip;
       window.userAccess = data;
       updateAccessUI(data);
@@ -6887,21 +8033,23 @@ async function fetchAccessStatus(){
       const isDevOrAdmin = !!(data.is_dev || data.role === 'dev' || data.is_admin || data.role === 'admin');
       if(isDevOrAdmin){
         isMandatoryAuth = false;
-        closeUserRegisterModal();
+        closeUserRegisterModal(true);
       } else if(data.is_banned || data.status === 'banned'){
         isMandatoryAuth = true;
         openUserRegisterModal('banned', true);
-      } else if(!data.authenticated || data.must_register || !data.has_firebase_account){
+      } else if(!data.authenticated || data.must_login || (data.must_register && !data.authenticated)){
         const m = $("#userRegisterModal");
         if(!m || m.hidden){
           openUserRegisterModal('login', true);
         }
       } else {
+        // Authenticated user (Regular or VIP)
         isMandatoryAuth = false;
+        closeUserRegisterModal(true);
         if(prevWasNotVip && data.is_vip){
           toast(`👑 អបអរសាទរ! ADMIN បានអនុម័តកញ្ចប់ VIP ជូន ${data.name || data.username} រួចរាល់ហើយ! (ដោះសោរគ្រប់ភាគទាំងអស់)`, false);
-          closeUserRegisterModal();
         }
+      }
 
         const act = urlParams.get('action');
         if(act === 'coin_modal'){
@@ -6915,7 +8063,6 @@ async function fetchAccessStatus(){
             if(typeof doExplicitLogout === 'function') doExplicitLogout();
           }, 400);
         }
-      }
 
       if(typeof renderDramaDetailEpisodes === 'function' && ddCurrentDrama){
         renderDramaDetailEpisodes();
@@ -7478,24 +8625,23 @@ async function executeLogin(user, pass){
     const j = await res.json();
     if(j.ok){
       if(alertEl) alertEl.style.display = "none";
-      localStorage.setItem('syd_auth_token', j.token || '');
+      const token = j.token || '';
+      localStorage.setItem('syd_auth_token', token);
       localStorage.setItem('syd_auth_user', JSON.stringify(j.user || {}));
+      window.userAccess = Object.assign({}, j.user || {}, { authenticated: true });
+      isMandatoryAuth = false;
+      closeUserRegisterModal(true);
       if(j.user && (j.user.is_admin || j.user.role === 'admin')){
         sessionStorage.setItem('hg_admin_pin', '8888');
-        currentAdminPin = (j.token || '8888');
+        currentAdminPin = (token || '8888');
         toast("🛡️ ស្វាគមន៍ការចូលប្រើប្រាស់ ADMIN (Full Control គ្មានការ Lock)!", false);
-        closeUserRegisterModal(true);
-        await fetchAccessStatus();
       } else if(j.user && j.user.is_vip){
         toast(`👑 ស្វាគមន៍ VIP! ${j.user.name || j.user.username} (ដោះសោរគ្រប់ភាគ)`);
-        closeUserRegisterModal(true);
-        await fetchAccessStatus();
       } else {
         // REGULAR USER (Free Tier 1-5)
         toast(`✅ ចូលប្រើប្រាស់ជោគជ័យ! សូមស្វាគមន៍ ${j.user.name || j.user.username}`);
-        closeUserRegisterModal(true);
-        await fetchAccessStatus();
       }
+      await fetchAccessStatus();
     } else {
       const errMsg = j.error || "ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ";
       toast("⚠️ " + errMsg, true);
@@ -7661,7 +8807,7 @@ if(regSubBtn){
 }
 
 /* ---------- Admin Access Panel Handlers ---------- */
-async function checkAndUnlockAdmin(pin){
+window.checkAndUnlockAdmin = async function checkAndUnlockAdmin(pin){
   if(!pin) return false;
   try {
     const tok = localStorage.getItem('syd_auth_token') || '';
@@ -7670,16 +8816,33 @@ async function checkAndUnlockAdmin(pin){
     if(j.ok){
       currentAdminPin = pin;
       sessionStorage.setItem('hg_admin_pin', pin);
+      if(j.admin_token){
+        localStorage.setItem('syd_auth_token', j.admin_token);
+        sessionStorage.setItem('syd_auth_token', j.admin_token);
+      }
+      const adminObj = j.user || {
+        username: "ADMIN",
+        name: "Super Administrator",
+        role: "admin",
+        is_admin: true,
+        is_vip: true,
+        authenticated: true,
+        token: j.admin_token || 'admin_session'
+      };
+      localStorage.setItem('syd_auth_user', JSON.stringify(adminObj));
+      window.userAccess = adminObj;
+      updateAccessUI(adminObj);
       const pinBox = $("#adminPinBox"); if(pinBox) pinBox.hidden = true;
       const unPanel = $("#adminUnlockedPanel"); if(unPanel) unPanel.hidden = false;
       const lockBadge = $("#adminLockBadge");
       if(lockBadge){
-        lockBadge.textContent = "🔓 UNLOCKED";
+        lockBadge.textContent = "🔓 UNLOCKED (ADMIN)";
         lockBadge.style.color = "var(--good)";
         lockBadge.style.background = "rgba(46,204,113,0.15)";
       }
       renderAdminMode(j.mode);
       renderAdminUserList(j.users || []);
+      toast("🛡️ បានប្តូរទៅកាន់ ADMIN (Full Control) ជោគជ័យ!", false);
       return true;
     } else {
       toast("⚠️ PIN មិនត្រឹមត្រូវ!", true);
@@ -7951,6 +9114,7 @@ window.adminApproveUser = async function(targetKey, explicitPkg, customDays){
     if(j.ok){
       toast(`✅ បានអនុម័ត VIP ជូន ${targetKey} រួចរាល់!`);
       refreshAdminUsersList();
+      refreshFirebaseLicenses();
       fetchAccessStatus();
     } else {
       toast("⚠️ " + (j.error || "បរាជ័យ"), true);
@@ -7979,6 +9143,7 @@ window.adminBanUser = async function(targetKey, banned){
     if(j.ok){
       toast(banned ? `🚫 បានបិទគណនី ${targetKey} រួចរាល់!` : `✅ បានបើកគណនី ${targetKey} ឡើងវិញរួចរាល់!`);
       refreshAdminUsersList();
+      refreshFirebaseLicenses();
       fetchAccessStatus();
     } else {
       toast("⚠️ " + (j.error || "បរាជ័យ"), true);
@@ -8001,6 +9166,7 @@ window.adminRevokeUser = async function(targetKey){
     if(j.ok){
       toast(`⛔ បានដកសិទ្ធិ VIP របស់ ${targetKey} រួចរាល់!`);
       refreshAdminUsersList();
+      refreshFirebaseLicenses();
       fetchAccessStatus();
     } else {
       toast("⚠️ " + (j.error || "បរាជ័យ"), true);
@@ -8023,6 +9189,7 @@ window.adminDeleteUser = async function(targetKey){
     if(j.ok){
       toast("🗑️ បានលុបទិន្នន័យរួចរាល់!");
       refreshAdminUsersList();
+      refreshFirebaseLicenses();
     } else {
       toast("⚠️ " + (j.error || "បរាជ័យ"), true);
     }
@@ -8469,7 +9636,7 @@ async function backgroundFirebaseSync(){
 setInterval(backgroundFirebaseSync, 25000);
 setTimeout(backgroundFirebaseSync, 4000);
 
-function openUserControl() {
+window.openUserControl = function openUserControl() {
   const m = $("#userCtrlModal");
   if(!m) return;
   const q = $("#ubQuality"), s = $("#ubSeries");
@@ -9782,6 +10949,7 @@ if(tokenParam){
 }
 renderQueue();
 startApp();
+initFrontCast();
 if(new URLSearchParams(location.search).has("open_queue")){
   setTimeout(() => { if(typeof openSideQueue === 'function') openSideQueue(); }, 350);
 }

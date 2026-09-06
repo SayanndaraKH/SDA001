@@ -102,6 +102,7 @@ def oracle():
 if not os.environ.get('SIGN_SERVER'):
     os.environ['SIGN_SERVER'] = 'http://127.0.0.1:9099'
 SIGN_SERVERS = [s.strip() for s in (os.environ.get('SIGN_SERVER') or 'http://127.0.0.1:9099').split(',') if s.strip()]
+SIGN_PORT = int(os.environ.get('HG_SIGN_PORT', '9099'))
 SIGN_LIST = (os.environ.get('HG_SIGN_LIST') or '').strip().lower() in ['1', 'true', 'yes', 'on']
 _sign_rr = [0]
 _sign_rr_lock = threading.Lock()
@@ -118,7 +119,9 @@ def _sign_session():
         s.mount('http://', requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=16, max_retries=0))
         _tls.sign = s
     return s
-def _ensure_signer(port=9099):
+def _ensure_signer(port=None):
+    if port is None:
+        port = SIGN_PORT
     try:
         import socket, shutil
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
