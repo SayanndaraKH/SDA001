@@ -422,6 +422,16 @@ def login(identity: str, password: str, device_id: str = ""):
                 break
 
         if not target:
+            # Universal cloud lookup: check Firebase Realtime Database (/users/)
+            fb_u = firebase_fetch_user(ident)
+            if fb_u and isinstance(fb_u, dict) and fb_u.get("username"):
+                target = dict(fb_u)
+                target_key = fb_u.get("key") or ("user_" + clean_firebase_key(fb_u.get("username", ident)))
+                users[target_key] = target
+                d["users"] = users
+                _save_data(d)
+
+        if not target:
             return False, "user_not_found: គណនីនេះមិនទាន់មានក្នុងប្រព័ន្ធទេ! លោកអ្នកត្រូវតែចុះឈ្មោះគណនីជាមុនសិន។"
 
         if target.get("status") == "banned":
@@ -439,6 +449,16 @@ def login(identity: str, password: str, device_id: str = ""):
         elif target.get("password"):
             if pw != target.get("password"):
                 return False, "ពាក្យសម្ងាត់មិនត្រឹមត្រូវ (Incorrect password)"
+
+        # Check if Firebase has more recent VIP/Coins status
+        try:
+            fb_refresh = firebase_fetch_user(target.get("username") or ident)
+            if fb_refresh and isinstance(fb_refresh, dict):
+                for fbk in ("is_vip", "status", "role", "expires_at", "approved_package", "package_name", "package_badge", "expires_date", "coins", "coins_riel", "purchased_series", "is_banned"):
+                    if fbk in fb_refresh:
+                        target[fbk] = fb_refresh[fbk]
+        except Exception:
+            pass
 
         now = int(time.time())
         token = "usr_" + secrets.token_hex(16)
@@ -545,12 +565,20 @@ def register_user(username: str, name: str, contact: str, password: str, note: s
         d = _load_data()
         users = d.get("users", {})
 
-        # Check duplicates
+        # Check duplicates locally
         for k, u in users.items():
             if str(u.get("username") or "").strip().lower() == u_name.lower():
                 return False, f"ឈ្មោះគណនី '{u_name}' ត្រូវបានចុះឈ្មោះរួចហើយ សូមជ្រើសរើសឈ្មោះផ្សេង"
             if cnt and str(u.get("contact") or "").strip().lower() == cnt.lower():
                 return False, f"លេខទូរស័ព្ទ ឬ Telegram '{cnt}' ត្រូវបានចុះឈ្មោះរួចហើយ"
+
+        # Check duplicates in Firebase Realtime Database
+        try:
+            fb_dup = firebase_fetch_user(u_name)
+            if fb_dup and isinstance(fb_dup, dict) and fb_dup.get("username"):
+                return False, f"ឈ្មោះគណនី '{u_name}' ត្រូវបានចុះឈ្មោះរួចហើយលើប្រព័ន្ធ Cloud សូមជ្រើសរើសឈ្មោះផ្សេង"
+        except Exception:
+            pass
 
         current_hw = (dev or get_current_device_id()).strip()
 
@@ -600,11 +628,13 @@ def register_user(username: str, name: str, contact: str, password: str, note: s
         if dev:
             _sessions[dev] = user_record
 
-        # Sync to Firebase Realtime Database
+        # Sync to Firebase Realtime Database (/users/ and /licenses/)
         try:
+            firebase_sync_user(user_record)
             firebase_sync_license(user_record)
         except Exception as ex:
             print(f"[firebase] register sync error: {ex}")
+            threading.Thread(target=firebase_sync_user, args=(user_record,), daemon=True).start()
             threading.Thread(target=firebase_sync_license, args=(user_record,), daemon=True).start()
 
         return True, user_record
@@ -1095,10 +1125,9 @@ def request_vip(token_or_id: str, package: str = "1_year", note: str = "", name:
         if not target or not target.get("username") or str(target.get("username")).lower().startswith("guest") or target.get("role") == "guest":
             return False, "សូមចុះឈ្មោះ User ធម្មតាជាមុនសិន មុននឹងស្នើសុំ VIP!"
 
-        # STRICT RULE: 1 Machine ID / 1 user can ONLY be used on 1 PC!
-        current_hw = get_current_device_id()
-        if target.get("device_id") and clean_firebase_key(target["device_id"]) != clean_firebase_key(current_hw):
-            return False, "🚫 Machine ID មិនត្រូវគ្នា! សំណើ VIP អាចស្នើសុំបានតែលើកុំព្យូទ័រ (PC) ដើមរបស់គណនីនេះប៉ុណ្ណោះ (1 Machine ID = 1 PC ដាច់ខាត)។"
+        # Machine ID unrestricted: update to current device
+        current_hw = (dev_param or get_current_device_id()).strip()
+        target["device_id"] = current_hw
 
         if name:
             target["name"] = name
@@ -1154,12 +1183,22 @@ def approve_user_vip(target_id: str, package: str = None, custom_days: int = Non
                 break
 
         if not target:
-            # Auto-create if not present in local store
-            uname = f"pc_{clean_firebase_key(ident)[-8:]}"
+            # Check Firebase license or user first for the real username!
+            fb_lic = firebase_fetch_license(ident)
+            fb_u = firebase_fetch_user(ident)
+            real_uname = (fb_u and fb_u.get("username")) or (fb_lic and fb_lic.get("username"))
+            if real_uname and not str(real_uname).startswith("pc_"):
+                uname = real_uname
+                full_name = (fb_u and fb_u.get("name")) or (fb_lic and fb_lic.get("name")) or real_uname
+                cnt = (fb_u and fb_u.get("contact")) or (fb_lic and fb_lic.get("contact")) or ""
+            else:
+                uname = f"pc_{clean_firebase_key(ident)[-8:]}"
+                full_name = f"User ({ident[:8]})"
+                cnt = "Firebase Admin"
             target = {
                 "username": uname,
-                "name": f"User ({ident[:8]})",
-                "contact": "Firebase Admin",
+                "name": full_name,
+                "contact": cnt,
                 "device_id": ident,
                 "role": "vip",
                 "is_admin": False,
@@ -1171,7 +1210,7 @@ def approve_user_vip(target_id: str, package: str = None, custom_days: int = Non
                 "approved_at": now,
                 "expires_at": 0
             }
-            users[uname] = target
+            users[target.get("key") or uname] = target
 
         target_pkg = package or target.get("requested_package") or "1_year"
         if custom_days is not None and int(custom_days) > 0:
@@ -1211,8 +1250,9 @@ def approve_user_vip(target_id: str, package: str = None, custom_days: int = Non
                 s_user["package_name"] = pkg_name
                 s_user["days_left"] = -1 if expires_at == 0 else max(0, int((expires_at - now) / 86400))
 
-        # Sync approval to Firebase Realtime Database
+        # Sync approval to Firebase Realtime Database (/licenses/ and /users/)
         threading.Thread(target=firebase_sync_license, args=(target,), daemon=True).start()
+        threading.Thread(target=firebase_sync_user, args=(target,), daemon=True).start()
 
         return True, target
 
@@ -1807,6 +1847,90 @@ def firebase_sync_license(user_or_dict: dict):
         print(f"[firebase] sync error: {e}")
         return False
 
+def firebase_sync_user(user_dict: dict):
+    """
+    Push full user record to Firebase Realtime Database at /users/{clean_username}.json
+    Enables universal multi-device authentication across PC and Web Deploy.
+    """
+    try:
+        uname = str(user_dict.get("username") or "").strip()
+        if not uname:
+            return False
+        clean_u = clean_firebase_key(uname)
+        url, params = _firebase_url(f"users/{clean_u}")
+        if not url:
+            return False
+
+        now_ts = int(time.time())
+        exp = user_dict.get("expires_at", 0)
+        is_vip = bool(user_dict.get("is_vip", False))
+        payload = {
+            "key": user_dict.get("key") or f"user_{clean_u}",
+            "username": uname,
+            "name": user_dict.get("name") or uname,
+            "contact": user_dict.get("contact") or "",
+            "password_hash": user_dict.get("password_hash") or "",
+            "device_id": user_dict.get("device_id") or "",
+            "role": user_dict.get("role", "user"),
+            "is_vip": is_vip,
+            "is_admin": bool(user_dict.get("is_admin", False)),
+            "status": user_dict.get("status", "user"),
+            "max_free_episodes": 999999 if is_vip else 5,
+            "coins": int(user_dict.get("coins", 0)),
+            "coins_riel": int(user_dict.get("coins_riel", 0) or (int(user_dict.get("coins", 0)) * 500)),
+            "purchased_series": user_dict.get("purchased_series") or {},
+            "note": user_dict.get("note", ""),
+            "requested_package": user_dict.get("requested_package", "1_year"),
+            "approved_package": user_dict.get("approved_package", ""),
+            "package_name": user_dict.get("package_name", ""),
+            "package_badge": user_dict.get("package_badge", ""),
+            "created_at": user_dict.get("created_at") or now_ts,
+            "updated_at": now_ts,
+            "expires_at": exp,
+            "expires_date": user_dict.get("expires_date", ""),
+            "days_left": user_dict.get("days_left", 0),
+            "is_banned": bool(user_dict.get("is_banned", False))
+        }
+        r = requests.put(url, params=params, json=payload, timeout=6, headers={"User-Agent": "SYD-Downloader-Pro"})
+        return r.status_code == 200
+    except Exception as e:
+        print(f"[firebase] sync user error: {e}")
+        return False
+
+def firebase_fetch_user(identity: str):
+    """
+    Fetch user record from Firebase Realtime Database by username or contact.
+    """
+    ident = str(identity or "").strip()
+    if not ident:
+        return None
+    try:
+        clean_u = clean_firebase_key(ident)
+        url, params = _firebase_url(f"users/{clean_u}")
+        if url:
+            r = requests.get(url, params=params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+            if r.status_code == 200 and r.text and r.text != "null":
+                u_data = r.json()
+                if isinstance(u_data, dict) and u_data.get("username"):
+                    return u_data
+
+        # Fallback: search by contact (phone number) across all users in /users
+        all_url, all_params = _firebase_url("users")
+        if all_url:
+            r2 = requests.get(all_url, params=all_params, timeout=5, headers={"User-Agent": "SYD-Downloader-Pro"})
+            if r2.status_code == 200 and r2.text and r2.text != "null":
+                all_u = r2.json()
+                if isinstance(all_u, dict):
+                    for k, u in all_u.items():
+                        if isinstance(u, dict):
+                            u_name = str(u.get("username") or "").strip().lower()
+                            u_cnt = str(u.get("contact") or "").strip().lower()
+                            if ident.lower() in (u_name, u_cnt, k.lower()):
+                                return u
+    except Exception as e:
+        print(f"[firebase] fetch user error: {e}")
+    return None
+
 def firebase_fetch_license(device_id: str, force: bool = False):
     """
     Fetch license status from Firebase Realtime Database and apply updates to local user if approved.
@@ -1912,10 +2036,61 @@ def firebase_admin_get_all_licenses():
 
         out = []
         now = int(time.time())
+
+        # Build lookup maps from local users and Firebase /users/
+        users_map = {}
+        try:
+            d_local = _load_data()
+            for lu in d_local.get("users", {}).values():
+                if isinstance(lu, dict):
+                    if lu.get("device_id"):
+                        users_map[clean_firebase_key(lu["device_id"])] = lu
+                    if lu.get("username"):
+                        users_map[clean_firebase_key(lu["username"])] = lu
+                    if lu.get("contact"):
+                        users_map[clean_firebase_key(lu["contact"])] = lu
+        except Exception:
+            pass
+
+        try:
+            u_url, u_params = _firebase_url("users")
+            if u_url:
+                ur = requests.get(u_url, params=u_params, timeout=4, headers={"User-Agent": "SYD-Downloader-Pro"})
+                if ur.status_code == 200 and ur.text and ur.text != "null":
+                    f_users = ur.json()
+                    if isinstance(f_users, dict):
+                        for fku, fu in f_users.items():
+                            if isinstance(fu, dict):
+                                if fu.get("device_id"):
+                                    users_map[clean_firebase_key(fu["device_id"])] = fu
+                                if fu.get("username"):
+                                    users_map[clean_firebase_key(fu["username"])] = fu
+                                if fu.get("contact"):
+                                    users_map[clean_firebase_key(fu["contact"])] = fu
+        except Exception:
+            pass
+
         for k, item in data.items():
             if not isinstance(item, dict):
                 continue
             item["key"] = k
+
+            # Resolve real username if available
+            clean_k = clean_firebase_key(k)
+            dev_key = clean_firebase_key(item.get("device_id") or "")
+            cnt_key = clean_firebase_key(item.get("contact") or "")
+            matched_user = users_map.get(clean_k) or users_map.get(dev_key) or users_map.get(cnt_key)
+            if matched_user:
+                r_u = matched_user.get("username")
+                if r_u and not str(r_u).startswith("pc_"):
+                    item["username"] = r_u
+                r_n = matched_user.get("name")
+                if r_n and not str(r_n).startswith("User ("):
+                    item["name"] = r_n
+                r_c = matched_user.get("contact")
+                if r_c and r_c != "Firebase Admin":
+                    item["contact"] = r_c
+
             exp = item.get("expires_at", 0)
             is_vip = bool(item.get("is_vip", False))
             if is_vip and exp > 0 and exp < now:

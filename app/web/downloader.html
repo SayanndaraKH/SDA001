@@ -796,7 +796,7 @@
   .sq-start-btn:disabled{ opacity:0.5; cursor:not-allowed; filter:grayscale(0.5); }
   .sq-cancel-btn{ flex:1; padding:11px 16px; font-size:14px; font-weight:800; border-radius:12px; cursor:pointer; }
 
-  .toast{ position:fixed; left:50%; bottom:112px; transform:translate(-50%,20px); z-index:60; opacity:0;
+  .toast{ position:fixed; left:50%; bottom:112px; transform:translate(-50%,20px); z-index:999999; opacity:0;
           background:var(--ink); color:var(--ground); font:600 13px/1.4 var(--font-ui); padding:12px 20px; border-radius:14px;
           box-shadow:var(--shadow); transition:opacity .2s, transform .2s; max-width:min(680px,88vw); pointer-events:none; white-space:pre-line; text-align:center; }
   .toast.show{ opacity:1; transform:translate(-50%,0); }
@@ -1715,13 +1715,19 @@
 
         <div style="background:var(--surface-2);padding:14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px">
           <div style="font:700 13px var(--font-ui);color:var(--ink-2)" id="authLoginFormHeading">ចូលប្រើប្រាស់គណនី (Login)</div>
+          <div id="authLoginAlert" style="display:none;padding:8px 12px;border-radius:8px;background:rgba(255,46,99,0.15);border:1px solid rgba(255,46,99,0.35);color:#ff6b8b;font:600 12.5px var(--font-ui);line-height:1.4"></div>
           <div>
             <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ឈ្មោះគណនី ឬលេខទូរស័ព្ទ (Username / Phone) <span style="color:var(--accent)">*</span></label>
             <input type="text" id="authLoginUser" placeholder="បញ្ចូល Username ឬ Phone (ឧ. USER ឬ ADMIN)" style="width:100%;height:38px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
           </div>
           <div>
             <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ពាក្យសម្ងាត់ (Password) <span style="color:var(--accent)">*</span></label>
-            <input type="password" id="authLoginPass" placeholder="បញ្ចូល Password" style="width:100%;height:38px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+            <div style="position:relative;display:flex;align-items:center">
+              <input type="password" id="authLoginPass" placeholder="បញ្ចូល Password" style="width:100%;height:38px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 38px 0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+              <button type="button" id="toggleLoginPassBtn" onclick="togglePasswordVisibility('authLoginPass', 'toggleLoginPassBtn')" style="position:absolute;right:6px;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 8px;font-size:16px;display:flex;align-items:center;justify-content:center;transition:color .2s" title="បង្ហាញ/លាក់ពាក្យសម្ងាត់ (View Password)">
+                👁️
+              </button>
+            </div>
           </div>
           <button class="btn primary" id="authLoginSubmitBtn" style="height:38px;margin-top:6px;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#ff6a2b,#ff2e63)">
             <span>🚀 ចូលគណនី (Login)</span>
@@ -1754,7 +1760,12 @@
           </div>
           <div>
             <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ពាក្យសម្ងាត់ (Password - យ៉ាងតិច ៤ ខ្ទង់) <span style="color:var(--accent)">*</span></label>
-            <input type="password" id="authRegPass" placeholder="កំណត់ Password របស់អ្នក" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+            <div style="position:relative;display:flex;align-items:center">
+              <input type="password" id="authRegPass" placeholder="កំណត់ Password របស់អ្នក" style="width:100%;height:36px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 38px 0 12px;color:var(--ink);font:600 13px var(--font-ui)">
+              <button type="button" id="toggleRegPassBtn" onclick="togglePasswordVisibility('authRegPass', 'toggleRegPassBtn')" style="position:absolute;right:6px;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 8px;font-size:16px;display:flex;align-items:center;justify-content:center;transition:color .2s" title="បង្ហាញ/លាក់ពាក្យសម្ងាត់ (View Password)">
+                👁️
+              </button>
+            </div>
           </div>
           <div>
             <label style="font:600 11.5px var(--font-ui);color:var(--muted);display:block;margin-bottom:4px">ចំណាំបន្ថែម (Optional)</label>
@@ -7416,17 +7427,35 @@ if(regPassInput){
   });
 }
 
+function togglePasswordVisibility(inputId, btnId){
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if(!inp) return;
+  if(inp.type === "password"){
+    inp.type = "text";
+    if(btn) btn.innerHTML = "🙈";
+  } else {
+    inp.type = "password";
+    if(btn) btn.innerHTML = "👁️";
+  }
+}
+
 // Login Submit Handler
 async function executeLogin(user, pass){
   const ident = user.trim();
   const pw = pass.trim();
+  const alertEl = $("#authLoginAlert");
+  if(alertEl) { alertEl.style.display = "none"; alertEl.textContent = ""; }
+
   if(!ident){
     toast("⚠️ សូមបញ្ចូល Username ឬ Phone!", true);
+    if(alertEl){ alertEl.textContent = "⚠️ សូមបញ្ចូល Username ឬ Phone!"; alertEl.style.display = "block"; }
     if($("#authLoginUser")) $("#authLoginUser").focus();
     return;
   }
   if(!pw){
     toast("⚠️ សូមបញ្ចូលពាក្យសម្ងាត់ (Password)!", true);
+    if(alertEl){ alertEl.textContent = "⚠️ សូមបញ្ចូលពាក្យសម្ងាត់ (Password)!"; alertEl.style.display = "block"; }
     if($("#authLoginPass")) $("#authLoginPass").focus();
     return;
   }
@@ -7448,6 +7477,7 @@ async function executeLogin(user, pass){
     clearTimeout(timeoutId);
     const j = await res.json();
     if(j.ok){
+      if(alertEl) alertEl.style.display = "none";
       localStorage.setItem('syd_auth_token', j.token || '');
       localStorage.setItem('syd_auth_user', JSON.stringify(j.user || {}));
       if(j.user && (j.user.is_admin || j.user.role === 'admin')){
@@ -7467,13 +7497,19 @@ async function executeLogin(user, pass){
         await fetchAccessStatus();
       }
     } else {
-      toast("⚠️ " + (j.error || "ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ"), true);
+      const errMsg = j.error || "ឈ្មោះគណនី ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ";
+      toast("⚠️ " + errMsg, true);
+      if(alertEl){
+        alertEl.innerHTML = "⚠️ " + esc(errMsg);
+        alertEl.style.display = "block";
+      }
     }
   } catch(e){
-    if(e.name === 'AbortError'){
-      toast("⚠️ ការតភ្ជាប់យឺតពេក (Network Timeout) សូមព្យាយាមម្តងទៀត!", true);
-    } else {
-      toast("⚠️ កំហុសបណ្តាញ៖ " + e, true);
+    const errMsg = (e.name === 'AbortError') ? "ការតភ្ជាប់យឺតពេក (Network Timeout) សូមព្យាយាមម្តងទៀត!" : ("កំហុសបណ្តាញ៖ " + e);
+    toast("⚠️ " + errMsg, true);
+    if(alertEl){
+      alertEl.innerHTML = "⚠️ " + esc(errMsg);
+      alertEl.style.display = "block";
     }
   } finally {
     if(btn){ btn.disabled = false; btn.innerHTML = "<span>🚀 ចូលគណនី (Login)</span>"; }
@@ -7775,10 +7811,13 @@ function renderAdminUserList(users){
     return `<div style="background:var(--surface);padding:12px 14px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <b style="font-size:13.5px;color:var(--ink)">${esc(u.name || u.username || 'Unknown')}</b>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,106,43,0.15);border:1px solid rgba(255,106,43,0.35);padding:3px 10px;border-radius:8px">
+              <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">USER NAME:</span>
+              <span style="font-weight:900;font-size:14px;color:#ff6a2b;letter-spacing:0.5px">${esc(u.username || u.name || 'USER')}</span>
+            </div>
+            ${u.name && u.name !== u.username ? `<b style="font-size:13px;color:var(--ink)">(${esc(u.name)})</b>` : ''}
             ${stBadge}
-            ${u.username ? `<span style="font-size:11.5px;color:var(--muted)">(@${esc(u.username)})</span>` : ''}
             ${u.contact ? `<span style="font-size:12px;color:var(--accent);font-weight:600">📞 ${esc(u.contact)}</span>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:4px;font-size:11px;color:var(--muted);font-family:var(--font-mono);flex-wrap:wrap">
@@ -8225,7 +8264,8 @@ function renderFirebaseLicensesList(licenses){
     }
 
     const devId = item.device_id || item.key || '';
-    const displayName = item.name || item.username || 'User PC';
+    const userName = item.username || item.name || 'SYD-001';
+    const fullName = item.name && item.name !== userName ? item.name : '';
     const contact = item.contact || 'គ្មានទំនាក់ទំនង';
     const note = item.note ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-style:italic">📝 ចំណាំ៖ ${esc(item.note)}</div>` : '';
     const expText = item.expires_date ? `ផុតកំណត់៖ ${item.expires_date} (${item.days_left >= 0 ? item.days_left + ' ថ្ងៃទៀត' : 'Lifetime'})` : '';
@@ -8234,8 +8274,12 @@ function renderFirebaseLicensesList(licenses){
       <div style="background:var(--surface);border:1px solid ${isPending ? 'rgba(241,196,15,0.4)' : 'var(--line)'};padding:12px 14px;border-radius:12px;display:flex;flex-direction:column;gap:8px;box-shadow:${isPending ? '0 0 12px rgba(241,196,15,0.1)' : 'none'}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
           <div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-weight:800;font-size:13.5px;color:var(--ink)">${esc(displayName)}</span>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,106,43,0.15);border:1px solid rgba(255,106,43,0.35);padding:3px 10px;border-radius:8px">
+                <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">USER NAME:</span>
+                <span style="font-weight:900;font-size:14px;color:#ff6a2b;letter-spacing:0.5px">${esc(userName)}</span>
+              </div>
+              ${fullName ? `<span style="font-weight:700;font-size:13px;color:var(--ink)">(${esc(fullName)})</span>` : ''}
               <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:${badgeBg};color:${badgeColor}">${statusText}</span>
             </div>
             <div style="font-size:11.5px;color:var(--muted);margin-top:2px">
