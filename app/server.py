@@ -619,8 +619,20 @@ def _dl_worker(text, ids, conc, quality, ranges=None, series_at_once=3, scores=N
     finally:
         with _dl_lock:
             _dl_state['running'] = False
+def is_deployed_website(req: Request = None):
+    if ACC.is_deployed_website():
+        return True
+    if req is not None:
+        try:
+            host = req.headers.get('host', '').lower().split(':')[0]
+            if host and host not in ('localhost', '127.0.0.1') and not host.startswith('192.168.') and not host.startswith('10.'):
+                return True
+        except Exception:
+            pass
+    return False
+
 @app.post('/dl/submit')
-def dl_submit(payload: dict=Body(...)):
+def dl_submit(request: Request, payload: dict=Body(...)):
     text = (payload or {}).get('text', '') or ''
     ids = [str(x) for x in (payload or {}).get('series_ids') or [] if str(x).strip()]
     conc = max(1, min(int((payload or {}).get('concurrency', 4) or 4), 16))
@@ -636,6 +648,16 @@ def dl_submit(payload: dict=Body(...)):
         dev = (payload or {}).get('device_id') or ACC.get_current_device_id()
         tok = (payload or {}).get('token') or dev
         user_st = ACC.get_user_status(tok)
+        is_full_admin = bool(user_st.get('is_admin') or user_st.get('role') in ('admin', 'dev'))
+
+        # Strictly block download on deployed website for regular USER and VIP
+        if is_deployed_website(request) and not is_full_admin:
+            return {
+                'ok': False,
+                'reason': 'web_download_blocked',
+                'error': '🚫 មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតលើ Website សម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC (SYD-Downloader Pro Desktop EXE) ដើម្បីទាញយក។'
+            }
+
         is_full_user = bool(user_st.get('is_admin') or user_st.get('is_vip'))
         if not is_full_user and ids:
             user_coins = int(user_st.get('coins', 0))
@@ -886,9 +908,14 @@ def dl_livedata_sync():
     return _fetch_hongguo_livedata(force=True)
 
 @app.get('/dl/access/status')
-def dl_access_status(token: str='', device_id: str=''):
+def dl_access_status(request: Request, token: str='', device_id: str=''):
     tok = token or device_id
-    return ACC.get_user_status(tok)
+    st = ACC.get_user_status(tok)
+    dep = is_deployed_website(request)
+    st['is_deployed_website'] = dep
+    is_adm = bool(st.get('is_admin') or st.get('role') in ('admin', 'dev'))
+    st['web_download_disabled'] = bool(dep and not is_adm)
+    return st
 
 @app.get('/dl/access/check-user')
 def dl_access_check_user(identity: str = Query('')):
@@ -2657,8 +2684,15 @@ def dl_library_video(name: str = '', ep: int = 1, download: int = 0, token: str 
     return FileResponse(path, media_type='video/mp4')
 
 @app.api_route('/dl/library/zip', methods=['GET', 'HEAD'])
-def dl_library_zip(name: str = ''):
+def dl_library_zip(request: Request, name: str = '', token: str = ''):
     """Serve all episodes of a series as a single zip archive for 1-click batch download to PC."""
+    dep = is_deployed_website(request)
+    if dep:
+        tok = token or request.query_params.get('token', '')
+        user_st = ACC.get_user_status(tok)
+        is_adm = bool(user_st.get('is_admin') or user_st.get('role') in ('admin', 'dev'))
+        if not is_adm:
+            raise HTTPException(403, '🚫 មុខងារទាញយក ZIP ត្រូវបានបិទលើ Website សម្រាប់ User ធម្មតា និង VIP! សូមប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។')
     import zipfile
     import tempfile
     import hashlib

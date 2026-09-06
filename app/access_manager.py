@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import json
 import time
@@ -426,13 +427,9 @@ def login(identity: str, password: str, device_id: str = ""):
         if target.get("status") == "banned":
             return False, "🚫 គណនីនេះត្រូវបានបិទ (Banned) មិនឱ្យប្រើប្រាស់ដោយ Admin! សូមទាក់ទង Admin។"
 
-        # STRICT RULE: 1 Machine ID / 1 user can ONLY be used on 1 PC!
-        target_dev = target.get("device_id")
+        # Update device_id to current device on login (Machine ID unrestricted)
         current_hw = (dev or get_current_device_id()).strip()
-        if target_dev and clean_firebase_key(target_dev) != clean_firebase_key(current_hw):
-            return False, "🚫 គណនីនេះត្រូវបានភ្ជាប់ជាមួយកុំព្យូទ័រ (PC) ផ្សេងរួចហើយ! ប្រព័ន្ធកំណត់ដាច់ខាត 1 User ប្រើប្រាស់បានតែលើ 1 PC ប៉ុណ្ណោះ (1 Machine ID = 1 PC)។ មិនអាច Login លើកុំព្យូទ័រនេះបានឡើយ។"
-        if not target_dev:
-            target["device_id"] = current_hw
+        target["device_id"] = current_hw
 
         # Verify Password
         stored_hash = target.get("password_hash", "")
@@ -555,26 +552,7 @@ def register_user(username: str, name: str, contact: str, password: str, note: s
             if cnt and str(u.get("contact") or "").strip().lower() == cnt.lower():
                 return False, f"លេខទូរស័ព្ទ ឬ Telegram '{cnt}' ត្រូវបានចុះឈ្មោះរួចហើយ"
 
-        # STRICT RULE: 1 Machine ID can only register 1 PC user account!
         current_hw = (dev or get_current_device_id()).strip()
-        clean_curr_hw = clean_firebase_key(current_hw)
-
-        for k, u in users.items():
-            u_dev = clean_firebase_key(u.get("device_id", ""))
-            u_name_exist = str(u.get("username") or "").strip()
-            if u_dev and u_dev == clean_curr_hw:
-                if u_name_exist.lower() != u_name.lower() and str(u.get("role")) != "admin":
-                    return False, f"🚫 កុំព្យូទ័រ (Machine ID) នេះបានចុះឈ្មោះគណនីរួចហើយ គឺ '{u_name_exist}'! ប្រព័ន្ធកំណត់ដាច់ខាត 1 PC ចុះឈ្មោះបានតែ 1 User ប៉ុណ្ណោះ (1 Machine ID = 1 PC)។ សូម Login គណនីរបស់អ្នក។"
-
-        # Check Firebase for existing registration on this Machine ID
-        try:
-            fb = firebase_fetch_license(current_hw)
-            if fb and isinstance(fb, dict) and fb.get("username"):
-                fb_uname = str(fb.get("username")).strip()
-                if fb_uname.lower() != u_name.lower() and fb.get("role") != "admin":
-                    return False, f"🚫 កុំព្យូទ័រ (Machine ID) នេះមានគណនី '{fb_uname}' លើប្រព័ន្ធរួចហើយ! ប្រព័ន្ធកំណត់ដាច់ខាត 1 PC ចុះឈ្មោះបានតែ 1 User ប៉ុណ្ណោះ (1 Machine ID = 1 PC)។ សូម Login គណនីរបស់អ្នក។"
-        except Exception:
-            pass
 
         now = int(time.time())
         trial_seconds = TRIAL_SECONDS
@@ -785,39 +763,8 @@ def get_user_status(token_or_device_id: str = ""):
             "packages_available": list(VIP_PACKAGES.values())
         }
 
-    # STRICT RULE: 1 Machine ID / 1 user can ONLY be used on 1 PC!
+    # Machine ID is unrestricted (no machine_mismatch lock)
     current_hw_id = get_current_device_id()
-    if user and not is_admin:
-        user_dev = user.get("device_id")
-        if user_dev and clean_firebase_key(user_dev) != clean_firebase_key(current_hw_id):
-            return {
-                "authenticated": False,
-                "registered": False,
-                "has_firebase_account": False,
-                "must_register": True,
-                "is_banned": True,
-                "can_download": False,
-                "device_id": current_hw_id,
-                "license_key": clean_firebase_key(current_hw_id),
-                "username": user.get("username", "User"),
-                "name": "Machine Mismatch",
-                "contact": "",
-                "role": "mismatched_machine",
-                "is_admin": False,
-                "is_dev": False,
-                "is_vip": False,
-                "status": "machine_mismatch",
-                "max_free_episodes": 0,
-                "package_name": "🚫 គណនីខុសកុំព្យូទ័រ (1 Machine ID / 1 PC Only)",
-                "package_badge": "Machine Lock",
-                "expires_at": 0,
-                "expires_date": "Locked",
-                "days_left": 0,
-                "error": "🚫 Machine ID មិនត្រូវគ្នា! គណនីនេះត្រូវបានចាក់សោរឱ្យប្រើប្រាស់បានតែលើកុំព្យូទ័រ (PC) ដើម 1 គត់ប៉ុណ្ណោះ (1 Machine ID = 1 PC ដាច់ខាត)។",
-                "message": "🚫 Machine ID មិនត្រូវគ្នា! គណនីនេះត្រូវបានចាក់សោរឱ្យប្រើប្រាស់បានតែលើកុំព្យូទ័រ (PC) ដើម 1 គត់ប៉ុណ្ណោះ (1 Machine ID = 1 PC ដាច់ខាត)។",
-                "settings": settings,
-                "packages_available": list(VIP_PACKAGES.values())
-            }
 
     # 2. Check Firebase Realtime Database for this User PC License Key
     fb_data = None
@@ -1470,25 +1417,52 @@ def delete_drama_rule(series_id: str) -> bool:
             return True
     return False
 
+def is_deployed_website() -> bool:
+    """
+    Check if application is running as a deployed website (Railway, Cloud, Docker, Linux, or configured).
+    """
+    if (
+        os.environ.get("RAILWAY_ENVIRONMENT") == "1"
+        or os.environ.get("RAILWAY_PROJECT_ID")
+        or os.environ.get("RAILWAY_SERVICE_ID")
+        or os.environ.get("DEPLOYED_WEBSITE") == "1"
+        or os.environ.get("IS_DEPLOYED_WEBSITE") == "1"
+        or os.environ.get("RENDER")
+        or os.environ.get("DYNO")
+        or os.path.exists("/.dockerenv")
+    ):
+        return True
+    if sys.platform.startswith("linux"):
+        return True
+    try:
+        d = _load_data()
+        settings = d.get("settings", {})
+        if settings.get("is_deployed_website") or settings.get("disable_web_download"):
+            return True
+    except Exception:
+        pass
+    return False
+
 def check_can_download(token_or_dev: str, requested_episodes: list = None, max_ep: int = 0, series_id: str = ""):
     """
     Check download authorization and enforce episode limits.
-    ADMIN & VIP: 100% unrestricted.
-    Regular User / Guest:
-    - If drama rule is "free_all": 100% unrestricted!
-    - Otherwise: Restricted to episodes 1 to N (default: 10).
+    Deployed Website: Strictly block download for regular USER and VIP (Admin only).
+    Desktop App: ADMIN & VIP 100% unrestricted; Regular User free episodes 1 to N.
     """
     st = get_user_status(token_or_dev)
-    if st.get("status") == "machine_mismatch":
-        return False, "machine_mismatch", "🚫 Machine ID មិនត្រូវគ្នា! គណនីនេះត្រូវបានចាក់សោរឱ្យប្រើប្រាស់បានតែលើ PC ដើម 1 គត់ប៉ុណ្ណោះ (1 Machine ID = 1 PC)។", None
-
     if st.get("is_banned") or st.get("status") == "banned":
         return False, "banned", "🚫 គណនីរបស់អ្នកត្រូវបាន ADMIN បិទ (Banned) មិនអាចប្រើប្រាស់បានទៀតទេ! សូមទាក់ទង ADMIN ឬស្នើសុំម្តងទៀត។", None
 
     if not st.get("authenticated"):
         return False, "auth_required", "សូមចុះឈ្មោះ ឬចូលប្រើប្រាស់គណនីជាមុនសិន ទើបអាចទាញយករឿងបាន!", None
 
-    if st.get("is_admin") or st.get("is_vip"):
+    is_admin = bool(st.get("is_admin") or st.get("role") in ("admin", "dev"))
+
+    # Strictly block downloading on deployed website for regular USER and VIP
+    if is_deployed_website() and not is_admin:
+        return False, "web_download_blocked", "🚫 មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតលើ Website សម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីកុំព្យូទ័រ (SYD-Downloader Pro Desktop EXE) ដើម្បីទាញយក។", None
+
+    if is_admin or st.get("is_vip"):
         return True, "vip_allowed", "VIP Full Access — អនុញ្ញាតទាញយកគ្រប់ភាគ ១០០%", None
 
     # Check if user purchased this series with Coins!
@@ -1526,9 +1500,6 @@ def can_access_episode(episode_num, token_or_dev: str = "", series_id: str = "")
         token_or_dev, series_id, episode_num = episode_num, token_or_dev, int(series_id)
 
     st = get_user_status(token_or_dev)
-    if st.get("status") == "machine_mismatch":
-        return False, "machine_mismatch", "🚫 Machine ID មិនត្រូវគ្នា! គណនីនេះត្រូវបានចាក់សោរឱ្យប្រើប្រាស់បានតែលើ PC ដើម 1 គត់ប៉ុណ្ណោះ (1 Machine ID = 1 PC)។"
-
     if st.get("is_banned") or st.get("status") == "banned":
         return False, "banned", "🚫 គណនីរបស់អ្នកត្រូវបាន ADMIN បិទ (Banned) មិនអាចប្រើប្រាស់បានទៀតទេ! សូមទាក់ទង ADMIN ឬស្នើសុំម្តងទៀត។"
 

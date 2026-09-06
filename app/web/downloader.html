@@ -3896,6 +3896,10 @@ function updateDock(){
 
 /* ---------- start / cancel ---------- */
 async function start(){
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតលើ Website សម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+    return;
+  }
   const allValid = Object.keys(cart).filter(id=>!(cart[id]&&cart[id].unavailable));
   const ids = allValid.filter(id => cart[id].checked !== false);
   if(!ids.length){
@@ -4850,6 +4854,10 @@ $("#ddCopyLinkBtn").onclick = () => {
 };
 
 $("#ddDlAllBtn").onclick = $("#ddHeroDlBtn").onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ លើ Website មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតសម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+    return;
+  }
   if(!ddCurrentDrama) return;
   const id = ddCurrentDrama.id;
   const eps = ddAllEps || [];
@@ -4899,6 +4907,10 @@ $("#ddEpSelectNone").onclick = () => {
 };
 
 $("#ddEpDlSelected").onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ លើ Website មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតសម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+    return;
+  }
   if(!ddCurrentDrama) return;
   const id = ddCurrentDrama.id;
   const selArr = Array.from(ddSelectedEps);
@@ -5200,6 +5212,10 @@ if(inlineSysPlayBtn) inlineSysPlayBtn.onclick = async () => {
 // Download Current Episode Button
 const inlineDlCurBtn = $("#ddInlineDlCur");
 if(inlineDlCurBtn) inlineDlCurBtn.onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ លើ Website មុខងារទាញយក (Download) ត្រូវបានបិទដាច់ខាតសម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+    return;
+  }
   if(!ddCurrentDrama || !ddInlinePlayingEp) return;
   const ep = ddInlinePlayingEp;
   if(isEpisodeLocked(ep)){
@@ -5383,7 +5399,7 @@ function renderLibEpisodeGrid(j, name){
   const have = new Set(j.downloaded || []);
   const freshSet = new Set((j.episodes || []).filter(e => e.fresh).map(e => e.index));
   const max = total || (j.downloaded && j.downloaded.length ? Math.max.apply(null, j.downloaded) : 0);
-  const zipBtnHtml = dlCount > 0 ? `<a href="/dl/library/zip?name=${encodeURIComponent(name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:8px">📦 ទាញយកទាំងអស់ (.ZIP)</a> <button type="button" class="btn primary sm" id="libEpSavePcBtn" style="padding:2px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-left:4px">💾 Save ចូល PC</button>` : '';
+  const zipBtnHtml = (dlCount > 0 && !(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked())) ? `<a href="/dl/library/zip?name=${encodeURIComponent(name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:8px">📦 ទាញយកទាំងអស់ (.ZIP)</a> <button type="button" class="btn primary sm" id="libEpSavePcBtn" style="padding:2px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-left:4px">💾 Save ចូល PC</button>` : '';
   $("#libEpSub").innerHTML = `<b>${dlCount}</b> of <b>${total || max || '?'}</b> downloaded ${j.fresh ? (' · <span style="color:var(--good);font-weight:700">+' + j.fresh + ' new</span>') : ''} · <span style="color:var(--accent)">Click episode to play</span> ${zipBtnHtml}`;
   const savePcBtn = $("#libEpSavePcBtn");
   if(savePcBtn){
@@ -5585,8 +5601,9 @@ function updateVpControls(){
   if(currentVpIsStream){
     const tot = currentVpTotal || (currentVpAllEps && currentVpAllEps.length) || 0;
     $("#vpSub").innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px"><span style="color:#ef4444;animation:vpPulse 1.5s infinite">●</span> <strong>ផ្សាយផ្ទាល់អនឡាញ (Online Live Stream · 1080p)</strong> · ភាគ ${currentVpEp} ${tot ? `នៃ ${tot}` : ''}</span>`;
-    if(dlAllBtn) dlAllBtn.hidden = false;
-    if(dlCurBtn){ dlCurBtn.hidden = false; dlCurBtn.textContent = `⬇️ ដោនឡូតភាគ ${currentVpEp}`; }
+    const isWebBlocked = (typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked());
+    if(dlAllBtn) dlAllBtn.hidden = isWebBlocked ? true : false;
+    if(dlCurBtn){ dlCurBtn.hidden = isWebBlocked ? true : false; dlCurBtn.textContent = `⬇️ ដោនឡូតភាគ ${currentVpEp}`; }
     if(queueBtn) queueBtn.hidden = false;
     if(fixPicBtn) fixPicBtn.hidden = true;
     epList = (currentVpAllEps && currentVpAllEps.length) ? currentVpAllEps : (currentVpTotal ? Array.from({length: currentVpTotal}, (_, i) => i + 1) : [currentVpEp]);
@@ -5594,7 +5611,8 @@ function updateVpControls(){
     $("#vpSub").textContent = `💾 1080p Playback · Episode ${currentVpEp}`;
     if(dlAllBtn) dlAllBtn.hidden = true;
     if(dlCurBtn){
-      dlCurBtn.hidden = false;
+      const isWebBlocked = (typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked());
+      dlCurBtn.hidden = isWebBlocked ? true : false;
       dlCurBtn.textContent = `⬇️ ទាញយកភាគ ${currentVpEp} ទៅ PC`;
       dlCurBtn.title = "ទាញយកឯកសារ MP4 មកកាន់កុំព្យូទ័ររបស់អ្នក";
       dlCurBtn.onclick = () => {
@@ -5710,6 +5728,10 @@ document.addEventListener("click", e=>{
   const pdl = e.target.closest("[data-pdl]");
   if(pdl){
     e.stopPropagation();
+    if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+      toast("⚠️ មុខងារទាញយក (Download) ត្រូវបានបិទលើ Website សម្រាប់ User ធម្មតា និង VIP! លោកអ្នកអាចទស្សនា Live Stream បានធម្មតា ឬប្រើប្រាស់កម្មវិធីលើ PC ដើម្បីទាញយក។", true);
+      return;
+    }
     const p = pdl.closest(".poster");
     if(!p) return;
     const id = p.dataset.id;
@@ -5956,6 +5978,10 @@ $("#vpEpSelector").addEventListener('click', e => {
 
 const vpDlAll = $("#vpDlAllBtn");
 if(vpDlAll) vpDlAll.onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ មុខងារទាញយក (Download) ត្រូវបានបិទលើ Website សម្រាប់ User ធម្មតា និង VIP!", true);
+    return;
+  }
   if(!currentVpSeriesId) return;
   const eps = (currentVpAllEps && currentVpAllEps.length) ? currentVpAllEps : Array.from({length: currentVpTotal || 24}, (_, i) => i + 1);
   addToCart(currentVpSeriesId, currentVpSeries, currentVpTotal || eps.length, currentVpCover, false, currentVpScore, 0, '', currentVpTitleKm);
@@ -5969,6 +5995,10 @@ if(vpDlAll) vpDlAll.onclick = () => {
 
 const vpDlCur = $("#vpDlCurBtn");
 if(vpDlCur) vpDlCur.onclick = () => {
+  if(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()){
+    toast("⚠️ មុខងារទាញយក (Download) ត្រូវបានបិទលើ Website សម្រាប់ User ធម្មតា និង VIP!", true);
+    return;
+  }
   if(!currentVpSeriesId) return;
   addToCart(currentVpSeriesId, currentVpSeries, currentVpTotal || 1, currentVpCover, false, currentVpScore, 0, '', currentVpTitleKm);
   if(cart[currentVpSeriesId]){
@@ -6505,7 +6535,23 @@ function isEpisodeLocked(epNum, seriesId){
   return num > freeLimit;
 }
 
+function isWebDownloadBlocked(){
+  const isAdmin = !!(window.userAccess && (window.userAccess.is_admin || window.userAccess.role === 'admin' || window.userAccess.role === 'dev'));
+  if(isAdmin) return false;
+  if(window.userAccess && (window.userAccess.web_download_disabled === true || window.userAccess.is_deployed_website === true)){
+    return true;
+  }
+  const host = window.location.hostname;
+  if(host.includes('railway.app') || host.includes('onrender.com') || (host && host !== 'localhost' && host !== '127.0.0.1' && !host.startsWith('192.168.') && !host.startsWith('10.'))){
+    return true;
+  }
+  return false;
+}
+
+let currentAuthTab = 'login';
+
 function switchAuthTab(tab){
+  currentAuthTab = tab;
   const isAuth = !!(window.userAccess && window.userAccess.authenticated);
   const isPendingVip = !!(window.userAccess && window.userAccess.status === 'pending_vip');
   const isBanned = !!(window.userAccess && (window.userAccess.status === 'banned' || window.userAccess.is_banned));
@@ -6524,8 +6570,10 @@ function switchAuthTab(tab){
     const heading = $("#authLoginFormHeading");
     if(heading) heading.textContent = "ចូលប្រើប្រាស់គណនី (Login)";
     setTimeout(() => {
-      const inp = $("#authLoginUser");
-      if(inp) inp.focus();
+      if(currentAuthTab === 'login'){
+        const inp = $("#authLoginUser");
+        if(inp && document.activeElement !== inp && !document.activeElement?.closest('#authTabRegisterSec')) inp.focus();
+      }
     }, 150);
   }
 
@@ -6678,10 +6726,13 @@ function openUserRegisterModal(preferTab = 'login', isMandatory = false){
     bannedTg.href = `https://t.me/${tg}`;
   }
 
+  const wasAlreadyOpen = !m.hidden;
   m.hidden = false;
   
   let targetTab = preferTab || 'login';
-  if(isBanned && targetTab !== 'vip'){
+  if(wasAlreadyOpen && preferTab === 'login' && (currentAuthTab === 'register' || currentAuthTab === 'vip') && !isBanned){
+    targetTab = currentAuthTab;
+  } else if(isBanned && targetTab !== 'vip'){
     targetTab = 'banned';
   } else if(isAdmin || isVip || !vipReqEnabled){
     if(targetTab === 'vip') targetTab = 'login';
@@ -6826,17 +6877,14 @@ async function fetchAccessStatus(){
       if(isDevOrAdmin){
         isMandatoryAuth = false;
         closeUserRegisterModal();
-      } else if(data.is_banned || data.status === 'banned' || data.status === 'machine_mismatch'){
+      } else if(data.is_banned || data.status === 'banned'){
         isMandatoryAuth = true;
         openUserRegisterModal('banned', true);
-        if(data.status === 'machine_mismatch'){
-          const bTitle = $("#authBannedTitle");
-          const bDesc = $("#authBannedDesc");
-          if(bTitle) bTitle.textContent = "🚫 Machine ID មិនត្រូវគ្នា (1 PC = 1 User ប៉ុណ្ណោះ)";
-          if(bDesc) bDesc.innerHTML = `<span style="color:#f87171;font-weight:bold">គណនីនេះត្រូវបានភ្ជាប់ជាមួយកុំព្យូទ័រ (PC) ផ្សេងរួចហើយ!</span><br>ប្រព័ន្ធកំណត់ដាច់ខាត 1 Machine ID ប្រើប្រាស់បានតែលើ 1 PC ប៉ុណ្ណោះ មិនអាចប្រើលើកុំព្យូទ័រនេះបានឡើយ។`;
-        }
       } else if(!data.authenticated || data.must_register || !data.has_firebase_account){
-        openUserRegisterModal('login', true);
+        const m = $("#userRegisterModal");
+        if(!m || m.hidden){
+          openUserRegisterModal('login', true);
+        }
       } else {
         isMandatoryAuth = false;
         if(prevWasNotVip && data.is_vip){
@@ -7014,9 +7062,9 @@ function updateAccessUI(data){
     }
     refreshAdminUsersList();
 
-  } else if(isBanned || data.status === 'machine_mismatch'){
+  } else if(isBanned){
     if(icon) icon.textContent = "🚫";
-    if(txt) txt.textContent = data.status === 'machine_mismatch' ? "Machine Lock (1 PC)" : "Banned (បិទគណនី)";
+    if(txt) txt.textContent = "Banned (បិទគណនី)";
     if(badge){
       badge.style.borderColor = "var(--bad)";
       badge.style.color = "var(--bad)";
@@ -7025,7 +7073,7 @@ function updateAccessUI(data){
     }
     if(topUc) topUc.style.display = "none";
     if(topLogout) topLogout.style.display = "inline-flex";
-    if(footUser) footUser.innerHTML = `<span style="color:var(--bad);font-weight:700">🚫 ${data.status === 'machine_mismatch' ? 'Machine ID មិនត្រូវគ្នា (1 PC Only)' : 'គណនីត្រូវបាន ADMIN បិទ (Banned)'}</span>`;
+    if(footUser) footUser.innerHTML = `<span style="color:var(--bad);font-weight:700">🚫 គណនីត្រូវបាន ADMIN បិទ (Banned)</span>`;
   } else if(isVip){
     if(icon) icon.textContent = "👑";
     if(txt) txt.textContent = `VIP: ${data.username || data.name || 'សមាជិក'}`;
@@ -7157,15 +7205,15 @@ function updateAccessUI(data){
       if(topDlIcon) topDlIcon.textContent = isDevRole ? "⚡" : "♾️";
       if(topDlText) topDlText.textContent = isDevRole ? "DEV MASTER (សេរី)" : "គ្មានដែនកំណត់ (ADMIN)";
       topDlBadge.title = isDevRole ? "Developer Machine (ប្រើប្រាស់បានដោយសេរី គ្មានដែនកំណត់ មិនបាច់ Login)" : "គណនី Super Admin (Full Control - គ្មានដែនកំណត់)";
-    } else if(isBanned || data.status === 'machine_mismatch'){
+    } else if(isBanned){
       topDlBadge.style.display = "inline-flex";
       topDlBadge.style.background = "rgba(255,46,99,0.22)";
       topDlBadge.style.border = "1.5px solid rgba(255,46,99,0.7)";
       topDlBadge.style.color = "var(--bad)";
       topDlBadge.style.boxShadow = "0 0 12px rgba(255,46,99,0.4)";
       if(topDlIcon) topDlIcon.textContent = "🚫";
-      if(topDlText) topDlText.textContent = data.status === 'machine_mismatch' ? "Machine Lock (1 PC)" : "គណនីត្រូវបានបិទ (Banned)";
-      topDlBadge.title = data.status === 'machine_mismatch' ? "គណនីខុសកុំព្យូទ័រ (1 Machine ID / 1 PC Only)" : "គណនីត្រូវបាន ADMIN បិទដំណើរការ";
+      if(topDlText) topDlText.textContent = "គណនីត្រូវបានបិទ (Banned)";
+      topDlBadge.title = "គណនីត្រូវបាន ADMIN បិទដំណើរការ";
     } else if(isVip){
       topDlBadge.style.display = "inline-flex";
       topDlBadge.style.background = "rgba(46,204,113,0.18)";
@@ -7495,7 +7543,7 @@ if(authRegSubmitBtn){
         if($("#regNameInput")) $("#regNameInput").value = j.user.name || name;
         if($("#regContactInput")) $("#regContactInput").value = j.user.contact || contact;
 
-        toast(`🎉 ចុះឈ្មោះជោគជ័យ! សូមស្វាគមន៍ ${j.user.name || username} (ទស្សនាភាគ 1 ដល់ 5 ឥតគិតថ្លៃ)`, false);
+        toast(`🎉 ជោគជ័យ ការប្រើប្រាស់កម្មវិធី USER ធម្មតា (សូមស្វាគមន៍ ${j.user.name || username})`, false);
         closeUserRegisterModal(true);
         await fetchAccessStatus();
       } else {
@@ -8934,9 +8982,9 @@ function renderStorageExplorer(seriesList){
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
             <button class="btn accent sm se-play-btn" data-sname="${esc(s.folder_name)}" style="padding:4px 10px;font-size:12px">🎬 ទស្សនា</button>
-            <button class="btn primary sm se-save-pc-btn" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:4px 10px;font-size:12px">💾 Save ចូល PC</button>
-            <button class="btn ghost sm se-expand-btn" data-sidx="${idx}" style="padding:4px 10px;font-size:12px">📂 ភាគ & ទាញយក</button>
-            <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn ghost sm" title="ទាញយកភាគទាំងអស់ជា ZIP ដាក់កុំព្យូទ័រ" style="padding:4px 10px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">📦 ZIP</a>
+            ${(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()) ? '' : `<button class="btn primary sm se-save-pc-btn" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:4px 10px;font-size:12px">💾 Save ចូល PC</button>`}
+            <button class="btn ghost sm se-expand-btn" data-sidx="${idx}" style="padding:4px 10px;font-size:12px">📂 ភាគ${(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()) ? '' : ' & ទាញយក'}</button>
+            ${(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()) ? '' : `<a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn ghost sm" title="ទាញយកភាគទាំងអស់ជា ZIP ដាក់កុំព្យូទ័រ" style="padding:4px 10px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">📦 ZIP</a>`}
           </div>
         </div>
 
@@ -8945,8 +8993,8 @@ function renderStorageExplorer(seriesList){
           <div style="font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
             <span>បញ្ជីភាគដែលបានដោនឡូតរួច (ចុចលើប៊ូតុង ដើម្បី Download មក PC):</span>
             <div style="display:flex;gap:6px">
-              <button class="btn primary sm se-panel-save-pc" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:2px 8px;font-size:11px">💾 Save គ្រប់ភាគចូល PC</button>
-              <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none">⬇️ ទាញយកទាំងអស់ (.ZIP)</a>
+              ${(typeof isWebDownloadBlocked === 'function' && isWebDownloadBlocked()) ? '' : `<button class="btn primary sm se-panel-save-pc" data-sname="${esc(s.folder_name)}" data-stitle="${esc(dispTitle)}" style="padding:2px 8px;font-size:11px">💾 Save គ្រប់ភាគចូល PC</button>
+              <a href="/dl/library/zip?name=${encodeURIComponent(s.folder_name)}" download class="btn accent sm" style="padding:2px 8px;font-size:11px;text-decoration:none">⬇️ ទាញយកទាំងអស់ (.ZIP)</a>`}
             </div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;max-height:200px;overflow-y:auto;padding-right:4px">
